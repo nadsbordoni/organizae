@@ -1,0 +1,23 @@
+# Segredos
+.env
+.env.*
+!.env.example
+
+# Java e Maven
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+HELP.md
+
+# Node
+node_modules/
+dist/
+.astro/
+*.log
+
+# Editores e sistema
+.idea/
+.vscode/
+*.iml
+.DS_Store
