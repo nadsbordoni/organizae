@@ -1,0 +1,118 @@
+---
+import ActionButton from '@/components/ActionButton.astro';
+import DetailList from '@/components/DetailList.astro';
+import Icon from '@/components/Icon.astro';
+import BookingPage from '@/components/agenda/BookingPage.astro';
+import { BOOKING_PATH } from '@/lib/blocks';
+import { whatsappUrl } from '@/lib/links';
+import { bookingPaths } from '@/config';
+import type { IconName } from '@/types/blocks';
+import type { SiteConfig } from '@/types/site';
+import type { Agenda } from '@/types/agenda';
+
+/**
+ * Conclusão. Não numera passo: a pessoa já saiu do caminho.
+ *
+ * ⚠️ "Pedido enviado" e não "agendamento confirmado": o fluxo público ainda não
+ * grava no banco, nada foi reservado e quem confirma é a pessoa do outro lado.
+ * Ver README, "Agendamento".
+ */
+export const getStaticPaths = bookingPaths;
+
+interface Props {
+  site: SiteConfig;
+  agenda: Agenda;
+}
+
+const { site, agenda }: Props = Astro.props;
+
+const base = `/${site.slug}/${BOOKING_PATH}`;
+const whatsappHref = whatsappUrl(agenda.request.phone, 'Oi! Acabei de pedir um horário pelo site.');
+
+const summary: Array<{ icon: IconName; label: string; text: string; slotName: string }> = [
+  { icon: 'sparkles', label: 'Serviços', text: '', slotName: 'servicos' },
+  { icon: 'calendar', label: 'Data', text: '', slotName: 'data' },
+  { icon: 'clock', label: 'Horário', text: '', slotName: 'horario' },
+  { icon: 'hourglass', label: 'Duração', text: '', slotName: 'duracao' },
+  { icon: 'tag', label: 'Valor', text: '', slotName: 'preco' },
+];
+---
+
+<BookingPage
+  site={site}
+  title="Pedido enviado!"
+  backHref={`/${site.slug}`}
+  backLabel={`Voltar para ${site.profile.name}`}
+>
+  <div data-step-sent>
+    <div class="mark" aria-hidden="true">
+      <Icon name="check" size={34} />
+    </div>
+
+    <p class="lead">
+      Abri o WhatsApp com os detalhes. Se não abriu, o botão abaixo faz o mesmo.
+      Seu horário fica reservado assim que eu confirmar por lá.
+    </p>
+
+    <DetailList items={summary} boxed />
+
+    <div class="actions">
+      <ActionButton label="Adicionar ao calendário" icon="calendar" data-ics href="#" />
+      <ActionButton
+        label="Falar no WhatsApp"
+        icon="whatsapp"
+        variant="secondary"
+        data-whatsapp
+        href={whatsappHref}
+      />
+      <ActionButton label="Agendar outro horário" variant="ghost" href={base} />
+    </div>
+  </div>
+</BookingPage>
+
+<script>
+  import { mountSent } from '@/lib/booking-ui';
+  import { readContext } from '@/lib/booking-context';
+
+  const root = document.querySelector<HTMLElement>('[data-step-sent]');
+  const context = readContext();
+  if (root && context) mountSent(root, context);
+</script>
+
+<style>
+  [data-step-sent] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .mark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 78px;
+    height: 78px;
+    border-radius: 50%;
+
+    background: var(--site-color-brand);
+    color: var(--site-color-on-brand);
+    box-shadow: var(--site-shadow-raised);
+  }
+
+  .lead {
+    max-width: 38ch;
+    text-align: center;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    color: var(--site-color-text-muted);
+  }
+
+  .actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+  }
+</style>

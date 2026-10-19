@@ -1,0 +1,114 @@
+---
+import Avatar from './Avatar.astro';
+import Headline from './Headline.astro';
+import ServiceList from './ServiceList.astro';
+import type { Profile } from '@/types/site';
+
+/**
+ * Cabeçalho do perfil. É o que a pessoa vê ao chegar do Instagram, e a
+ * hierarquia desce em degraus de peso visual decrescente:
+ *
+ *   logo → nome → diferencial → o que oferece
+ *
+ * Nada compete por atenção antes dos links.
+ */
+
+interface Props {
+  profile: Profile;
+}
+
+const { profile }: Props = Astro.props;
+---
+
+<header class="profile">
+  {profile.avatar && <Avatar src={profile.avatar.src} alt={profile.avatar.alt} />}
+
+  <h1 class="profile__name">
+    {profile.name}
+    {profile.nameSuffix && <span class="profile__suffix">{profile.nameSuffix}</span>}
+  </h1>
+
+  {profile.headline && <Headline text={profile.headline} />}
+
+  {profile.services && profile.services.length > 0 && <ServiceList items={profile.services} />}
+
+  {/* Filete de fechamento do cabeçalho. Decorativo: `aria-hidden` porque não
+      carrega informação nenhuma — quem ouve a página não perde nada. */}
+  <span class="profile__rule" aria-hidden="true">
+    <span class="profile__mark"></span>
+  </span>
+</header>
+
+<style>
+  .profile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* Gap menor entre headline e serviços: eles formam um bloco só de
+       descrição, separado do nome. O ajuste fino vem das regras abaixo. */
+    gap: 10px;
+
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  /* Nome e descrição são grupos distintos — um pouco mais de ar entre eles. */
+  .profile__name {
+    margin: 0 0 2px;
+    font-family: var(--site-font-display);
+    font-weight: 600;
+    /* O nome é o maior elemento da página, como nas artes da marca. */
+    font-size: clamp(2.25rem, 10vw, 3.25rem);
+    line-height: 1.02;
+    color: var(--site-color-brand);
+    overflow-wrap: anywhere;
+  }
+
+  .profile__suffix {
+    display: block;
+    /* Volta para a sans: no logotipo, só o nome é da fonte display. */
+    font-family: var(--site-font-body);
+    font-weight: 300;
+    font-size: 0.42em;
+    letter-spacing: 0.32em;
+    /* Compensa o tracking à direita para o texto ficar óptico ao centro. */
+    text-indent: 0.32em;
+    text-transform: uppercase;
+    line-height: 1.4;
+  }
+
+  @media (max-width: 359px) {
+    .profile {
+      gap: 8px;
+    }
+  }
+
+  /* Fecha o cabeçalho: dois filetes com a marca da identidade no meio, como nos
+     materiais impressos da marca. Sem ele, o topo e a pilha de botões se
+     confundem — 32px de ar não separam dois grupos, só afastam. */
+  .profile__rule {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: min(230px, 62%);
+    margin-top: 8px;
+  }
+
+  .profile__rule::before,
+  .profile__rule::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--site-color-border);
+  }
+
+  /* A MESMA forma do separador de serviços, um pouco maior: repetida, ela vira
+     sistema; usada uma vez só, seria enfeite. */
+  .profile__mark {
+    width: calc(var(--site-ornament-separator-size) * 1.4);
+    height: calc(var(--site-ornament-separator-size) * 1.4);
+    clip-path: var(--site-ornament-separator);
+    background: var(--site-color-brand);
+    opacity: 0.7;
+  }
+</style>

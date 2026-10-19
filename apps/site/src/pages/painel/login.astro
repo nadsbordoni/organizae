@@ -1,0 +1,135 @@
+---
+import SiteLayout from '@/layouts/SiteLayout.astro';
+import PageContainer from '@/components/PageContainer.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import TextField from '@/components/TextField.astro';
+import { defaultSite } from '@/config';
+
+/**
+ * Entrada do painel. Rota sem slug de propósito: o negócio vem da sessão (a API
+ * devolve o negócio junto da sessão). O tema é o do site padrão; lá dentro vale o do negócio.
+ */
+export const prerender = false;
+
+const erro = Astro.url.searchParams.get('erro');
+// ⚠️ Repassado sem validar: quem valida é `safeNext()` em `/api/login`.
+const next = Astro.url.searchParams.get('next') ?? '';
+
+const MENSAGENS: Record<string, string> = {
+  credenciais: 'E-mail ou senha incorretos.',
+  erro: 'Não foi possível entrar agora. Tente de novo em instantes.',
+};
+const aviso = erro ? (MENSAGENS[erro] ?? MENSAGENS.erro!) : null;
+
+const seo = {
+  title: 'Entrar no painel',
+  description: 'Acesso ao painel de agendamentos.',
+  noindex: true,
+};
+---
+
+<SiteLayout theme={defaultSite.theme} seo={seo} noindex>
+  <PageContainer as="main" id="conteudo">
+    <div class="login">
+      <header class="login__head">
+        <h1 class="login__title">Painel</h1>
+        <p class="login__sub">Entre para ver e organizar sua agenda.</p>
+      </header>
+
+      {
+        aviso && (
+          /* `role="alert"` faz o leitor de tela anunciar sem precisar de foco. */
+          <p class="login__erro" role="alert">{aviso}</p>
+        )
+      }
+
+      {/* PROTÓTIPO: sem autenticação. Troque pelo POST de login da API. */}
+      <form class="login__form" method="get" action="/painel">
+        {next && <input type="hidden" name="next" value={next} />}
+
+        <TextField
+          id="email"
+          label="E-mail"
+          type="email"
+          autocomplete="email"
+          placeholder="voce@exemplo.com"
+          required
+          autofocus
+        />
+
+        <TextField
+          id="password"
+          label="Senha"
+          type="password"
+          autocomplete="current-password"
+          required
+        />
+
+        <ActionButton label="Entrar" type="submit" variant="primary" />
+      </form>
+
+      <p class="login__nota">
+        Você continua conectada neste aparelho até sair.
+      </p>
+    </div>
+  </PageContainer>
+</SiteLayout>
+
+<style>
+  .login {
+    /* Formulário curto: coluna estreita evita a linha longa que faz o olho
+       perder o começo do campo seguinte. */
+    max-width: 360px;
+    margin-inline: auto;
+    /* Empurra para baixo do topo sem centralizar na vertical — centralizado,
+       o teclado do celular ao abrir empurraria tudo para fora da tela. */
+    padding-top: 8vh;
+  }
+
+  .login__head {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+
+  .login__title {
+    font-family: var(--site-font-display);
+    font-size: clamp(1.75rem, 7vw, 2.25rem);
+    font-weight: 600;
+    line-height: 1.1;
+    color: var(--site-color-brand);
+  }
+
+  .login__sub {
+    margin-top: 6px;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: var(--site-color-text-muted);
+  }
+
+  .login__erro {
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    border-radius: var(--site-radius-card);
+    border: 1.5px solid #d98b8b;
+    background: #fdecec;
+
+    font-size: 0.875rem;
+    line-height: 1.45;
+    /* Contraste conferido sobre o fundo claro: acima de 7:1. */
+    color: #7a1f2b;
+  }
+
+  .login__form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .login__nota {
+    margin-top: 18px;
+    text-align: center;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--site-color-text-muted);
+  }
+</style>

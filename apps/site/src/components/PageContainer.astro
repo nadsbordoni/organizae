@@ -1,0 +1,41 @@
+---
+/**
+ * Coluna de conteúdo. No desktop é a MESMA coluna do mobile, centralizada e
+ * limitada — a página não cresce, só ganha respiro. É o que mantém a sensação
+ * de página de celular.
+ */
+
+interface Props {
+  /** Elemento renderizado. `main` na página principal. */
+  as?: 'main' | 'div';
+  id?: string;
+}
+
+const { as: Tag = 'div', id }: Props = Astro.props;
+---
+
+<Tag class="container" id={id}>
+  <slot />
+</Tag>
+
+<style>
+  .container {
+    width: 100%;
+    max-width: calc(var(--site-space-max-width) + var(--site-space-page-inline) * 2);
+    margin-inline: auto;
+
+    padding-inline: var(--site-space-page-inline);
+    /* Soma (não `max`) os insets: no iPhone a barra inferior tem 34px, que
+       precisam vir ALÉM do respiro do layout, não no lugar dele. */
+    padding-top: calc(28px + env(safe-area-inset-top));
+    padding-bottom: calc(40px + env(safe-area-inset-bottom));
+  }
+
+  /* Tablet e desktop: um pouco mais de respiro vertical. */
+  @media (min-width: 768px) {
+    .container {
+      padding-top: 56px;
+      padding-bottom: 56px;
+    }
+  }
+</style>

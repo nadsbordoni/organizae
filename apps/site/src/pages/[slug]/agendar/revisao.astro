@@ -1,0 +1,239 @@
+---
+import ActionButton from '@/components/ActionButton.astro';
+import DetailList from '@/components/DetailList.astro';
+import TextField from '@/components/TextField.astro';
+import BookingPage from '@/components/agenda/BookingPage.astro';
+import ServiceLine from '@/components/agenda/ServiceLine.astro';
+import { BOOKING_PATH } from '@/lib/blocks';
+import { bookingPaths } from '@/config';
+import type { SiteConfig } from '@/types/site';
+import type { Agenda } from '@/types/agenda';
+
+/**
+ * Passo 3 de 3: conferir e enviar.
+ *
+ * TODAS as linhas de serviço são renderizadas e ficam `hidden`; o script mostra
+ * só as que vieram na query. É o preço de uma página estática que não sabe, no
+ * build, o que a pessoa escolheu — e são poucas linhas de HTML.
+ */
+export const getStaticPaths = bookingPaths;
+
+interface Props {
+  site: SiteConfig;
+  agenda: Agenda;
+}
+
+const { site, agenda }: Props = Astro.props;
+
+const visibleServices = agenda.categories
+  .filter((category) => !category.hidden)
+  .flatMap((category) =>
+    category.services
+      .filter((service) => !service.hidden)
+      .map((service) => ({ service, categoryName: category.name })),
+  );
+
+const base = `/${site.slug}/${BOOKING_PATH}`;
+
+const privacyNote =
+  agenda.privacyNote ??
+  'Seus dados vão direto para a conversa no WhatsApp. Não guardamos nada neste site.';
+---
+
+<BookingPage
+  site={site}
+  step={3}
+  title="Confira antes de enviar"
+  backHref={`${base}/data`}
+  backLabel="Voltar para a escolha de data"
+>
+  <div data-step-review>
+    <div class="card">
+      <DetailList
+        items={[
+          { icon: 'calendar', label: 'Data', text: '', slotName: 'data' },
+          { icon: 'clock', label: 'Horário', text: '', slotName: 'horario' },
+        ]}
+      />
+    </div>
+
+    <div class="card">
+      <ul class="lines">
+        {
+          visibleServices.map(({ service, categoryName }) => (
+            <ServiceLine service={service} categoryName={categoryName} removable />
+          ))
+        }
+      </ul>
+
+      {/* `tabindex` para receber o foco quando o último serviço sai. */}
+      <p class="lines__empty" data-lines-empty tabindex="-1" hidden>
+        Você tirou todos os serviços. Volte e escolha pelo menos um.
+      </p>
+
+      <div class="totals" data-totals hidden>
+        <span class="totals__row">
+          <span>Duração</span>
+          <strong data-total-duration></strong>
+        </span>
+        <span class="totals__row">
+          <span>Valor</span>
+          <strong data-total-price></strong>
+        </span>
+      </div>
+    </div>
+
+    <TextField
+      id="observacoes"
+      label="Observações"
+      rows={3}
+      maxlength={400}
+      optional
+      placeholder="Ex.: alguma preferência, dúvida ou informação importante?"
+      data-notes
+    />
+
+    {
+      agenda.policies && agenda.policies.length > 0 && (
+        <details class="policies">
+          <summary class="policies__summary">Políticas de agendamento</summary>
+          <div class="policies__body">
+            <DetailList items={agenda.policies.map((text) => ({ icon: 'rules', text }))} />
+          </div>
+        </details>
+      )
+    }
+
+    <p class="privacy">{privacyNote}</p>
+
+    <ActionButton label="Enviar pedido" href={`${base}/enviado`} data-submit />
+  </div>
+</BookingPage>
+
+<script>
+  import { mountReview } from '@/lib/booking-ui';
+  import { readContext } from '@/lib/booking-context';
+
+  const root = document.querySelector<HTMLElement>('[data-step-review]');
+  const context = readContext();
+  if (root && context) mountReview(root, context);
+</script>
+
+<style>
+  [data-step-review] {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .card {
+    padding: 6px 18px;
+    border-radius: var(--site-radius-card);
+    border: 1.5px solid var(--site-color-border);
+    background: var(--site-color-surface);
+    box-shadow: var(--site-shadow-resting);
+  }
+
+  .lines {
+    margin: 0;
+    padding: 0;
+  }
+
+  .lines__empty {
+    padding: 14px 0;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: var(--site-color-text-muted);
+  }
+
+  .totals {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px 0;
+    border-top: 1.5px solid var(--site-color-border);
+  }
+
+  .totals__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 0.9375rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .totals__row strong {
+    font-variant-numeric: tabular-nums;
+    color: var(--site-color-text);
+  }
+
+  /* Sem valor legível em algum serviço, a linha de valor some — ver
+     `totalPrice()` em lib/agenda.ts. */
+  .totals__row:has(strong:empty) {
+    display: none;
+  }
+
+  .policies {
+    border-radius: var(--site-radius-card);
+    border: 1.5px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .policies__summary {
+    display: flex;
+    align-items: center;
+    /* 48px de alvo de toque, como qualquer outro item interativo. */
+    min-height: 48px;
+    padding: 0 18px;
+
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--site-color-brand);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .policies__summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .policies__summary::after {
+    content: '';
+    margin-left: auto;
+    width: 8px;
+    height: 8px;
+    border-right: 1.8px solid currentColor;
+    border-bottom: 1.8px solid currentColor;
+    transform: rotate(45deg) translate(-2px, -2px);
+    transition: transform 0.16s ease;
+  }
+
+  .policies[open] .policies__summary::after {
+    transform: rotate(-135deg) translate(-2px, -2px);
+  }
+
+  .policies__summary:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: -3px;
+    border-radius: var(--site-radius-card);
+  }
+
+  .policies__body {
+    padding: 4px 18px 18px;
+  }
+
+  .privacy {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    /* Não baixe: 0.8 sobre o fundo da página ainda passa de 4.5:1. */
+    opacity: 0.8;
+    color: var(--site-color-text-muted);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .policies__summary::after {
+      transition: none;
+    }
+  }
+</style>

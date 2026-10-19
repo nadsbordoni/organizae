@@ -1,0 +1,27 @@
+---
+import LinkPage from '@/components/LinkPage.astro';
+import { sites } from '@/config';
+import type { SiteConfig } from '@/types/site';
+
+/**
+ * Rota de uma página de links: `/{slug}`.
+ *
+ * `getStaticPaths` gera um HTML por cliente no build — é o que faz cada
+ * página ter seu próprio título e sua própria imagem de preview no
+ * WhatsApp/Instagram, em vez de todas compartilharem o mesmo <head>.
+ */
+export function getStaticPaths() {
+  return sites.map((site) => ({
+    params: { slug: site.slug },
+    props: { site },
+  }));
+}
+
+interface Props {
+  site: SiteConfig;
+}
+
+const { site } = Astro.props;
+---
+
+<LinkPage site={site} />

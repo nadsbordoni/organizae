@@ -1,0 +1,25 @@
+---
+interface Props {
+  /** Texto do rodapé. Se omitido, mostra o nome e o ano. */
+  note?: string;
+  siteName: string;
+}
+
+const { note, siteName } = Astro.props;
+const text = note ?? `© ${new Date().getFullYear()} ${siteName}`;
+---
+
+<footer class="footer">
+  <p>{text}</p>
+</footer>
+
+<style>
+  .footer {
+    margin-top: 32px;
+    text-align: center;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: var(--site-color-text-muted);
+    opacity: 0.85;
+  }
+</style>

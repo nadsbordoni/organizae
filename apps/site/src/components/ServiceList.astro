@@ -1,0 +1,77 @@
+---
+/**
+ * `<ul>` de verdade (o leitor de tela anuncia "lista de 4 itens") que flui
+ * visualmente como uma linha.
+ *
+ * NÃO parece clicável de propósito: sem chip, sem pílula com fundo. Numa página
+ * em que quase tudo é botão, algo com cara de botão que não responde frustra.
+ */
+
+interface Props {
+  items: string[];
+}
+
+const { items }: Props = Astro.props;
+---
+
+<ul class="services">
+  {items.map((item) => <li>{item}</li>)}
+</ul>
+
+<style>
+  .services {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: baseline;
+    gap: 2px 10px;
+
+    list-style: none;
+    margin: 0;
+    padding: 0;
+
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--site-color-text-muted);
+  }
+
+  .services li {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  /* Separador entre itens. É uma FORMA recortada de um quadrado, não um
+     caractere: um glifo dependeria de a fonte do corpo ter aquele símbolo, e o
+     que faltasse cairia no emoji colorido do sistema, fora da paleta. A forma
+     vem do tema (`ornament.separator`) — ponto por padrão, estrela de quatro
+     pontas em alguns temas.
+
+     `content: ''` garante a caixa em qualquer navegador; a segunda declaração
+     define texto alternativo vazio, para o leitor de tela não anunciar a marca a
+     cada serviço, e só é entendida por Safari 17.4+, Chrome 77+ e Firefox 122+.
+     Quem não entende ignora a segunda e fica com a primeira. */
+  .services li:not(:last-child)::after {
+    content: '';
+    content: '' / '';
+
+    flex: none;
+    align-self: center;
+    width: var(--site-ornament-separator-size);
+    height: var(--site-ornament-separator-size);
+    clip-path: var(--site-ornament-separator);
+    background: var(--site-color-brand);
+    opacity: 0.55;
+  }
+
+  @media (max-width: 359px) {
+    .services {
+      font-size: 0.8125rem;
+      gap: 2px 8px;
+    }
+
+    .services li {
+      gap: 8px;
+    }
+  }
+</style>

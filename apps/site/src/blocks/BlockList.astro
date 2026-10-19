@@ -1,0 +1,60 @@
+---
+import LinkBlockView from './LinkBlock.astro';
+import WhatsappBlockView from './WhatsappBlock.astro';
+import BookingBlockView from './BookingBlock.astro';
+import LocationBlockView from './LocationBlock.astro';
+import HoursBlockView from './HoursBlock.astro';
+import SocialsBlockView from './SocialsBlock.astro';
+import SectionBlockView from './SectionBlock.astro';
+import NoteBlockView from './NoteBlock.astro';
+import type { Block, BlockType } from '@/types/blocks';
+
+/**
+ * Renderiza a lista de blocos de uma página.
+ *
+ * O REGISTRY abaixo é o único ponto que liga `type` → componente.
+ * Como ele é `satisfies Record<BlockType, ...>`, adicionar um tipo em
+ * `types/blocks.ts` sem registrar aqui QUEBRA O BUILD — que é exatamente
+ * onde queremos descobrir o esquecimento, e não em produção.
+ */
+
+interface Props {
+  blocks: Block[];
+}
+
+const REGISTRY = {
+  link: LinkBlockView,
+  whatsapp: WhatsappBlockView,
+  booking: BookingBlockView,
+  location: LocationBlockView,
+  hours: HoursBlockView,
+  socials: SocialsBlockView,
+  section: SectionBlockView,
+  note: NoteBlockView,
+} satisfies Record<BlockType, unknown>;
+
+const { blocks } = Astro.props;
+
+// `hidden` permite tirar um bloco do ar sem apagar a configuração.
+const visible = blocks.filter((block) => !block.hidden);
+---
+
+<div class="stack">
+  {
+    visible.map((block) => {
+      // O TypeScript não consegue correlacionar a chave da união com as props
+      // do componente correspondente. O `satisfies` acima já garante que o par
+      // existe; este cast só destrava a renderização.
+      const Component = REGISTRY[block.type] as (props: { block: Block }) => unknown;
+      return <Component block={block} />;
+    })
+  }
+</div>
+
+<style>
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--site-space-stack);
+  }
+</style>

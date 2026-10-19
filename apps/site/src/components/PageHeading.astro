@@ -1,0 +1,65 @@
+---
+import IconButton from './IconButton.astro';
+
+/**
+ * Cabeçalho de página interna: voltar + título + introdução.
+ *
+ * Compartilhado entre Achadinhos e Agendamento para que as duas não divirjam —
+ * eram o mesmo desenho copiado, e copiado é o que desalinha na primeira vez que
+ * alguém mexe em uma só.
+ *
+ * Sem cabeçalho de perfil de propósito: o botão voltar já nomeia o negócio, e
+ * dois títulos grandes seguidos competiriam. A identidade vem do tema.
+ */
+
+interface Props {
+  title: string;
+  intro?: string;
+  /** Destino do voltar. Ausente, o botão vira ação e o script decide. */
+  backHref?: string;
+  backLabel: string;
+  /** Ganchos de script no botão voltar. */
+  [key: `data-${string}`]: string | undefined;
+}
+
+const { title, intro, backHref, backLabel, ...rest } = Astro.props;
+---
+
+<header class="heading">
+  <IconButton href={backHref} label={backLabel} icon="chevron-left" {...rest} />
+
+  <div class="heading__text">
+    <h1 class="heading__title">{title}</h1>
+    {intro && <p class="heading__intro">{intro}</p>}
+  </div>
+</header>
+
+<style>
+  .heading {
+    /* O botão de voltar é redondo e alto; o título precisa de um respiro
+       maior acima do que teria depois de um link de texto. */
+    margin-bottom: 24px;
+  }
+
+  .heading__text {
+    text-align: center;
+    margin-top: 20px;
+  }
+
+  .heading__title {
+    /* A fonte de títulos da marca, a mesma do nome do negócio. */
+    font-family: var(--site-font-display);
+    font-weight: 600;
+    font-size: clamp(1.875rem, 8vw, 2.5rem);
+    line-height: 1.1;
+    color: var(--site-color-brand);
+  }
+
+  .heading__intro {
+    max-width: 40ch;
+    margin: 10px auto 0;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    color: var(--site-color-text-muted);
+  }
+</style>

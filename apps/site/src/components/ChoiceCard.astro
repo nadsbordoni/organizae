@@ -1,0 +1,359 @@
+---
+import Icon from './Icon.astro';
+import type { IconName } from '@/types/blocks';
+
+/**
+ * Opção escolhível numa lista — a peça central de qualquer catálogo de serviço.
+ *
+ * Um desenho, três controles, porque a diferença entre eles é de REGRA e não de
+ * aparência: `chevron` avança ao toque (categoria), `radio` escolhe um
+ * (pagamento, profissional), `checkbox` escolhe vários (serviços do
+ * atendimento). Quem oferece corte, design de sobrancelha ou alongamento monta
+ * qualquer uma das listas sem escrever markup.
+ *
+ * O layout é o mesmo do `LinkButton` — chegada, texto, saída — para que uma
+ * lista de opções e uma lista de links não pareçam de sistemas diferentes.
+ */
+
+interface Props {
+  title: string;
+  description?: string;
+  /** Miniatura à esquerda. Tem precedência sobre `icon`. */
+  image?: { src: string; alt: string };
+  icon?: IconName;
+  /** Apoio curto abaixo do título: duração, preço. Sai separado por ponto. */
+  meta?: string[];
+  /** `radio` e `checkbox` exigem `name`; `radio` exige `value`. */
+  control?: 'chevron' | 'radio' | 'checkbox';
+  name?: string;
+  value?: string;
+  checked?: boolean;
+  disabled?: boolean;
+  /** Selo ao lado do título. Ex: 'Em breve'. */
+  badge?: string;
+  /** Ganchos do script do fluxo. */
+  [key: `data-${string}`]: string | undefined;
+}
+
+const {
+  title,
+  description,
+  image,
+  icon,
+  meta,
+  control = 'chevron',
+  name,
+  value,
+  checked = false,
+  disabled = false,
+  badge,
+  ...rest
+} = Astro.props;
+
+const isInput = control === 'radio' || control === 'checkbox';
+
+// O `<label>` só é clicável porque envolve o input; o `<button>` é o alvo em si.
+// Nos dois casos o alvo de toque é o cartão inteiro, não só o controle.
+const Tag = isInput ? 'label' : 'button';
+const tagProps = isInput ? {} : { type: 'button' as const, disabled };
+---
+
+<Tag class="choice" data-disabled={disabled ? '' : undefined} {...tagProps} {...rest}>
+  <span class="choice__lead">
+    {
+      isInput ? (
+        <input
+          class="choice__input"
+          type={control}
+          name={name}
+          value={value}
+          checked={checked}
+          disabled={disabled}
+        />
+      ) : image ? (
+        <img src={image.src} alt={image.alt} width="52" height="52" loading="lazy" decoding="async" />
+      ) : icon ? (
+        <Icon name={icon} size={22} />
+      ) : null
+    }
+  </span>
+
+  <span class="choice__text">
+    <span class="choice__title">
+      {title}
+      {badge && <span class="choice__badge">{badge}</span>}
+    </span>
+    {description && <span class="choice__description">{description}</span>}
+    {
+      meta && meta.length > 0 && (
+        <span class="choice__meta">
+          {meta.map((item, index) => (
+            <>
+              {index > 0 && <span aria-hidden="true"> · </span>}
+              {item}
+            </>
+          ))}
+        </span>
+      )
+    }
+  </span>
+
+  {
+    !isInput && (
+      <span class="choice__trail" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m6 3.5 5 4.5-5 4.5" />
+        </svg>
+      </span>
+    )
+  }
+</Tag>
+
+<style>
+  .choice {
+    display: grid;
+    grid-template-columns: var(--lead-size) 1fr auto;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+
+    --lead-size: 52px;
+
+    padding: 10px 14px;
+    border-radius: var(--site-radius-card);
+    border: 1.5px solid var(--site-color-border);
+    background: var(--site-color-surface);
+    box-shadow: var(--site-shadow-resting);
+
+    font-family: inherit;
+    font-size: 1rem;
+    color: var(--site-color-text);
+    text-align: left;
+
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+
+    transition:
+      transform 0.16s ease,
+      box-shadow 0.16s ease,
+      border-color 0.16s ease,
+      background-color 0.16s ease;
+  }
+
+  /* Sem miniatura o slot de chegada encolhe para o tamanho de um ícone, em vez
+     de deixar um vão de 52px antes do texto. */
+  .choice:not(:has(img)) {
+    --lead-size: 26px;
+  }
+
+  /* O controle tem tamanho próprio e fixo — não acompanha a miniatura. */
+  .choice:has(.choice__input) {
+    --lead-size: 22px;
+    padding: 14px;
+  }
+
+  .choice:hover:not([data-disabled]) {
+    transform: translateY(-2px);
+    box-shadow: var(--site-shadow-raised);
+  }
+
+  .choice:active:not([data-disabled]) {
+    transform: translateY(0) scale(0.99);
+    box-shadow: var(--site-shadow-resting);
+  }
+
+  .choice:focus-visible,
+  .choice:has(.choice__input:focus-visible) {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 3px;
+  }
+
+  /* Escolhido: fundo suave e fio da marca. A cor não está sozinha — o miolo do
+     controle aparece junto, para quem não distingue o rosa do branco. */
+  .choice:has(.choice__input:checked) {
+    border-color: var(--site-color-brand);
+    background: var(--site-color-brand-soft);
+  }
+
+  .choice[data-disabled] {
+    cursor: not-allowed;
+    box-shadow: none;
+    /* Não abaixe mais: a 0.55 o título ainda passa de 4.5:1 sobre o cartão. */
+    opacity: 0.55;
+  }
+
+  .choice__lead,
+  .choice__trail {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .choice__lead:empty {
+    display: none;
+  }
+
+  .choice:not(:has(.choice__lead > *)) {
+    grid-template-columns: 1fr auto;
+  }
+
+  .choice__lead img {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    object-fit: cover;
+    display: block;
+  }
+
+  .choice__lead :global(svg) {
+    color: var(--site-color-brand);
+  }
+
+  /* Controle desenhado à mão: o nativo não aceita cor de marca de forma
+     consistente entre iOS, Android e desktop. `appearance: none` desliga o
+     desenho do sistema; o resto é a caixa e o miolo.
+
+     A FORMA carrega a regra, como o usuário do sistema já espera: círculo
+     escolhe um, quadrado escolhe vários. */
+  .choice__input {
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+    width: 22px;
+    height: 22px;
+    border: 1.8px solid var(--site-color-border);
+    background: var(--site-color-surface);
+    display: grid;
+    place-content: center;
+    cursor: inherit;
+    transition:
+      border-color 0.16s ease,
+      background-color 0.16s ease;
+  }
+
+  .choice__input[type='radio'] {
+    border-radius: 50%;
+  }
+
+  .choice__input[type='checkbox'] {
+    border-radius: 7px;
+  }
+
+  .choice__input:checked {
+    border-color: var(--site-color-brand);
+  }
+
+  .choice__input[type='radio']::before {
+    content: '';
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: var(--site-color-brand);
+    transform: scale(0);
+    transition: transform 0.16s ease;
+  }
+
+  .choice__input[type='radio']:checked::before {
+    transform: scale(1);
+  }
+
+  .choice__input[type='checkbox']:checked {
+    background: var(--site-color-brand);
+  }
+
+  /* O tique é desenhado com duas bordas giradas: um SVG aqui exigiria colocar
+     markup dentro do input, que não aceita filho. */
+  .choice__input[type='checkbox']::before {
+    content: '';
+    width: 6px;
+    height: 10px;
+    margin-top: -2px;
+    border-right: 2.2px solid var(--site-color-on-brand);
+    border-bottom: 2.2px solid var(--site-color-on-brand);
+    transform: rotate(45deg) scale(0);
+    transition: transform 0.16s ease;
+  }
+
+  .choice__input[type='checkbox']:checked::before {
+    transform: rotate(45deg) scale(1);
+  }
+
+  .choice__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .choice__title {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+
+    font-weight: 500;
+    font-size: 1.0625rem;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+
+  .choice__badge {
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: var(--site-color-brand-soft);
+    color: var(--site-color-brand-deep);
+
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .choice__description {
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--site-color-text-muted);
+    overflow-wrap: anywhere;
+  }
+
+  .choice__meta {
+    margin-top: 2px;
+    font-size: 0.875rem;
+    line-height: 1.35;
+    font-variant-numeric: tabular-nums;
+    color: var(--site-color-text-muted);
+  }
+
+  .choice__trail {
+    color: var(--site-color-text-muted);
+    opacity: 0.5;
+  }
+
+  @media (max-width: 359px) {
+    .choice {
+      gap: 10px;
+      padding-inline: 12px;
+    }
+
+    .choice__title {
+      font-size: 1rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .choice,
+    .choice__input,
+    .choice__input::before {
+      transition: none;
+    }
+
+    /* Mesmo seletor das regras de hover e active acima, incluindo o `:not()`:
+       sem ele este `transform: none` perde por especificidade e o cartão continua
+       subindo para quem pediu menos movimento. */
+    .choice:hover:not([data-disabled]),
+    .choice:active:not([data-disabled]) {
+      transform: none;
+    }
+  }
+</style>

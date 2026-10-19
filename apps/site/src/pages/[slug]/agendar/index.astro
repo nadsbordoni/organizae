@@ -1,0 +1,334 @@
+---
+import ActionButton from '@/components/ActionButton.astro';
+import ChoiceCard from '@/components/ChoiceCard.astro';
+import EmptyState from '@/components/EmptyState.astro';
+import BookingPage from '@/components/agenda/BookingPage.astro';
+import { SERVICE_FIELD_NAME } from '@/lib/booking-ui';
+import { BOOKING_PATH } from '@/lib/blocks';
+import { formatDuration } from '@/lib/agenda';
+import { whatsappUrl } from '@/lib/links';
+import { bookingPaths } from '@/config';
+import type { SiteConfig } from '@/types/site';
+import type { Agenda } from '@/types/agenda';
+
+/**
+ * Passo 1 de 3: escolher os serviços.
+ *
+ * Não existe tela de categoria porque o atendimento pode misturar categorias —
+ * blindagem mais design de sobrancelha é pedido comum, e navegar por categoria
+ * impediria os dois no mesmo pedido. As categorias são seções dobráveis aqui.
+ */
+export const getStaticPaths = bookingPaths;
+
+interface Props {
+  site: SiteConfig;
+  agenda: Agenda;
+}
+
+const { site, agenda }: Props = Astro.props;
+
+const categories = agenda.categories
+  .filter((category) => !category.hidden)
+  .map((category) => ({
+    ...category,
+    services: category.services.filter((service) => !service.hidden),
+  }))
+  .filter((category) => category.services.length > 0);
+
+const isSoon = (services: Array<{ soon?: boolean }>) => services.every((service) => service.soon);
+
+// A primeira categoria que tem o que escolher começa aberta. Não é `0` fixo:
+// se a primeira for toda "em breve", ela não abre, e a tela abriria fechada.
+const primeiraAberta = categories.findIndex((category) => !isSoon(category.services));
+
+const base = `/${site.slug}/${BOOKING_PATH}`;
+const whatsappHref = whatsappUrl(
+  agenda.request.phone,
+  'Oi! Queria agendar um horário, mas tive um problema no site.',
+);
+---
+
+<BookingPage
+  site={site}
+  step={1}
+  title="O que você quer fazer?"
+  intro="Pode escolher mais de um serviço para agendamento"
+  backHref={`/${site.slug}`}
+  backLabel={`Voltar para ${site.profile.name}`}
+>
+  <div data-step-services>
+    <noscript>
+      <EmptyState
+        icon="alert"
+        tone="alert"
+        title="O agendamento precisa de JavaScript"
+        text="Os horários livres são calculados aqui no seu aparelho. Sem JavaScript, o caminho é combinar pelo WhatsApp — respondo rapidinho."
+      >
+        <ActionButton label="Falar no WhatsApp" icon="whatsapp" variant="primary" href={whatsappHref} />
+      </EmptyState>
+    </noscript>
+
+    <div class="cats">
+      {
+        categories.map((category, index) => {
+          const soon = isSoon(category.services);
+
+          // O cabeçalho é o mesmo nos dois casos; o que muda é ele abrir ou não.
+          const head = (
+            <>
+              <span class="cat__text">
+                <span class="cat__name">
+                  {category.name}
+                  {soon && <span class="cat__badge">Em breve</span>}
+                </span>
+                {category.description && <span class="cat__hint">{category.description}</span>}
+              </span>
+
+              {!soon && <span class="cat__count" data-category-count={category.id} />}
+            </>
+          );
+
+          // Categoria em que TUDO é "em breve" não tem o que escolher. Como
+          // sanfona ela abriria para mostrar um cartão desabilitado e uma caixa
+          // que não marca — então aqui ela é uma linha inerte, que só anuncia.
+          // Nada dentro dela recebe foco: não há controle desligado para a
+          // pessoa tropeçar com Tab nem para o leitor de tela anunciar.
+          if (soon) {
+            return (
+              <div class="cat" data-soon>
+                <div class="cat__summary">{head}</div>
+              </div>
+            );
+          }
+
+          // `<details name>` faz sanfona: abrir uma fecha a outra, e a tela
+          // continua curta como uma lista de categorias. O que já foi marcado
+          // não se perde — o selo de contagem mostra quanto tem dentro.
+          return (
+            <details class="cat" open={index === primeiraAberta} name="categoria">
+              <summary class="cat__summary">{head}</summary>
+
+              <fieldset class="cat__panel">
+                <legend class="sr-only">Serviços de {category.name}</legend>
+
+                <ul class="cat__list">
+                  {category.services.map((service) => (
+                    <li>
+                      <ChoiceCard
+                        control="checkbox"
+                        name={SERVICE_FIELD_NAME}
+                        value={service.id}
+                        title={service.name}
+                        description={service.description}
+                        meta={[formatDuration(service.durationMinutes), service.price].filter(
+                          (item): item is string => Boolean(item),
+                        )}
+                        badge={service.soon ? 'Em breve' : undefined}
+                        disabled={service.soon}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </fieldset>
+            </details>
+          );
+        })
+      }
+    </div>
+
+    <div class="tally" data-tally hidden>
+      <span class="tally__count" data-tally-count></span>
+      <span class="tally__totals" data-tally-totals></span>
+    </div>
+
+    {/* Link de verdade: o script só mantém o endereço em dia com a escolha. */}
+    <ActionButton
+      label="Escolher data e horário"
+      href={`${base}/data`}
+      disabled
+      data-next
+    />
+  </div>
+</BookingPage>
+
+<script>
+  import { mountServices } from '@/lib/booking-ui';
+  import { readContext } from '@/lib/booking-context';
+
+  const root = document.querySelector<HTMLElement>('[data-step-services]');
+  const context = readContext();
+  if (root && context) mountServices(root, context);
+</script>
+
+<style>
+  .cats {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .cat {
+    border-radius: var(--site-radius-card);
+    border: 1.5px solid var(--site-color-border);
+    background: var(--site-color-surface);
+    box-shadow: var(--site-shadow-resting);
+  }
+
+  .cat__summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 60px;
+    padding: 12px 18px;
+
+    cursor: pointer;
+    list-style: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* O triângulo padrão do Safari não aceita cor nem tamanho. */
+  .cat__summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .cat__summary:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: -3px;
+    border-radius: var(--site-radius-card);
+  }
+
+  .cat__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .cat__name {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+
+    font-size: 1.0625rem;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--site-color-brand);
+  }
+
+  .cat__badge,
+  .cat__count {
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .cat__badge {
+    background: var(--site-color-brand-soft);
+    color: var(--site-color-brand-deep);
+  }
+
+  /* Contagem preenchida pelo script: a categoria fechada continua dizendo o que
+     tem dentro, que é o que permite fechar uma e abrir outra sem perder a conta. */
+  .cat__count {
+    background: var(--site-color-brand);
+    color: var(--site-color-on-brand);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .cat__count:empty {
+    display: none;
+  }
+
+  .cat__hint {
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--site-color-text-muted);
+    overflow-wrap: anywhere;
+  }
+
+  .cat__summary::after {
+    content: '';
+    flex-shrink: 0;
+    width: 9px;
+    height: 9px;
+    border-right: 1.8px solid var(--site-color-brand);
+    border-bottom: 1.8px solid var(--site-color-brand);
+    transform: rotate(45deg) translate(-2px, -2px);
+    transition: transform 0.16s ease;
+  }
+
+  .cat[open] .cat__summary::after {
+    transform: rotate(-135deg) translate(-2px, -2px);
+  }
+
+  /* Categoria que só anuncia: sem cursor de clique, sem seta de abrir, e o nome
+     na cor secundária — nada nela promete interação. */
+  .cat[data-soon] .cat__summary {
+    cursor: default;
+  }
+
+  .cat[data-soon] .cat__summary::after {
+    display: none;
+  }
+
+  .cat[data-soon] .cat__name {
+    color: var(--site-color-text-muted);
+  }
+
+  /* `<fieldset>` chega com borda, padding e margin próprios do navegador. */
+  .cat__panel {
+    border: none;
+    margin: 0;
+    min-width: 0;
+    padding: 0 12px 14px;
+  }
+
+  .cat__list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .tally {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+
+    margin: 18px 0;
+    padding: 12px 18px;
+    border-radius: var(--site-radius-card);
+    background: var(--site-color-brand-soft);
+    color: var(--site-color-brand-deep);
+    font-size: 0.9375rem;
+  }
+
+  .tally__count {
+    font-weight: 500;
+  }
+
+  .tally__totals {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Sem nada escolhido a barra some, e o botão precisa do respiro dela. */
+  .tally[hidden] + :global(.action) {
+    margin-top: 18px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cat__summary::after {
+      transition: none;
+    }
+  }
+</style>

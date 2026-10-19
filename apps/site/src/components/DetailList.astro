@@ -1,0 +1,98 @@
+---
+import Icon from './Icon.astro';
+import type { IconName } from '@/types/blocks';
+
+/**
+ * Lista de ícone + informação. Usada no resumo do agendamento e nas regras de
+ * atendimento — as duas são a mesma coisa: uma linha curta com um símbolo que a
+ * identifica de relance.
+ *
+ * `label` existe porque ÍCONE NÃO É RÓTULO: um leitor de tela anuncia
+ * "14:00" sem dizer que aquilo é o horário. O ícone é decorativo (`aria-hidden`
+ * vem do próprio `Icon`) e quem carrega o significado é o texto escondido.
+ */
+
+export interface DetailItem {
+  icon: IconName;
+  /** O valor visível. Ex: 'Quarta, 14 de Agosto de 2026'. */
+  text: string;
+  /** O que o valor É, para leitores de tela. Ex: 'Data'. */
+  label?: string;
+  /** Gancho para o script preencher o texto depois. */
+  slotName?: string;
+}
+
+interface Props {
+  items: DetailItem[];
+  /** Envolve num cartão. Solto, a lista serve de apoio dentro de outro cartão. */
+  boxed?: boolean;
+}
+
+const { items, boxed = false }: Props = Astro.props;
+---
+
+<ul class="details" data-boxed={boxed ? '' : undefined}>
+  {
+    items.map((item) => (
+      <li class="details__row">
+        <span class="details__icon">
+          <Icon name={item.icon} size={18} />
+        </span>
+        <span class="details__text">
+          {item.label && <span class="sr-only">{item.label}: </span>}
+          <span data-detail={item.slotName}>{item.text}</span>
+        </span>
+      </li>
+    ))
+  }
+</ul>
+
+<style>
+  .details {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .details[data-boxed] {
+    padding: 16px 18px;
+    border-radius: var(--site-radius-card);
+    border: 1.5px solid var(--site-color-border);
+    background: var(--site-color-surface);
+    box-shadow: var(--site-shadow-resting);
+  }
+
+  .details__row {
+    display: grid;
+    grid-template-columns: 22px 1fr;
+    align-items: start;
+    gap: 12px;
+
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+
+  .details__icon {
+    display: flex;
+    /* Alinha o ícone pela primeira linha do texto, não pelo topo da caixa —
+       sem isto, uma linha que quebra em duas deixa o ícone flutuando. */
+    align-items: center;
+    justify-content: center;
+    height: 1.5em;
+    color: var(--site-color-brand);
+  }
+
+  .details__text {
+    color: var(--site-color-text);
+    overflow-wrap: anywhere;
+  }
+
+  /* Um item vazio (ainda não preenchido pelo script) não deve deixar linha em
+     branco no meio da lista. */
+  .details__row:has([data-detail]:empty) {
+    display: none;
+  }
+</style>

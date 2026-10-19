@@ -1,0 +1,96 @@
+---
+import Icon from './Icon.astro';
+import type { IconName } from '@/types/blocks';
+
+/**
+ * Botão redondo com ícone.
+ *
+ * Usado nas redes sociais, no "voltar" das páginas internas e no "voltar" do
+ * fluxo de agendamento. Existe como componente para que todos compartilhem
+ * exatamente a mesma peça: se o raio, a sombra ou o estado de toque mudarem,
+ * mudam em todos de uma vez.
+ *
+ * Sem `href` vira `<button>`: no agendamento, "voltar" é uma ação na própria
+ * tela, e um `<a href="#">` mentiria sobre isso para o leitor de tela.
+ *
+ * Como não há texto visível, `label` é obrigatório — é o que leitores de
+ * tela anunciam, e o que aparece no tooltip do desktop.
+ */
+
+interface Props {
+  /** Ausente, o componente vira `<button type="button">`. */
+  href?: string;
+  /** Descrição da ação. Ex: 'Voltar para o início'. */
+  label: string;
+  icon: IconName;
+  /** Abre em nova aba. Use para links que saem do site. */
+  external?: boolean;
+  /** Ganchos do script, quando o botão é uma ação. */
+  [key: `data-${string}`]: string | undefined;
+}
+
+const { href, label, icon, external = false, ...rest }: Props = Astro.props;
+
+const Tag = href ? 'a' : 'button';
+const tagProps = href
+  ? { href, ...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {}) }
+  : { type: 'button' as const };
+---
+
+<Tag class="icon-button" aria-label={label} title={label} {...tagProps} {...rest}>
+  <Icon name={icon} size={22} />
+</Tag>
+
+<style>
+  .icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    /* 48px é o mínimo de área de toque confortável. */
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    /* Zera o que o navegador põe no `<button>` e que o `<a>` não tem. */
+    padding: 0;
+    font: inherit;
+    cursor: pointer;
+
+    border: 1.5px solid var(--site-color-border);
+    background: var(--site-color-surface);
+    color: var(--site-color-brand);
+    box-shadow: var(--site-shadow-resting);
+
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      transform 0.16s ease,
+      background-color 0.16s ease,
+      color 0.16s ease;
+  }
+
+  .icon-button:hover {
+    transform: translateY(-2px);
+    background: var(--site-color-brand);
+    color: var(--site-color-on-brand);
+  }
+
+  .icon-button:active {
+    transform: translateY(0) scale(0.95);
+  }
+
+  .icon-button:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .icon-button {
+      transition: none;
+    }
+
+    .icon-button:hover,
+    .icon-button:active {
+      transform: none;
+    }
+  }
+</style>

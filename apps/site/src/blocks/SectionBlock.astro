@@ -1,0 +1,44 @@
+---
+import type { SectionBlock } from '@/types/blocks';
+
+interface Props {
+  block: SectionBlock;
+}
+
+const { block } = Astro.props;
+---
+
+<h2 class="section">
+  <span>{block.title}</span>
+</h2>
+
+<style>
+  .section {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+
+    /* Compensa o espaçamento da pilha para o título "respirar" acima. */
+    margin: 20px 0 4px;
+    font-family: var(--site-font-body);
+    font-size: 0.75rem;
+    /* Caixa alta leve e bem espaçada — o mesmo tratamento do "STUDIO" no
+       logotipo, e o que separa um rótulo de divisão de um título de verdade. */
+    font-weight: 400;
+    letter-spacing: 0.24em;
+    /* Devolve ao centro óptico o espaço que o tracking deixa depois da última
+       letra; sem isto o texto fica encostado no filete da direita. */
+    text-indent: 0.24em;
+    text-transform: uppercase;
+    color: var(--site-color-brand-deep);
+  }
+
+  /* Filetes laterais, como nos materiais impressos da marca. */
+  .section::before,
+  .section::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--site-color-border);
+  }
+</style>

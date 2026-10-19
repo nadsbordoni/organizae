@@ -1,0 +1,120 @@
+---
+import '@fontsource-variable/jost/wght.css';
+import '@/styles/global.css';
+
+import { toCssVars } from '@/themes/toCssVars';
+import type { ThemeTokens } from '@/types/theme';
+import type { SiteSeo } from '@/types/site';
+
+/**
+ * Casca de uma página: <head> completo e tema aplicado.
+ *
+ * O tema entra como CSS custom properties no <html>, então trocar de cliente
+ * não custa nenhum JavaScript em runtime — só valores diferentes num atributo
+ * `style` gerado no build.
+ *
+ * Sobre as fontes: a Jost cobre todo o texto. Um cliente com fonte de marca
+ * declara o próprio `@font-face` e aponta para ela no tema.
+ */
+
+interface Props {
+  theme: ThemeTokens;
+  seo: Required<Pick<SiteSeo, 'title' | 'description'>> & SiteSeo;
+  /** URL canônica absoluta. */
+  canonical?: string;
+  /** `noindex` para páginas que não devem aparecer em busca. */
+  noindex?: boolean;
+}
+
+const { theme, seo, canonical, noindex = false } = Astro.props;
+
+/**
+ * O `site` do astro.config.mjs é o que transforma caminho em URL absoluta no
+ * canonical e na imagem de Open Graph. Publicar com o placeholder faz o
+ * preview no WhatsApp e no Instagram sair sem imagem — o canal que mais
+ * importa para um link na bio. Por isso o build de produção FALHA em vez de
+ * avisar. Em `npm run dev` não atrapalha.
+ */
+// `/i` é obrigatório: `new URL()` minúscula o host, então 'SEU-USUARIO'
+// chega aqui como 'seu-usuario'.
+if (import.meta.env.PROD && (!Astro.site || /seu-usuario|example\.com|localhost/i.test(Astro.site.href))) {
+  throw new Error(
+    'astro.config.mjs: `site` ainda é placeholder. Preencha com o domínio real — ' +
+      'sem ele o canonical e a imagem de Open Graph saem quebrados.',
+  );
+}
+
+const cssVars = toCssVars(theme);
+const canonicalUrl = canonical ?? new URL(Astro.url.pathname, Astro.site ?? Astro.url).href;
+const ogImageUrl = seo.ogImage
+  ? new URL(seo.ogImage, Astro.site ?? Astro.url).href
+  : undefined;
+---
+
+<!doctype html>
+<html lang="pt-BR" style={cssVars}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+    <title>{seo.title}</title>
+    <meta name="description" content={seo.description} />
+    <link rel="canonical" href={canonicalUrl} />
+    {noindex && <meta name="robots" content="noindex, follow" />}
+
+    <!-- Pinta a barra do navegador na cor da página no Android/Chrome. -->
+    <meta name="theme-color" content={theme.background.pageSolid} />
+
+    {seo.favicon && <link rel="icon" href={seo.favicon} />}
+
+    <!-- Preview de compartilhamento (WhatsApp, Instagram, Facebook). -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={seo.title} />
+    <meta property="og:description" content={seo.description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:locale" content="pt_BR" />
+    {ogImageUrl && <meta property="og:image" content={ogImageUrl} />}
+    {ogImageUrl && <meta property="og:image:width" content="1200" />}
+    {ogImageUrl && <meta property="og:image:height" content="630" />}
+    {ogImageUrl && <meta property="og:image:alt" content={seo.title} />}
+
+    <meta name="twitter:card" content={ogImageUrl ? 'summary_large_image' : 'summary'} />
+    <meta name="twitter:title" content={seo.title} />
+    <meta name="twitter:description" content={seo.description} />
+    {ogImageUrl && <meta name="twitter:image" content={ogImageUrl} />}
+
+    <meta name="generator" content={Astro.generator} />
+  </head>
+
+  <body>
+    <a class="skip" href="#conteudo">Pular para o conteúdo</a>
+    <slot />
+  </body>
+</html>
+
+<style>
+  /* Atalho de teclado: aparece só quando recebe foco via Tab. */
+  .skip {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    transform: translate(-50%, -120%);
+
+    z-index: 10;
+    padding: 12px 20px;
+    border-radius: 0 0 12px 12px;
+
+    background: var(--site-color-brand);
+    color: var(--site-color-on-brand);
+    font-size: 0.9375rem;
+    text-decoration: none;
+
+    transition: transform 0.16s ease;
+  }
+
+  .skip:focus-visible {
+    transform: translate(-50%, 0);
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+</style>

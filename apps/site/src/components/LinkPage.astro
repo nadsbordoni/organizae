@@ -1,0 +1,58 @@
+---
+import PageContainer from './PageContainer.astro';
+import ProfileHeader from './ProfileHeader.astro';
+import Disclosure from './Disclosure.astro';
+import Footer from './Footer.astro';
+import BlockList from '@/blocks/BlockList.astro';
+import SiteLayout from '@/layouts/SiteLayout.astro';
+import { assertDisclosure } from '@/lib/disclosure';
+import { resolveBlocks } from '@/lib/blocks';
+import type { SiteConfig } from '@/types/site';
+
+/**
+ * A página de links, completa, a partir de uma configuração.
+ *
+ * Este é o ponto onde "configuração vira página". As rotas
+ * (`/[slug]` e `/`) só descobrem QUAL config usar e delegam para cá —
+ * por isso nenhuma rota tem markup próprio para duplicar.
+ */
+
+interface Props {
+  site: SiteConfig;
+  /** URL canônica absoluta. Usada quando a mesma página serve em `/`. */
+  canonical?: string;
+}
+
+const { site, canonical }: Props = Astro.props;
+
+/**
+ * Sem `seo.description` própria, compomos uma a partir do perfil:
+ * "Especialista em Molde F1 • Unhas • Cabelo • Sobrancelhas • Depilação".
+ * Juntos, o diferencial e o catálogo descrevem bem o negócio numa linha —
+ * é na TELA que eles precisam estar separados, não na meta tag.
+ */
+const descricaoAutomatica = [site.profile.headline, site.profile.services?.join(' • ')]
+  .filter(Boolean)
+  .join(' • ');
+
+const seo = {
+  ...site.seo,
+  title: site.seo?.title ?? site.profile.name,
+  description: site.seo?.description || descricaoAutomatica || site.profile.name,
+};
+
+assertDisclosure(site.blocks, site.disclosure, `página principal de ${site.slug}`);
+
+// Preenche o que os blocos derivam do site — destino do agendamento, horário
+// vindo da agenda. Ver `lib/blocks.ts`.
+const blocks = resolveBlocks(site);
+---
+
+<SiteLayout theme={site.theme} seo={seo} canonical={canonical} noindex={site.seo?.noindex}>
+  <PageContainer as="main" id="conteudo">
+    <ProfileHeader profile={site.profile} />
+    <BlockList blocks={blocks} />
+    {site.disclosure && <Disclosure text={site.disclosure} />}
+    <Footer note={site.footerNote} siteName={site.profile.name} />
+  </PageContainer>
+</SiteLayout>

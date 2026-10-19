@@ -1,0 +1,179 @@
+---
+/**
+ * Campo de texto com rótulo.
+ *
+ * O rótulo é sempre visível e sempre um `<label for>` de verdade. Placeholder
+ * como rótulo é o erro clássico de formulário: some quando a pessoa começa a
+ * digitar, some para quem usa leitor de tela e não tem contraste suficiente.
+ * Aqui o placeholder só dá um EXEMPLO do que escrever.
+ */
+
+interface Props {
+  id: string;
+  label: string;
+  name?: string;
+  placeholder?: string;
+  /**
+   * Tipo do campo. `email` e `tel` mudam o teclado do celular; `password`
+   * esconde o que é digitado. Ignorado quando `rows > 1`.
+   */
+  type?: 'text' | 'email' | 'password' | 'tel';
+  /**
+   * Dica de preenchimento automático para o navegador.
+   *
+   * Não é detalhe: sem `autocomplete="current-password"`, o gerenciador de
+   * senhas do iPhone e do iPad não oferece preencher, e a pessoa passa a
+   * digitar senha à mão em teclado de vidro — ou a escolher uma senha fraca
+   * para dar conta disso.
+   */
+  autocomplete?: string;
+  /** Acima de 1, vira `<textarea>`. */
+  rows?: number;
+  maxlength?: number;
+  /**
+   * Acrescenta "(opcional)" ao rótulo. Marcamos o opcional, e não o
+   * obrigatório: num formulário curto quase tudo é obrigatório, e um asterisco
+   * em cada linha vira ruído.
+   */
+  optional?: boolean;
+  /**
+   * Exige preenchimento antes de enviar. A validação do navegador é ajuda,
+   * nunca garantia: o servidor confere de novo.
+   */
+  required?: boolean;
+  /** Recebe o foco ao abrir a página. Use em NO MÁXIMO um campo por tela. */
+  autofocus?: boolean;
+  /** Linha de apoio abaixo do campo. */
+  hint?: string;
+  /** Ganchos de script, aplicados no campo em si — não no invólucro. */
+  [key: `data-${string}`]: string | undefined;
+}
+
+const {
+  id,
+  label,
+  name,
+  placeholder,
+  type = 'text',
+  autocomplete,
+  rows = 1,
+  maxlength,
+  optional = false,
+  required = false,
+  autofocus = false,
+  hint,
+  ...rest
+} = Astro.props;
+
+const hintId = hint ? `${id}-hint` : undefined;
+---
+
+<div class="field">
+  <label class="field__label" for={id}>
+    {label}
+    {optional && <span class="field__optional">(opcional)</span>}
+  </label>
+
+  {
+    rows > 1 ? (
+      <textarea
+        class="field__control"
+        id={id}
+        name={name ?? id}
+        rows={rows}
+        maxlength={maxlength}
+        placeholder={placeholder}
+        autocomplete={autocomplete}
+        required={required}
+        aria-describedby={hintId}
+        {...rest}
+      />
+    ) : (
+      <input
+        class="field__control"
+        type={type}
+        id={id}
+        name={name ?? id}
+        maxlength={maxlength}
+        placeholder={placeholder}
+        autocomplete={autocomplete}
+        required={required}
+        autofocus={autofocus}
+        aria-describedby={hintId}
+        {...rest}
+      />
+    )
+  }
+
+  {hint && <p class="field__hint" id={hintId}>{hint}</p>}
+</div>
+
+<style>
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .field__label {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--site-color-text);
+  }
+
+  .field__optional {
+    font-weight: 400;
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .field__control {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: var(--site-radius-field);
+    border: 1.5px solid var(--site-color-border);
+    background: var(--site-color-surface);
+
+    font-family: inherit;
+    /* 16px é o mínimo que impede o iOS de dar zoom ao focar o campo — abaixo
+       disso o Safari reenquadra a página sozinho e a pessoa se perde. */
+    font-size: 1rem;
+    line-height: 1.5;
+    color: var(--site-color-text);
+
+    resize: vertical;
+    transition: border-color 0.16s ease;
+  }
+
+  .field__control::placeholder {
+    color: var(--site-color-text-muted);
+    /* Não baixe mais: placeholder é texto, e abaixo disto perde o contraste
+       mínimo de 4.5:1 sobre o cartão. */
+    opacity: 0.75;
+  }
+
+  .field__control:hover {
+    border-color: var(--site-color-brand);
+  }
+
+  .field__control:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+    border-color: var(--site-color-brand);
+  }
+
+  .field__hint {
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--site-color-text-muted);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .field__control {
+      transition: none;
+    }
+  }
+</style>

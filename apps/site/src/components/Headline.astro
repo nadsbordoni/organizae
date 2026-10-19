@@ -1,0 +1,36 @@
+---
+/**
+ * A frase de destaque do perfil.
+ *
+ * Componente separado da lista de serviços porque o papel é outro: aqui vai
+ * o diferencial (o motivo de escolher este negócio), não o catálogo. Por
+ * isso recebe mais peso visual — texto na cor principal, não na secundária.
+ */
+
+interface Props {
+  text: string;
+}
+
+const { text }: Props = Astro.props;
+---
+
+<p class="headline">{text}</p>
+
+<style>
+  .headline {
+    max-width: 30ch;
+    font-size: 1.0625rem;
+    font-weight: 500;
+    line-height: 1.4;
+    /* Cor principal (não a `muted` dos serviços): é o que deve ser lido
+       primeiro depois do nome. */
+    color: var(--site-color-text);
+    text-wrap: balance;
+  }
+
+  @media (max-width: 359px) {
+    .headline {
+      font-size: 1rem;
+    }
+  }
+</style>

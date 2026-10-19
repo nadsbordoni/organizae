@@ -1,0 +1,71 @@
+---
+import ActionButton from '@/components/ActionButton.astro';
+import BookingPage from '@/components/agenda/BookingPage.astro';
+import Calendar from '@/components/agenda/Calendar.astro';
+import SlotPicker from '@/components/agenda/SlotPicker.astro';
+import { BOOKING_PATH } from '@/lib/blocks';
+import { whatsappUrl } from '@/lib/links';
+import { bookingPaths } from '@/config';
+import type { SiteConfig } from '@/types/site';
+import type { Agenda } from '@/types/agenda';
+
+/**
+ * Passo 2 de 3: dia e horário.
+ *
+ * Chegar aqui sem serviço na query volta para o passo 1 — ver `mountSchedule`.
+ */
+export const getStaticPaths = bookingPaths;
+
+interface Props {
+  site: SiteConfig;
+  agenda: Agenda;
+}
+
+const { site, agenda }: Props = Astro.props;
+
+const base = `/${site.slug}/${BOOKING_PATH}`;
+const whatsappHref = whatsappUrl(
+  agenda.request.phone,
+  'Oi! Queria agendar um horário, mas não achei vaga no site.',
+);
+---
+
+<BookingPage
+  site={site}
+  step={2}
+  title="Quando fica bom?"
+  backHref={base}
+  backLabel="Voltar para a escolha de serviços"
+>
+  <div data-step-schedule>
+    <p class="context" data-duration-note></p>
+
+    <Calendar label="Dias com horário livre para os serviços escolhidos" />
+    <SlotPicker whatsappHref={whatsappHref} />
+
+    <ActionButton label="Continuar" href={`${base}/revisao`} disabled data-next />
+  </div>
+</BookingPage>
+
+<script>
+  import { mountSchedule } from '@/lib/booking-ui';
+  import { readContext } from '@/lib/booking-context';
+
+  const root = document.querySelector<HTMLElement>('[data-step-schedule]');
+  const context = readContext();
+  if (root && context) mountSchedule(root, context);
+</script>
+
+<style>
+  [data-step-schedule] {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .context {
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: var(--site-color-text-muted);
+  }
+</style>

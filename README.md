@@ -2,7 +2,7 @@
 
 Plataforma de agendamento e gestão para prestadores de serviço, como estúdios de beleza e salões. Cada estúdio tem sua página pública e seu painel, e todos compartilham a mesma aplicação.
 
-> Projeto da faculdade, em fase de planejamento. Ainda não há código da aplicação.
+> Projeto da faculdade, em desenvolvimento. Já existem as telas em [`apps/site`](apps/site). A API em Spring Boot e o banco ainda não foram criados.
 
 ## Arquitetura
 
@@ -29,15 +29,15 @@ Os dois front-ends falam com uma API única, e só ela acessa o banco e as taref
 | Contrato front/back | OpenAPI gerado pela API | Os tipos do front são gerados a partir dele |
 | Tarefas em segundo plano | JobRunr (Postgres) | Lembretes e cobranças sem precisar de Redis |
 
-## Estrutura prevista
+## Estrutura
 
 ```
 organizae/
   apps/
-    api/        Spring Boot
-    painel/     React + Vite
-    site/       Astro
-  docker-compose.yml   PostgreSQL local
+    site/       Astro: páginas públicas, agendamento e protótipo do painel (existe)
+    api/        Spring Boot (a criar)
+    painel/     React + Vite (a criar; por ora o painel está em apps/site)
+  docker-compose.yml   PostgreSQL local (a criar)
 ```
 
 ## Como contribuir

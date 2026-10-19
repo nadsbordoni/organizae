@@ -1,0 +1,217 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import EmptyState from '@/components/EmptyState.astro';
+import Icon from '@/components/Icon.astro';
+import AppointmentRow from '@/components/painel/AppointmentRow.astro';
+import Notice from '@/components/painel/Notice.astro';
+import PanelSection from '@/components/painel/PanelSection.astro';
+import PanelTable from '@/components/painel/PanelTable.astro';
+import SummaryCard from '@/components/painel/SummaryCard.astro';
+import { getSite } from '@/config';
+import { nowInBusinessTime, toClock, toMinutes } from '@/lib/agenda';
+import { forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
+import {
+  catalogTotal,
+  compactPrice,
+  firstName,
+  greeting,
+  monthLabel,
+  shortDayLabel,
+  weekdayLabel,
+} from '@/lib/painel';
+
+/**
+ * Home do painel. ⚠️ Recebido e a receber ficam em "—" de propósito: pagamento
+ * ainda não é registrado em lugar nenhum, e número inventado NÃO entra aqui.
+ */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) {
+  // Conta ligada a um negócio que saiu de `config/sites/` sem mexer no banco.
+  return new Response(`Conta ligada ao negócio "${user.tenantSlug}", que não está configurado.`, {
+    status: 500,
+    headers: { 'content-type': 'text/plain; charset=utf-8' },
+  });
+}
+
+const agenda = site.agenda;
+const agora = nowInBusinessTime(agenda?.timezone ?? 'America/Sao_Paulo');
+const hoje = agora.date;
+
+const dados = forTenant(user.tenantSlug);
+const doDia = await dados.appointmentsOn(hoje);
+const doMes = await dados.appointmentsBetween(`${hoje.slice(0, 7)}-01`, hoje);
+
+// Ainda não terminou: o atendimento em andamento conta como "próximo".
+const pelaFrente = doDia.filter(
+  (m) =>
+    (m.status === 'pending' || m.status === 'confirmed') &&
+    toMinutes(m.start_time) + m.duration_min > agora.minutes,
+);
+const proximas = pelaFrente.slice(0, 2);
+const aConfirmar = pelaFrente.filter((m) => m.status === 'pending').length;
+
+const faturamento = catalogTotal(doMes.filter((m) => m.status === 'done'), agenda);
+const nome = firstName(user.name);
+---
+
+<PanelLayout site={site} user={user} current="home" title="Home">
+  <p class="today">
+    <Icon name="calendar" size={18} />
+    {weekdayLabel(hoje)}
+  </p>
+  <h1 class="hello">{greeting(agora.minutes)}{nome ? `, ${nome}` : ''}</h1>
+
+  <div class="sections">
+    <PanelSection
+      title="Resumo financeiro"
+      subtitle={`Valores acumulados até o momento · ${monthLabel(hoje)}`}
+      id="titulo-financeiro"
+    >
+      <p class="stamp" slot="aside">Atualizado às {toClock(agora.minutes)}</p>
+
+      <div class="cards">
+        <SummaryCard
+          label="Faturamento"
+          value={faturamento ? compactPrice(faturamento) : '—'}
+          note={faturamento ? 'Atendidos no mês, pelo catálogo' : 'Algum serviço sem preço no catálogo'}
+          icon="trend"
+          tone="info"
+        />
+        <SummaryCard
+          label="Valor recebido"
+          value="—"
+          note="Sem pagamentos registrados"
+          icon="check-circle"
+          tone="positive"
+          progress={0}
+        />
+        <SummaryCard
+          label="Valor a receber"
+          value="—"
+          note="Sem cobranças registradas"
+          icon="clock"
+          tone="attention"
+        />
+      </div>
+    </PanelSection>
+
+    <PanelSection
+      title="Próximas clientes"
+      subtitle="Os dois próximos atendimentos de hoje"
+      id="titulo-proximas"
+    >
+      <a class="chip" slot="aside" href="/painel/agenda">Hoje, {shortDayLabel(hoje)}</a>
+
+      {
+        proximas.length ? (
+          <PanelTable label="Próximos atendimentos de hoje">
+            <thead>
+              <tr>
+                <th scope="col">Horário</th>
+                <th scope="col">Cliente e serviço</th>
+                <th scope="col">Situação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {proximas.map((m) => <AppointmentRow appointment={m} agenda={agenda} />)}
+            </tbody>
+          </PanelTable>
+        ) : (
+          <EmptyState
+            level={3}
+            icon="sparkles"
+            title="Nada mais por hoje"
+            text="Os próximos atendimentos do dia aparecem aqui."
+          />
+        )
+      }
+    </PanelSection>
+
+    <PanelSection title="A receber" subtitle="Pagamentos que merecem atenção" id="titulo-receber">
+      {
+        aConfirmar > 0 && (
+          <Notice tone="attention" icon="clock">
+            {aConfirmar === 1
+              ? '1 atendimento de hoje ainda está a confirmar'
+              : `${aConfirmar} atendimentos de hoje ainda estão a confirmar`}
+          </Notice>
+        )
+      }
+
+      <EmptyState
+        level={3}
+        icon="tag"
+        title="Nenhuma cobrança registrada"
+        text="Quando os pagamentos passarem a ser registrados no painel, os pendentes e os atrasados aparecem aqui."
+      />
+    </PanelSection>
+  </div>
+</PanelLayout>
+
+<style>
+  .today {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    font-size: 0.875rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .hello {
+    margin-top: 8px;
+    font-family: var(--site-font-display);
+    font-size: clamp(2rem, 4.4vw, 2.75rem);
+    color: var(--site-color-text);
+  }
+
+  .sections {
+    display: flex;
+    flex-direction: column;
+    gap: 44px;
+    margin-top: 36px;
+  }
+
+  .stamp {
+    font-size: 0.75rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 20px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 0 16px;
+    border-radius: 999px;
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--site-color-text);
+    text-decoration: none;
+  }
+
+  .chip:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  .chip:focus-visible {
+    outline: 2px solid var(--site-color-brand);
+    outline-offset: 2px;
+  }
+
+  @media (max-width: 719px) {
+    .today {
+      justify-content: flex-start;
+    }
+  }
+</style>

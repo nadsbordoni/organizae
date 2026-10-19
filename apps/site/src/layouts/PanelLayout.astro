@@ -1,0 +1,494 @@
+---
+import SiteLayout from './SiteLayout.astro';
+import Icon from '@/components/Icon.astro';
+import { initials } from '@/lib/painel';
+import type { AuthenticatedUser } from '@/types/painel';
+import type { IconName } from '@/types/blocks';
+import type { SiteConfig } from '@/types/site';
+
+/**
+ * Casca do painel: menu lateral + conteúdo, com o tema do negócio.
+ *
+ * O menu lista SÓ telas que existem. Item novo entra em `NAV` quando a tela
+ * existir — link para tela que não existe é 404 na mão da dona do negócio.
+ */
+
+export type PanelPage = 'home' | 'agenda';
+
+interface Props {
+  site: SiteConfig;
+  user: AuthenticatedUser;
+  current: PanelPage;
+  title: string;
+}
+
+const { site, user, current, title } = Astro.props;
+
+const NAV: Array<{ page: PanelPage; label: string; href: string; icon: IconName }> = [
+  { page: 'home', label: 'Home', href: '/painel', icon: 'home' },
+  { page: 'agenda', label: 'Agenda', href: '/painel/agenda', icon: 'calendar' },
+];
+
+const { profile } = site;
+const seo = { title: `${title} • ${profile.name}`, description: 'Painel do negócio.', noindex: true };
+---
+
+<SiteLayout theme={site.theme} seo={seo} noindex>
+  {/* Antes da pintura, para o menu não abrir e fechar na frente da pessoa. */}
+  <script is:inline>
+    try {
+      if (localStorage.getItem('painel:menu') === 'recolhido') {
+        document.documentElement.dataset.menu = 'recolhido';
+      }
+    } catch {}
+  </script>
+
+  <div class="panel">
+    <aside class="side">
+      <a class="side__brand" href="/painel" aria-label={`${profile.name} — início do painel`}>
+        <span class="side__brand-full">
+          {profile.nameSuffix && <span class="side__suffix">{profile.nameSuffix}</span>}
+          <span class="side__name">{profile.name}</span>
+        </span>
+        <span class="side__brand-mono" aria-hidden="true">{profile.name.charAt(0)}</span>
+      </a>
+
+      <button class="side__toggle" type="button" data-panel-toggle aria-label="Recolher o menu" aria-expanded="true">
+        <Icon name="chevron-left" size={16} />
+      </button>
+
+      <nav class="side__nav" aria-label="Painel">
+        <ul>
+          {
+            NAV.map((item) => (
+              <li>
+                <a
+                  class="side__link"
+                  href={item.href}
+                  title={item.label}
+                  aria-current={item.page === current ? 'page' : undefined}
+                >
+                  <Icon name={item.icon} size={22} />
+                  <span class="side__label">{item.label}</span>
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </nav>
+
+      <div class="side__user">
+        {
+          profile.avatar ? (
+            <img class="side__avatar" src={profile.avatar.src} alt="" width="36" height="36" />
+          ) : (
+            <span class="side__avatar side__avatar--initials" aria-hidden="true">
+              {initials(profile.name)}
+            </span>
+          )
+        }
+        <span class="side__who">
+          <span class="side__business">{profile.name}</span>
+          <span class="side__person">{user.name ?? user.email}</span>
+        </span>
+        <form method="post" action="/api/logout">
+          <button class="side__logout" type="submit" aria-label="Sair do painel" title="Sair">
+            <Icon name="logout" size={20} />
+          </button>
+        </form>
+      </div>
+    </aside>
+
+    <main class="main" id="conteudo">
+      <slot />
+    </main>
+  </div>
+</SiteLayout>
+
+<script>
+  const toggle = document.querySelector<HTMLButtonElement>('[data-panel-toggle]');
+  const root = document.documentElement;
+
+  const sync = () => {
+    const collapsed = root.dataset.menu === 'recolhido';
+    toggle?.setAttribute('aria-expanded', String(!collapsed));
+    toggle?.setAttribute('aria-label', collapsed ? 'Abrir o menu' : 'Recolher o menu');
+  };
+
+  toggle?.addEventListener('click', () => {
+    const collapse = root.dataset.menu !== 'recolhido';
+    if (collapse) root.dataset.menu = 'recolhido';
+    else delete root.dataset.menu;
+    try {
+      localStorage.setItem('painel:menu', collapse ? 'recolhido' : 'aberto');
+    } catch {
+      /* navegação privada antiga: o menu só não lembra a escolha */
+    }
+    sync();
+  });
+
+  sync();
+</script>
+
+<style>
+  .panel {
+    --side-width: 248px;
+    --gap: 12px;
+
+    display: grid;
+    grid-template-columns: var(--side-width) minmax(0, 1fr);
+    min-height: 100svh;
+    background: var(--site-panel-background);
+  }
+
+  :global(html[data-menu='recolhido']) .panel {
+    --side-width: 84px;
+  }
+
+  /* --- Menu lateral ------------------------------------------------------- */
+
+  .side {
+    position: sticky;
+    top: var(--gap);
+    display: flex;
+    flex-direction: column;
+    height: calc(100svh - 2 * var(--gap));
+    margin: var(--gap) 0 var(--gap) var(--gap);
+    padding: 32px 16px 20px;
+    border-radius: var(--site-radius-card);
+    background: var(--site-panel-sidebar);
+    color: var(--site-panel-on-sidebar);
+  }
+
+  .side__brand {
+    display: flex;
+    justify-content: center;
+    min-height: 56px;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .side__brand-full {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1;
+  }
+
+  .side__suffix {
+    font-size: 0.6875rem;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--site-panel-on-sidebar-muted);
+  }
+
+  .side__name,
+  .side__brand-mono {
+    font-family: var(--site-font-display);
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--site-panel-on-sidebar);
+  }
+
+  .side__name {
+    margin-top: 6px;
+    white-space: nowrap;
+  }
+
+  .side__brand-mono {
+    display: none;
+  }
+
+  .side__toggle {
+    position: absolute;
+    top: 88px;
+    right: -14px;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 3px solid var(--site-panel-background);
+    border-radius: 50%;
+    background: var(--site-panel-sidebar-accent);
+    color: var(--site-panel-sidebar);
+    cursor: pointer;
+  }
+
+  .side__toggle :global(svg) {
+    transition: rotate 0.2s ease;
+  }
+
+  :global(html[data-menu='recolhido']) .side__toggle :global(svg) {
+    rotate: 180deg;
+  }
+
+  .side__nav {
+    margin-top: 56px;
+  }
+
+  .side__nav ul {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    list-style: none;
+  }
+
+  .side__link {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 48px;
+    padding: 0 16px;
+    border-radius: 14px;
+    color: var(--site-panel-on-sidebar);
+    font-size: 1rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background-color 0.16s ease;
+  }
+
+  .side__link:hover {
+    background: color-mix(in srgb, var(--site-panel-on-sidebar) 7%, transparent);
+  }
+
+  .side__link[aria-current='page'] {
+    background: color-mix(in srgb, var(--site-panel-on-sidebar) 11%, transparent);
+    color: var(--site-panel-sidebar-accent);
+  }
+
+  .side__link:focus-visible,
+  .side__brand:focus-visible,
+  .side__logout:focus-visible,
+  .side__toggle:focus-visible {
+    outline: 2px solid var(--site-panel-sidebar-accent);
+    outline-offset: 2px;
+  }
+
+  .side__user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: auto;
+    padding-top: 18px;
+    border-top: 1px solid color-mix(in srgb, var(--site-panel-on-sidebar) 18%, transparent);
+  }
+
+  .side__avatar {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--site-panel-on-sidebar);
+  }
+
+  .side__avatar--initials {
+    display: grid;
+    place-items: center;
+    color: var(--site-panel-sidebar);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .side__who {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.3;
+  }
+
+  .side__business {
+    overflow: hidden;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--site-panel-sidebar-accent);
+  }
+
+  .side__person {
+    overflow: hidden;
+    font-size: 0.75rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--site-panel-on-sidebar-muted);
+  }
+
+  .side__logout {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 0;
+    border-radius: 12px;
+    background: none;
+    color: var(--site-panel-on-sidebar-muted);
+    cursor: pointer;
+  }
+
+  .side__logout:hover {
+    background: color-mix(in srgb, var(--site-panel-on-sidebar) 7%, transparent);
+    color: var(--site-panel-on-sidebar);
+  }
+
+  /* --- Menu recolhido: só ícones. Os rótulos continuam no `title` e para o
+     leitor de tela. --------------------------------------------------------- */
+
+  @media (min-width: 1100px) {
+    :global(html[data-menu='recolhido']) .side {
+      padding-inline: 12px;
+    }
+
+    :global(html[data-menu='recolhido']) .side__brand-full,
+    :global(html[data-menu='recolhido']) .side__who {
+      display: none;
+    }
+
+    :global(html[data-menu='recolhido']) .side__brand-mono {
+      display: block;
+    }
+
+    :global(html[data-menu='recolhido']) .side__link {
+      justify-content: center;
+      padding: 0;
+    }
+
+    :global(html[data-menu='recolhido']) .side__label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+
+    :global(html[data-menu='recolhido']) .side__user {
+      flex-direction: column;
+    }
+  }
+
+  /* Tablet: sempre recolhido, sem botão — não há largura para o menu aberto
+     e o conteúdo ao mesmo tempo. */
+  @media (min-width: 720px) and (max-width: 1099px) {
+    .panel {
+      --side-width: 84px;
+    }
+
+    .side {
+      padding-inline: 12px;
+    }
+
+    .side__toggle,
+    .side__brand-full,
+    .side__who {
+      display: none;
+    }
+
+    .side__brand-mono {
+      display: block;
+    }
+
+    .side__link {
+      justify-content: center;
+      padding: 0;
+    }
+
+    .side__label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+
+    .side__user {
+      flex-direction: column;
+    }
+  }
+
+  /* Celular: o menu vira uma barra no topo. */
+  @media (max-width: 719px) {
+    .panel {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto 1fr;
+    }
+
+    .side {
+      position: static;
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+      height: auto;
+      margin: 8px 8px 0;
+      padding: 10px 12px;
+    }
+
+    .side__brand {
+      min-height: 0;
+    }
+
+    .side__suffix,
+    .side__toggle,
+    .side__who,
+    .side__avatar {
+      display: none;
+    }
+
+    .side__name {
+      margin-top: 0;
+      font-size: 1.375rem;
+    }
+
+    .side__nav {
+      margin: 0 0 0 auto;
+    }
+
+    .side__nav ul {
+      flex-direction: row;
+      gap: 2px;
+    }
+
+    .side__link {
+      padding: 0 12px;
+    }
+
+    .side__label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+
+    .side__user {
+      margin: 0;
+      padding: 0;
+      border: 0;
+    }
+  }
+
+  /* --- Conteúdo ------------------------------------------------------------ */
+
+  /* Preenche a coluna inteira; só em monitor muito largo para de crescer e
+     centraliza, para as linhas da tabela não ficarem longas demais de ler. */
+  .main {
+    width: 100%;
+    max-width: 1600px;
+    margin-inline: auto;
+    padding: 40px 48px 64px;
+  }
+
+  @media (max-width: 1099px) {
+    .main {
+      padding: 32px 28px 56px;
+    }
+  }
+
+  @media (max-width: 719px) {
+    .main {
+      padding: 24px 16px 48px;
+    }
+  }
+</style>

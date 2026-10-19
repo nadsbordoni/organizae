@@ -1,0 +1,201 @@
+---
+import Icon from './Icon.astro';
+import { linkAttrs } from '@/lib/links';
+import type { CollectionItem } from '@/types/site';
+
+/**
+ * Item de coleção no formato polaroid.
+ *
+ * O efeito vem quase todo de CSS, sem imagem de moldura: papel off-white,
+ * borda inferior grossa, cantos quase retos (polaroid não é arredondada) e
+ * uma leve inclinação, como fotos espalhadas sobre a mesa.
+ *
+ * A polaroid inteira é o alvo de toque quando o item tem link — numa foto
+ * pequena, um botão separado roubaria espaço da imagem e criaria um alvo
+ * menor do que a própria peça.
+ */
+
+interface Props {
+  item: CollectionItem;
+}
+
+const { item }: Props = Astro.props;
+const { name, description, price, image, href, ctaLabel = 'Ver produto', affiliate } = item;
+
+// Sem link, a polaroid é só informativa: vira <div> em vez de <a>.
+const Tag = href ? 'a' : 'div';
+const linkProps = href ? { href, ...linkAttrs({ href, affiliate }) } : {};
+---
+
+<li class="polaroid">
+  <Tag class="polaroid__paper" {...linkProps}>
+    <div class="polaroid__photo">
+      {
+        image ? (
+          <img src={image.src} alt={image.alt} loading="lazy" decoding="async" />
+        ) : (
+          <span class="polaroid__empty" aria-hidden="true">
+            <Icon name="sparkles" size={28} />
+          </span>
+        )
+      }
+      {price && <span class="polaroid__price">{price}</span>}
+    </div>
+
+    <div class="polaroid__caption">
+      <h2 class="polaroid__name">{name}</h2>
+      {description && <p class="polaroid__description">{description}</p>}
+      {href && <span class="polaroid__cta">{ctaLabel}</span>}
+    </div>
+  </Tag>
+</li>
+
+<style>
+  .polaroid {
+    list-style: none;
+    /* A inclinação faz o card ultrapassar a própria caixa; esta margem
+       impede que ele encoste no vizinho ou gere scroll horizontal. */
+    padding: 4px;
+  }
+
+  .polaroid__paper {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+
+    background: var(--site-color-surface);
+    /* Canto quase reto: arredondar demais mata o efeito de polaroid. */
+    border-radius: 3px;
+    /* Moldura fina em cima e nos lados, grossa embaixo. */
+    padding: 10px 10px 0;
+
+    color: var(--site-color-text);
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+
+    box-shadow: var(--site-shadow-resting);
+
+    transform: rotate(var(--tilt, 0deg));
+    transition:
+      transform 0.22s ease,
+      box-shadow 0.22s ease;
+  }
+
+  /* Inclinações alternadas em ciclo de 4: a grade parece fotos soltas, não
+     tabela. `--polaroid-inclinacao` vem de quem monta a lista — em card largo
+     a mesma inclinação parece defeito. */
+  .polaroid:nth-child(4n + 1) .polaroid__paper { --tilt: calc(-2deg * var(--polaroid-inclinacao, 1)); }
+  .polaroid:nth-child(4n + 2) .polaroid__paper { --tilt: calc(1.5deg * var(--polaroid-inclinacao, 1)); }
+  .polaroid:nth-child(4n + 3) .polaroid__paper { --tilt: calc(-1deg * var(--polaroid-inclinacao, 1)); }
+  .polaroid:nth-child(4n) .polaroid__paper { --tilt: calc(2.2deg * var(--polaroid-inclinacao, 1)); }
+
+  /* Só endireita o que é clicável — dá o retorno de "isto responde". */
+  a.polaroid__paper:hover,
+  a.polaroid__paper:focus-visible {
+    --tilt: 0deg;
+    transform: rotate(0deg) translateY(-4px);
+    box-shadow: var(--site-shadow-raised);
+  }
+
+  a.polaroid__paper:active {
+    transform: rotate(0deg) translateY(0) scale(0.985);
+  }
+
+  a.polaroid__paper:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 3px;
+  }
+
+  .polaroid__photo {
+    position: relative;
+    /* Quadrado, como a área de imagem de uma polaroid de verdade. */
+    aspect-ratio: 1;
+    background: var(--site-color-brand-soft);
+    overflow: hidden;
+  }
+
+  .polaroid__photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .polaroid__empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--site-color-brand);
+    opacity: 0.4;
+  }
+
+  .polaroid__price {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--site-color-brand);
+    color: var(--site-color-on-brand);
+
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+
+  .polaroid__caption {
+    /* A base grossa da polaroid: é isto que dá a silhueta reconhecível. */
+    padding: 10px 4px 16px;
+    text-align: center;
+  }
+
+  .polaroid__name {
+    font-family: var(--site-font-body);
+    font-size: calc(0.9375rem * var(--polaroid-escala, 1));
+    font-weight: 500;
+    line-height: 1.3;
+    color: var(--site-color-text);
+    overflow-wrap: anywhere;
+  }
+
+  .polaroid__description {
+    margin-top: 2px;
+    font-size: calc(0.75rem * var(--polaroid-escala, 1));
+    line-height: 1.4;
+    color: var(--site-color-text-muted);
+
+    /* Teto de 3 linhas: sem ele, uma legenda longa estica a base do card e,
+       por causa do `1fr` da grade, arrasta o vizinho da fileira junto.
+       NÃO aumente o teto para caber um texto — encurte o texto. */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+  }
+
+  .polaroid__cta {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: calc(0.6875rem * var(--polaroid-escala, 1));
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--site-color-brand);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .polaroid__paper {
+      transition: none;
+    }
+
+    a.polaroid__paper:hover,
+    a.polaroid__paper:active,
+    a.polaroid__paper:focus-visible {
+      transform: rotate(var(--tilt, 0deg));
+    }
+  }
+</style>

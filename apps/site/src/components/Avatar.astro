@@ -1,0 +1,47 @@
+---
+/**
+ * Foto/logo do perfil.
+ *
+ * Dimensões explícitas + `fetchpriority="high"`: normalmente é o maior
+ * elemento acima da dobra (o LCP da página), então vale priorizar o
+ * carregamento e reservar o espaço para não haver salto de layout.
+ */
+
+interface Props {
+  src: string;
+  alt: string;
+  /** Lado do quadrado em px. Padrão 112. */
+  size?: number;
+}
+
+const { src, alt, size = 112 } = Astro.props;
+---
+
+<img
+  class="avatar"
+  src={src}
+  alt={alt}
+  width={size}
+  height={size}
+  fetchpriority="high"
+  decoding="async"
+/>
+
+<style>
+  .avatar {
+    /* Cresce um pouco em telas maiores sem passar do tamanho declarado. */
+    width: clamp(96px, 28vw, 120px);
+    height: clamp(96px, 28vw, 120px);
+
+    border-radius: var(--site-radius-avatar);
+    object-fit: cover;
+
+    background: var(--site-color-surface);
+    /* Respiro claro + fio da marca: a mesma moldura do botão principal, para o
+       topo da página e a ação principal falarem a mesma língua. */
+    border: 3px solid var(--site-color-surface);
+    box-shadow:
+      0 0 0 1.5px var(--site-color-brand),
+      var(--site-shadow-resting);
+  }
+</style>

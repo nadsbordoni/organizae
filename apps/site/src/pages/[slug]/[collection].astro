@@ -1,0 +1,104 @@
+---
+import SiteLayout from '@/layouts/SiteLayout.astro';
+import PageContainer from '@/components/PageContainer.astro';
+import PageHeading from '@/components/PageHeading.astro';
+import Polaroid from '@/components/Polaroid.astro';
+import Disclosure from '@/components/Disclosure.astro';
+import Footer from '@/components/Footer.astro';
+import { assertDisclosure } from '@/lib/disclosure';
+import { BOOKING_PATH } from '@/lib/blocks';
+import { sites } from '@/config';
+import type { Collection, SiteConfig } from '@/types/site';
+
+/**
+ * Página de coleção: `/{slug}/{coleção}`. Cliente sem `collections` não gera
+ * rota aqui — suportar o recurso custa zero para quem não usa.
+ *
+ * Sem cabeçalho de perfil de propósito: o link "voltar" já nomeia o negócio, e
+ * dois títulos grandes seguidos competiriam. A identidade vem do tema.
+ */
+export function getStaticPaths() {
+  return sites.flatMap((site) =>
+    (site.collections ?? []).map((collection) => {
+      // `/{slug}/agendar` é rota estática e venceria esta silenciosamente — a
+      // coleção sumiria do ar sem nenhum aviso. Melhor não compilar.
+      if (collection.slug === BOOKING_PATH) {
+        throw new Error(
+          `Site "${site.slug}": a coleção "${BOOKING_PATH}" colide com a rota de ` +
+            'agendamento. Escolha outro slug para a coleção.',
+        );
+      }
+
+      return {
+        params: { slug: site.slug, collection: collection.slug },
+        props: { site, collection },
+      };
+    }),
+  );
+}
+
+interface Props {
+  site: SiteConfig;
+  collection: Collection;
+}
+
+const { site, collection }: Props = Astro.props;
+
+const seo = {
+  ...site.seo,
+  title: `${collection.title} • ${site.profile.name}`,
+  description: collection.intro ?? `${collection.title} — ${site.profile.name}`,
+};
+
+assertDisclosure(collection.items, collection.disclosure, `coleção "${collection.slug}" de ${site.slug}`);
+---
+
+<SiteLayout theme={site.theme} seo={seo} noindex={site.seo?.noindex}>
+  <PageContainer as="main" id="conteudo">
+    <PageHeading
+      title={collection.title}
+      intro={collection.intro}
+      backHref={`/${site.slug}`}
+      backLabel={`Voltar para ${site.profile.name}`}
+    />
+
+    <ul class="collection__items">
+      {collection.items.map((item) => <Polaroid item={item} />)}
+    </ul>
+
+    {collection.disclosure && <Disclosure text={collection.disclosure} />}
+
+    <Footer note={site.footerNote} siteName={site.profile.name} />
+  </PageContainer>
+</SiteLayout>
+
+<style>
+  .collection__items {
+    /* Grade que se adapta sozinha: 2 colunas em tela média, 3 no tablet.
+       O `minmax` evita polaroid espremida em tela pequena. */
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+    gap: 10px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  /**
+   * ÚNICO breakpoint da coleção. A polaroid não tem media query própria: ela
+   * herda `--polaroid-escala` e `--polaroid-inclinacao` daqui.
+   *
+   * Em duas colunas a legenda ganha ~135px e qualquer descrição acima de ~40
+   * caracteres bate no teto de 3 linhas. Em coluna única cabe folgada.
+   * A inclinação encolhe porque num card largo os 2,2° originais jogam 8px
+   * para fora da caixa e parecem defeito.
+   */
+  @media (max-width: 430px) {
+    .collection__items {
+      grid-template-columns: 1fr;
+      gap: 14px;
+      --polaroid-escala: 1.13;
+      --polaroid-inclinacao: 0.36;
+    }
+  }
+</style>

@@ -1,0 +1,29 @@
+---
+import LinkButton from '@/components/LinkButton.astro';
+import { whatsappUrl } from '@/lib/links';
+import type { WhatsappBlock } from '@/types/blocks';
+
+/**
+ * Bloco de WhatsApp.
+ *
+ * Existe como tipo próprio porque a URL é DERIVADA (telefone + mensagem
+ * pré-preenchida). Quem edita a configuração escreve o telefone, não uma
+ * URL `wa.me` montada à mão.
+ */
+
+interface Props {
+  block: WhatsappBlock;
+}
+
+const { block } = Astro.props;
+const href = whatsappUrl(block.phone, block.message);
+---
+
+<LinkButton
+  title={block.title}
+  subtitle={block.subtitle}
+  href={href}
+  icon="whatsapp"
+  emphasis={block.emphasis}
+  external
+/>

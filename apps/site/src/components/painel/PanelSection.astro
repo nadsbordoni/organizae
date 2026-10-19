@@ -1,0 +1,59 @@
+---
+/** Seção do painel: título, subtítulo e, à direita, ações ou um carimbo de hora. */
+interface Props {
+  title: string;
+  subtitle?: string;
+  /** Id do título, para o `aria-labelledby` da seção. */
+  id: string;
+}
+
+const { title, subtitle, id } = Astro.props;
+const hasAside = Astro.slots.has('aside');
+---
+
+<section class="section" aria-labelledby={id}>
+  <header class="section__head">
+    <div>
+      <h2 class="section__title" id={id}>{title}</h2>
+      {subtitle && <p class="section__subtitle">{subtitle}</p>}
+    </div>
+    {hasAside && <div class="section__aside"><slot name="aside" /></div>}
+  </header>
+
+  <slot />
+</section>
+
+<style>
+  .section {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .section__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 8px 16px;
+  }
+
+  .section__title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--site-color-text);
+  }
+
+  .section__subtitle {
+    margin-top: 2px;
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .section__aside {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+</style>

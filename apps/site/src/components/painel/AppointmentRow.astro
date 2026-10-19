@@ -1,0 +1,150 @@
+---
+import Icon from '@/components/Icon.astro';
+import Initials from './Initials.astro';
+import StatusBadge from './StatusBadge.astro';
+import { STATUS_BADGE, serviceNames } from '@/lib/painel';
+import type { Agenda } from '@/types/agenda';
+import type { AppointmentRow } from '@/types/painel';
+
+/** Uma linha de atendimento dentro de `PanelTable`: horário, cliente e serviço, situação. */
+interface Props {
+  appointment: AppointmentRow;
+  agenda?: Agenda;
+  /** Coluna extra com o WhatsApp da cliente, quando há telefone. */
+  contact?: boolean;
+}
+
+const { appointment: row, agenda, contact = false } = Astro.props;
+const phone = row.client_phone?.replace(/\D/g, '');
+---
+
+<tr>
+  <td class="time">
+    <span class="time__box">
+      <strong>{row.start_time}</strong>
+      <small>{row.duration_min} min</small>
+    </span>
+  </td>
+
+  <td class="who">
+    <span class="person">
+      <Initials name={row.client_name} />
+      <span class="person__text">
+        <strong>{row.client_name}</strong>
+        <small>{serviceNames(row, agenda)}</small>
+      </span>
+    </span>
+  </td>
+
+  <td class="status">
+    <StatusBadge {...STATUS_BADGE[row.status]} />
+  </td>
+
+  {
+    contact && (
+      <td class="contact">
+        {phone && (
+          <a
+            class="contact__link"
+            href={`https://wa.me/${phone}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Falar com ${row.client_name} no WhatsApp`}
+          >
+            <Icon name="whatsapp" size={18} />
+          </a>
+        )}
+      </td>
+    )
+  }
+</tr>
+
+<style>
+  strong {
+    display: block;
+    font-weight: 600;
+    color: var(--site-color-text);
+  }
+
+  small {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .time {
+    width: 1%;
+    white-space: nowrap;
+  }
+
+  .time strong {
+    font-size: 1.25rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .time__box {
+    display: block;
+    padding-right: 28px;
+    border-right: 1px solid var(--site-color-border);
+  }
+
+  .person {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .person__text {
+    min-width: 0;
+  }
+
+  .person__text strong {
+    font-size: 1rem;
+  }
+
+  .status {
+    width: 1%;
+    white-space: nowrap;
+  }
+
+  .contact {
+    width: 1%;
+  }
+
+  .contact__link {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    color: var(--site-color-brand);
+    transition: background-color 0.16s ease;
+  }
+
+  .contact__link:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  .contact__link:focus-visible {
+    outline: 2px solid var(--site-color-brand);
+    outline-offset: 2px;
+  }
+
+  @media (max-width: 719px) {
+    .time,
+    .status,
+    .contact {
+      width: auto;
+    }
+
+    .time__box {
+      padding-right: 16px;
+    }
+
+    /* A linha vira bloco: nome e serviço ocupam o que sobrar ao lado do horário. */
+    .who {
+      flex: 1 1 180px;
+    }
+  }
+</style>

@@ -1,0 +1,109 @@
+---
+import Icon from './Icon.astro';
+import type { IconName } from '@/types/blocks';
+
+/**
+ * Tela sem conteúdo: nenhum horário livre, erro ao enviar, nada encontrado.
+ *
+ * Componente próprio porque estado vazio mal feito é onde a pessoa desiste. As
+ * três partes são obrigatórias na prática: o que aconteceu (`title`), por que
+ * (`text`) e o que fazer agora — que vem pelo `<slot>`, quase sempre um caminho
+ * alternativo de contato.
+ */
+
+interface Props {
+  icon: IconName;
+  title: string;
+  text?: string;
+  /**
+   * `alert` para o que deu errado do nosso lado. `neutral` para o que
+   * simplesmente não existe — dia cheio não é falha de ninguém, e pintar de
+   * vermelho faria parecer que é.
+   */
+  tone?: 'neutral' | 'alert';
+  /** Nível do título. 3 quando o estado vazio mora dentro de uma seção com `<h2>`. */
+  level?: 2 | 3;
+}
+
+const { icon, title, text, tone = 'neutral', level = 2 }: Props = Astro.props;
+const Heading = level === 3 ? 'h3' : 'h2';
+---
+
+<div class="empty" data-tone={tone}>
+  <span class="empty__icon">
+    <Icon name={icon} size={30} />
+  </span>
+
+  <Heading class="empty__title">{title}</Heading>
+  {text && <p class="empty__text">{text}</p>}
+
+  <div class="empty__actions">
+    <slot />
+  </div>
+</div>
+
+<style>
+  .empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+
+    padding: 28px 20px;
+    border-radius: var(--site-radius-card);
+    border: 1.5px solid var(--site-color-border);
+    background: var(--site-color-surface);
+    box-shadow: var(--site-shadow-resting);
+  }
+
+  .empty__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    margin-bottom: 16px;
+
+    background: var(--site-color-brand-soft);
+    color: var(--site-color-brand);
+  }
+
+  /* No erro o círculo enche: o contorno some e o ícone vira vazado. É o único
+     sinal de gravidade da peça, e ele não depende só de cor — o ícone de alerta
+     é diferente do ícone do estado neutro. */
+  .empty[data-tone='alert'] .empty__icon {
+    background: var(--site-color-brand);
+    color: var(--site-color-on-brand);
+  }
+
+  .empty__title {
+    font-family: var(--site-font-body);
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--site-color-text);
+  }
+
+  .empty__text {
+    max-width: 34ch;
+    margin-top: 8px;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    color: var(--site-color-text-muted);
+  }
+
+  .empty__actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    margin-top: 20px;
+  }
+
+  /* Sem ação, o espaço de 20px acima sobraria no rodapé do cartão. */
+  .empty__actions:empty {
+    display: none;
+  }
+</style>

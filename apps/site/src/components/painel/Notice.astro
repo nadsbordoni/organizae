@@ -1,0 +1,39 @@
+---
+import Icon from '@/components/Icon.astro';
+import type { IconName } from '@/types/blocks';
+import type { PanelTone } from '@/lib/painel';
+
+/** Aviso de uma linha: "1 cliente ainda não confirmou o atendimento de hoje". */
+interface Props {
+  tone: PanelTone;
+  icon: IconName;
+}
+
+const { tone, icon } = Astro.props;
+---
+
+<p class="notice" style={`--tone: var(--site-panel-${tone})`}>
+  <span class="notice__icon"><Icon name={icon} size={18} /></span>
+  <span><slot /></span>
+</p>
+
+<style>
+  .notice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--site-color-text);
+  }
+
+  .notice__icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--tone);
+  }
+</style>

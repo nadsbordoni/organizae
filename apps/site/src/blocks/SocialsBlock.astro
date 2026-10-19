@@ -1,0 +1,78 @@
+---
+import IconButton from '@/components/IconButton.astro';
+import { resolveSocial } from '@/lib/links';
+import type { SocialsBlock } from '@/types/blocks';
+
+/**
+ * Linha de redes sociais.
+ *
+ * Estrutura própria (linha horizontal de alvos redondos) em vez de botões
+ * empilhados. URL, ícone e rótulo acessível são derivados do handle —
+ * a configuração só informa a rede e o @.
+ *
+ * O botão em si é o `IconButton`, o mesmo do "voltar" das páginas internas.
+ */
+
+interface Props {
+  block: SocialsBlock;
+}
+
+const { block }: Props = Astro.props;
+const socials = block.items
+  // Rede escondida some da linha sem deixar buraco no espaçamento.
+  .filter((item) => !item.hidden)
+  .map((item) => resolveSocial(item.network, item.handle, item.href));
+---
+
+<div class="socials-block">
+  {block.title && <h2 class="socials-block__title">{block.title}</h2>}
+  {block.subtitle && <p class="socials-block__subtitle">{block.subtitle}</p>}
+
+  <ul class="socials">
+    {
+      socials.map((social) => (
+        <li>
+          <IconButton href={social.href} label={social.accessibleLabel} icon={social.icon} external />
+        </li>
+      ))
+    }
+  </ul>
+</div>
+
+<style>
+  .socials-block {
+    text-align: center;
+  }
+
+  .socials-block__title {
+    font-family: var(--site-font-body);
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--site-color-text);
+  }
+
+  .socials-block__subtitle {
+    margin-top: 2px;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--site-color-text-muted);
+  }
+
+  /* Só afasta os ícones quando existe texto acima deles. */
+  .socials-block__title + .socials,
+  .socials-block__subtitle + .socials {
+    margin-top: 10px;
+  }
+
+  .socials {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+
+    list-style: none;
+    margin: 0;
+    padding: 4px 0;
+  }
+</style>

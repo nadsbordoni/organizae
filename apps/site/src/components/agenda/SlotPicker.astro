@@ -1,0 +1,151 @@
+---
+import ActionButton from '@/components/ActionButton.astro';
+import EmptyState from '@/components/EmptyState.astro';
+
+/**
+ * Grade de horários de um dia.
+ *
+ * Como no `Calendar`, os horários nascem no navegador — eles dependem da
+ * duração do serviço escolhido, e gerar no build todas as combinações de
+ * serviço × dia encheria a página de HTML que quase ninguém veria. O contrato
+ * com `lib/booking-ui.ts` é o nome de classe `slots__chip`.
+ *
+ * A regra que dá sentido à tela mora no motor, não aqui: um horário só aparece
+ * se o serviço INTEIRO couber antes do fechamento e fora das pausas. É por isso
+ * que a lista encolhe quando a cliente troca de um serviço de 30min para um de
+ * 2h — e é o comportamento certo, não um bug.
+ */
+
+interface Props {
+  /** Conversa alternativa quando o dia não tem nada livre. */
+  whatsappHref: string;
+}
+
+const { whatsappHref }: Props = Astro.props;
+---
+
+<section class="slots" data-slots-region hidden>
+  <h3 class="slots__title">Horários disponíveis</h3>
+  <p class="slots__day" data-slots-day></p>
+
+  {/* `aria-live` porque a grade troca sozinha ao escolher outro dia: sem isso,
+      quem usa leitor de tela não saberia que a lista mudou. */}
+  <div
+    class="slots__grid"
+    data-slots-grid
+    role="group"
+    aria-label="Horários disponíveis"
+    aria-live="polite"
+  >
+  </div>
+
+  <div data-slots-empty hidden>
+    <EmptyState
+      icon="calendar"
+      title="Nenhum horário disponível"
+      text="Não sobrou horário para este serviço nesta data. Tente outro dia ou fale comigo no WhatsApp."
+    >
+      <ActionButton label="Falar no WhatsApp" icon="whatsapp" variant="secondary" href={whatsappHref} />
+    </EmptyState>
+  </div>
+
+  <div data-slots-nofit hidden>
+    <EmptyState
+      icon="calendar"
+      title="Não coube em nenhum dia"
+      text="Nenhum dia tem tempo livre para todos esses serviços juntos. Tire algum ou fale comigo no WhatsApp."
+    >
+      <ActionButton label="Falar no WhatsApp" icon="whatsapp" variant="secondary" href={whatsappHref} />
+    </EmptyState>
+  </div>
+</section>
+
+<style>
+  .slots {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .slots__title {
+    font-family: var(--site-font-body);
+    font-size: 1.0625rem;
+    font-weight: 600;
+    color: var(--site-color-text);
+  }
+
+  .slots__day {
+    font-size: 0.875rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .slots__grid {
+    /* Três colunas em tela estreita, mais quando couber. O `minmax` evita
+       coluna tão fina que "08:00" quebre no meio. */
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .slots__grid:empty {
+    display: none;
+  }
+
+  /* --- Fichas criadas pelo script -------------------------------------- */
+
+  .slots__grid :global(.slots__chip) {
+    min-height: 48px;
+    padding: 10px 8px;
+    border-radius: var(--site-radius-button);
+    border: 1.5px solid var(--site-color-border);
+    background: var(--site-color-surface);
+
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    color: var(--site-color-text);
+
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      background-color 0.16s ease,
+      border-color 0.16s ease,
+      color 0.16s ease,
+      transform 0.16s ease;
+  }
+
+  /* Guardado contra o escolhido pelo mesmo motivo do calendário: aqui as duas
+     regras têm especificidade IGUAL, e só a ordem no arquivo faz o escolhido
+     ganhar. Ordem é frágil — no dia em que o hover passar a mexer no fundo, o
+     horário escolhido ficaria ilegível sem ninguém mexer nesta linha. */
+  .slots__grid :global(.slots__chip:hover:not([aria-pressed='true'])) {
+    border-color: var(--site-color-brand);
+    transform: translateY(-1px);
+  }
+
+  .slots__grid :global(.slots__chip:focus-visible) {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  .slots__grid :global(.slots__chip[aria-pressed='true']) {
+    background: var(--site-color-brand);
+    border-color: var(--site-color-brand);
+    color: var(--site-color-on-brand);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .slots__grid :global(.slots__chip) {
+      transition: none;
+    }
+
+    /* Seletor idêntico ao da regra de hover acima, de propósito: com
+       especificidade menor, este `transform: none` perderia e a ficha
+       continuaria subindo para quem pediu menos movimento. */
+    .slots__grid :global(.slots__chip:hover:not([aria-pressed='true'])) {
+      transform: none;
+    }
+  }
+</style>

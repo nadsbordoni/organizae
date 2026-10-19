@@ -1,0 +1,144 @@
+---
+import Icon from '@/components/Icon.astro';
+import { formatDuration } from '@/lib/agenda';
+import type { Service } from '@/types/agenda';
+
+/**
+ * Um serviço escolhido, na lista de revisão.
+ *
+ * TODOS os serviços do catálogo são renderizados no build e ficam `hidden`; o
+ * script só mostra os escolhidos. Sai mais barato do que parece — são algumas
+ * linhas de HTML — e evita criar elemento em runtime, o que manteria o estilo
+ * desta peça fora do escopo do componente.
+ *
+ * Remover daqui é sempre seguro: se o conjunto maior cabia no horário, o menor
+ * também cabe. Por isso o botão não precisa revalidar nada — só refaz as somas.
+ */
+
+interface Props {
+  service: Service;
+  /** De onde o serviço veio. 'Blindagem' sozinho é vago na conferência. */
+  categoryName?: string;
+  /** Mostra o botão de tirar. Falso na tela de conclusão, onde já foi enviado. */
+  removable?: boolean;
+}
+
+const { service, categoryName, removable = false }: Props = Astro.props;
+
+const meta = [formatDuration(service.durationMinutes), service.price].filter(Boolean).join(' · ');
+---
+
+<li class="line" data-service-line={service.id} hidden>
+  <span class="line__text">
+    <span class="line__name">{service.name}</span>
+    <span class="line__meta">
+      {categoryName && <span class="line__category">{categoryName}</span>}
+      {meta}
+    </span>
+  </span>
+
+  {
+    removable && (
+      <button
+        class="line__remove"
+        type="button"
+        data-remove-service={service.id}
+        aria-label={`Tirar ${service.name} do agendamento`}
+      >
+        <Icon name="close" size={18} />
+      </button>
+    )
+  }
+</li>
+
+<style>
+  .line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    list-style: none;
+  }
+
+  /* Fio entre itens, e não em volta de cada um: a lista inteira já mora num
+     cartão, e uma borda por linha viraria cartão dentro de cartão. */
+  .line + .line {
+    border-top: 1px solid var(--site-color-border);
+  }
+
+  .line__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .line__name {
+    font-weight: 500;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+
+  .line__meta {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--site-color-text-muted);
+  }
+
+  .line__category {
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--site-color-brand-soft);
+    color: var(--site-color-brand-deep);
+    font-size: 0.6875rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .line__remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    /* 44px é o mínimo que ainda cabe ao lado do texto numa tela de 320px. O
+       ícone é menor que o alvo, o que é o certo — o alvo é que precisa ser
+       grande, não o desenho. */
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    padding: 0;
+
+    background: none;
+    color: var(--site-color-text-muted);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      background-color 0.16s ease,
+      color 0.16s ease;
+  }
+
+  .line__remove:hover {
+    background: var(--site-color-brand-soft);
+    color: var(--site-color-brand-deep);
+  }
+
+  .line__remove:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .line__remove {
+      transition: none;
+    }
+  }
+</style>

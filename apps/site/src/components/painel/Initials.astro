@@ -1,0 +1,30 @@
+---
+import { initials, toneFor } from '@/lib/painel';
+
+/** Iniciais de uma pessoa num círculo. Decorativo: o nome está sempre ao lado. */
+interface Props {
+  name: string;
+}
+
+const { name } = Astro.props;
+---
+
+<span class="initials" style={`--tone-soft: var(--site-panel-${toneFor(name)}-soft)`} aria-hidden="true">
+  {initials(name)}
+</span>
+
+<style>
+  .initials {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--tone-soft);
+    color: var(--site-color-text);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+</style>

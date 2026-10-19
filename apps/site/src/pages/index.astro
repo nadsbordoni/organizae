@@ -1,0 +1,10 @@
+---
+import LinkPage from '@/components/LinkPage.astro';
+import { defaultSite } from '@/config';
+
+// Raiz: serve o site principal. O canonical aponta para `/{slug}` para o
+// buscador não tratar as duas URLs como conteúdo duplicado.
+const canonical = new URL(`/${defaultSite.slug}`, Astro.site ?? Astro.url).href;
+---
+
+<LinkPage site={defaultSite} canonical={canonical} />

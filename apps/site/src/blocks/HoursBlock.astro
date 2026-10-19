@@ -1,0 +1,112 @@
+---
+import type { HoursBlock } from '@/types/blocks';
+
+/**
+ * Horário de funcionamento.
+ *
+ * Usa `<dl>` (lista de definições) em vez de tabela ou parágrafo: cada faixa
+ * é um par dias → horário, que é exatamente a semântica de `<dt>`/`<dd>`.
+ * Leitores de tela anunciam o par junto, em vez de ler uma parede de texto.
+ */
+
+interface Props {
+  block: HoursBlock;
+}
+
+const { block }: Props = Astro.props;
+const { title = 'Horário de atendimento', subtitle, schedule } = block;
+
+// `resolveBlocks()` deriva o horário da `agenda` quando o bloco não traz um.
+// Chegar aqui sem nenhum dos dois é bug de montagem da página.
+if (!schedule) {
+  throw new Error('Bloco `hours` sem `schedule`: renderize os blocos por `resolveBlocks(site)`.');
+}
+---
+
+<section class="hours">
+  <h2 class="hours__title">{title}</h2>
+  {subtitle && <p class="hours__subtitle">{subtitle}</p>}
+
+  <dl class="hours__list">
+    {
+      schedule.map((faixa) => (
+        <div class="hours__row">
+          <dt>{faixa.days}</dt>
+          <dd>{faixa.time}</dd>
+        </div>
+      ))
+    }
+  </dl>
+</section>
+
+<style>
+  .hours {
+    padding: 16px 18px;
+    border-radius: var(--site-radius-card);
+    border: 1.5px solid var(--site-color-border);
+    background: var(--site-color-surface);
+    box-shadow: var(--site-shadow-resting);
+  }
+
+  .hours__title {
+    font-family: var(--site-font-body);
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--site-color-text);
+  }
+
+  .hours__subtitle {
+    margin-top: 2px;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--site-color-text-muted);
+  }
+
+  .hours__list {
+    margin: 10px 0 0;
+  }
+
+  .hours__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+
+    font-size: 0.9375rem;
+    line-height: 1.6;
+  }
+
+  /* Fio pontilhado ligando o dia ao horário: mantém a leitura alinhada
+     quando os nomes dos dias têm larguras diferentes. */
+  .hours__row::after {
+    content: '';
+    order: 1;
+    flex: 1;
+    min-width: 12px;
+    height: 0;
+    margin-bottom: 4px;
+    border-bottom: 1px dotted var(--site-color-border);
+  }
+
+  .hours__row dt {
+    color: var(--site-color-text-muted);
+  }
+
+  .hours__row dd {
+    order: 2;
+    margin: 0;
+    font-weight: 500;
+    color: var(--site-color-text);
+    /* Sem `nowrap`: um dia com pausa vira "08:00 às 12:00 e 13:00 às 19:30" e
+       precisa poder quebrar. Os espaços DENTRO de cada faixa são NBSP (ver
+       `describeDay()` em lib/agenda.ts), então a quebra só cai no " e ". */
+    text-align: right;
+  }
+
+  @media (max-width: 359px) {
+    .hours__row {
+      font-size: 0.875rem;
+    }
+  }
+</style>

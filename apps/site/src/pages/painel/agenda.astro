@@ -1,0 +1,260 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import EmptyState from '@/components/EmptyState.astro';
+import Icon from '@/components/Icon.astro';
+import AppointmentRow from '@/components/painel/AppointmentRow.astro';
+import PanelSection from '@/components/painel/PanelSection.astro';
+import PanelTable from '@/components/painel/PanelTable.astro';
+import SummaryCard from '@/components/painel/SummaryCard.astro';
+import { getSite } from '@/config';
+import { addDays, isIsoDate, nowInBusinessTime } from '@/lib/agenda';
+import { occupiesSlot } from '@/lib/dashboard-status';
+import { forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
+import { catalogTotal, compactPrice, weekdayLabel } from '@/lib/painel';
+
+/**
+ * Agenda de um dia. O dia vive na URL (`?d=AAAA-MM-DD`): voltar e recarregar
+ * funcionam sem JavaScript.
+ */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) {
+  // Conta ligada a um negócio que saiu de `config/sites/` sem mexer no banco.
+  return new Response(`Conta ligada ao negócio "${user.tenantSlug}", que não está configurado.`, {
+    status: 500,
+    headers: { 'content-type': 'text/plain; charset=utf-8' },
+  });
+}
+
+const agenda = site.agenda;
+const hoje = nowInBusinessTime(agenda?.timezone ?? 'America/Sao_Paulo').date;
+const pedido = Astro.url.searchParams.get('d') ?? '';
+const dia = isIsoDate(pedido) ? pedido : hoje;
+
+const dados = forTenant(user.tenantSlug);
+const marcados = await dados.appointmentsOn(dia);
+const excecao = (await dados.exceptionsBetween(dia, dia))[0];
+const fechado = excecao?.hours === null;
+
+const ativos = marcados.filter((m) => occupiesSlot(m.status));
+const aConfirmar = ativos.filter((m) => m.status === 'pending').length;
+const previsto = catalogTotal(
+  ativos.filter((m) => m.status === 'confirmed' || m.status === 'done'),
+  agenda,
+);
+
+const agendaDe = (data: string) => `/painel/agenda?d=${data}`;
+---
+
+<PanelLayout site={site} user={user} current="agenda" title="Agenda">
+  <header class="head">
+    <h1 class="head__title">Agenda</h1>
+
+    <nav class="days" aria-label="Escolher o dia">
+      <a class="days__arrow" href={agendaDe(addDays(dia, -1))} aria-label="Dia anterior">
+        <Icon name="chevron-left" size={20} />
+      </a>
+      <p class="days__label">
+        {weekdayLabel(dia)}
+        {dia === hoje && <span class="days__today">Hoje</span>}
+      </p>
+      <a class="days__arrow" href={agendaDe(addDays(dia, 1))} aria-label="Próximo dia">
+        <Icon name="chevron-right" size={20} />
+      </a>
+      {dia !== hoje && <a class="days__back" href="/painel/agenda">Voltar para hoje</a>}
+    </nav>
+  </header>
+
+  <section class="cards" aria-labelledby="titulo-resumo">
+    <h2 class="sr-only" id="titulo-resumo">Resumo do dia</h2>
+    <SummaryCard
+      label="Atendimentos"
+      value={String(ativos.length)}
+      note="No dia, sem os cancelados"
+      icon="calendar"
+      tone="info"
+    />
+    <SummaryCard
+      label="A confirmar"
+      value={String(aConfirmar)}
+      note="Pedidos esperando resposta"
+      icon="clock"
+      tone="attention"
+    />
+    <SummaryCard
+      label="Previsto no dia"
+      value={previsto ? compactPrice(previsto) : '—'}
+      note={previsto ? 'Confirmados e atendidos, pelo catálogo' : 'Algum serviço sem preço no catálogo'}
+      icon="tag"
+      tone="positive"
+    />
+  </section>
+
+  <PanelSection title="Atendimentos do dia" id="titulo-dia">
+    {
+      fechado && (
+        <div class="closed">
+          {/* ⚠️ Volta a prometer "ninguém marca" só quando o site público ler as exceções do banco. */}
+          <EmptyState
+            level={3}
+            icon="calendar"
+            title="Dia fechado"
+            text={`${excecao?.reason ? `${excecao.reason}. ` : ''}O agendamento do site ainda não sabe disso e continua oferecendo o dia.`}
+          />
+          <form method="post" action="/api/dia">
+            <input type="hidden" name="data" value={dia} />
+            <input type="hidden" name="acao" value="abrir" />
+            <ActionButton label="Reabrir este dia" variant="secondary" type="submit" full={false} />
+          </form>
+        </div>
+      )
+    }
+
+    {/* Dia fechado com atendimento continua listando: esconder cliente marcada é pior que a incoerência. */}
+    {
+      ativos.length > 0 ? (
+        <PanelTable label={`Atendimentos de ${weekdayLabel(dia)}`}>
+          <thead>
+            <tr>
+              <th scope="col">Horário</th>
+              <th scope="col">Cliente e serviço</th>
+              <th scope="col">Situação</th>
+              <th scope="col"><span class="sr-only">Contato</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {ativos.map((m) => <AppointmentRow appointment={m} agenda={agenda} contact />)}
+          </tbody>
+        </PanelTable>
+      ) : (
+        !fechado && (
+          <EmptyState
+            level={3}
+            icon="sparkles"
+            title="Nenhum atendimento"
+            text="Este dia está livre. Pedidos feitos pelo site ainda chegam só pelo WhatsApp."
+          />
+        )
+      )
+    }
+
+    {
+      !fechado && (
+        <form class="close-day" method="post" action="/api/dia">
+          <input type="hidden" name="data" value={dia} />
+          <input type="hidden" name="acao" value="fechar" />
+          <ActionButton
+            label="Fechar este dia"
+            variant="ghost"
+            type="submit"
+            full={false}
+            disabled={ativos.length > 0}
+          />
+          {ativos.length > 0 && (
+            <p class="close-day__note">Cancele ou remarque os atendimentos antes de fechar o dia.</p>
+          )}
+        </form>
+      )
+    }
+  </PanelSection>
+</PanelLayout>
+
+<style>
+  .head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px 24px;
+    margin-bottom: 32px;
+  }
+
+  .head__title {
+    font-family: var(--site-font-display);
+    font-size: clamp(2rem, 4vw, 2.5rem);
+    color: var(--site-color-text);
+  }
+
+  .days {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+  }
+
+  .days__arrow {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+    color: var(--site-color-text);
+  }
+
+  .days__arrow:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  .days__label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 15ch;
+    justify-content: center;
+    font-weight: 500;
+  }
+
+  .days__today {
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: var(--site-color-brand-soft);
+    color: var(--site-color-brand-deep);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .days__back {
+    font-size: 0.875rem;
+    color: var(--site-color-brand-deep);
+  }
+
+  .days__arrow:focus-visible,
+  .days__back:focus-visible {
+    outline: 2px solid var(--site-color-brand);
+    outline-offset: 2px;
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 20px;
+    margin-bottom: 40px;
+  }
+
+  .closed {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .closed form {
+    align-self: center;
+  }
+
+  .close-day {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+  }
+
+  .close-day__note {
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+</style>
