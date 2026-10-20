@@ -4,11 +4,10 @@
 !.env.example
 
 # Java e Maven
-target/
-*.class
-*.jar
-!.mvn/wrapper/maven-wrapper.jar
-HELP.md
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
 
 # Node
 node_modules/
