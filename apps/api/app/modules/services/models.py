@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from sqlalchemy import String, Text, Numeric, Integer, Boolean, ForeignKey, CheckConstraint, text
+from sqlalchemy import String, Text, Numeric, Integer, Boolean, ForeignKey, CheckConstraint, text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -14,6 +14,7 @@ class Service(Base):
     __table_args__ = (
         CheckConstraint("price >= 0", name="ck_services_price"),
         CheckConstraint("duration_minutes > 0", name="ck_services_duration"),
+        UniqueConstraint("id", "business_id", name="uq_services_id_business"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

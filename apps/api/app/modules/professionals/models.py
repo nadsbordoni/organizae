@@ -1,4 +1,4 @@
-from sqlalchemy import String, Text, Boolean, ForeignKey
+from sqlalchemy import String, Text, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -7,6 +7,9 @@ from app.modules.services.models import Service
 
 
 class Professional(Base):
+    __table_args__ = (
+        UniqueConstraint("id", "business_id", name="uq_professionals_id_business"),
+    )
     __tablename__ = "professionals"
 
     id: Mapped[int] = mapped_column(primary_key=True)
