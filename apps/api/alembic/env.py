@@ -2,10 +2,14 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
+from app.modules.businesses.models import Business
 
 from alembic import context
-from app.db.base import Base
 from app.core.config import settings
+
+from app.db.base import Base
+from app.modules.businesses.models import Business
+from app.modules.business_categories.models import BusinessCategory
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

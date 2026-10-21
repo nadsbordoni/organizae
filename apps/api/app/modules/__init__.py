@@ -1,0 +1,1 @@
+#O __init__.py é um arquivo usado pelo Python para identificar e organizar pacotes (pastas com módulos Python).
