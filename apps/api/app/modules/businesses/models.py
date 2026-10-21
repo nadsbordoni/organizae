@@ -4,7 +4,6 @@ from sqlalchemy import String, Text, ForeignKey, Enum as SqlEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
-from app.modules.business_categories.models import BusinessCategory
 
 class ServiceMode(str, Enum):
     IN_PERSON = "in_person"
@@ -34,4 +33,14 @@ class Business(Base):
     category: Mapped["BusinessCategory"] = relationship(
         "BusinessCategory",
         back_populates="businesses"
+    )
+
+    professionals: Mapped[list["Professional"]] = relationship(
+    "Professional",
+    back_populates="business"
+    )
+
+    services: Mapped[list["Service"]] = relationship(
+    "Service",
+    back_populates="business"
     )

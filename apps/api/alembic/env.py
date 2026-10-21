@@ -10,6 +10,8 @@ from app.core.config import settings
 from app.db.base import Base
 from app.modules.businesses.models import Business
 from app.modules.business_categories.models import BusinessCategory
+from app.modules.professionals.models import Professional
+from app.modules.services.models import Service
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
