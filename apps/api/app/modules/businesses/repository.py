@@ -28,14 +28,7 @@ class BusinessRepository:
         )
         return list(self.session.scalars(statement).all())
 
-    def update(
-        self, business_id: int, business_data: BusinessUpdate
-    ) -> Business | None:
-        business = self.get_by_id(business_id)
-
-        if business is None:
-            return None
-
+    def update(self, business: Business, business_data: BusinessUpdate) -> Business:
         for field_name, field_value in business_data.model_dump(
             exclude_unset=True
         ).items():
