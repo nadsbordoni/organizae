@@ -6,9 +6,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 class ServiceMode(str, Enum):
-    IN_PERSON = "in_person"
-    ONLINE = "online"
-    BOTH = "both"
+    PRESENCIAL = "PRESENCIAL"
+    ONLINE = "ONLINE"
+    HIBRIDO = "HIBRIDO"
 
 
 class Business(Base):
