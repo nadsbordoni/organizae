@@ -53,6 +53,7 @@ def create_business(
 def list_businesses(
     service: Annotated[BusinessService, Depends(get_business_service)],
     offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(gt=0, le=100)] = 100,
 ) -> list[Business]:
     return service.list(offset=offset, limit=limit)
 
