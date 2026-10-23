@@ -3,8 +3,13 @@ from fastapi import FastAPI
 from app.modules.businesses.exceptions import BusinessError
 from app.modules.businesses.router import (
     business_error_handler,
+)
+from app.modules.businesses.router import (
     router as businesses_router,
 )
+from app.modules.services.exceptions import ServiceError
+from app.modules.services.route import router as services_router
+from app.modules.services.route import service_error_handler
 
 app = FastAPI(
     title="Organizaê API",
@@ -13,7 +18,9 @@ app = FastAPI(
 )
 
 app.include_router(businesses_router, prefix="/api/v1")
+app.include_router(services_router, prefix="/api/v1")
 app.add_exception_handler(BusinessError, business_error_handler)
+app.add_exception_handler(ServiceError, service_error_handler)
 
 
 @app.get("/health")
