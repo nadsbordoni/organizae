@@ -32,9 +32,9 @@ class ServiceService:
     def list(
         self, *, business_id: UUID, offset: int = 0, limit: int = 100
     ) -> list[Service]:
-        if offset < 0 or limit < 1:
+        if offset < 0 or not 1 <= limit <= 100:
             raise InvalidServicePaginationError(
-                "offset must be non-negative and limit must be positive"
+                "offset must be non-negative and limit must be between 1 and 100"
             )
         return self.repository.list(business_id=business_id, offset=offset, limit=limit)
 

@@ -180,11 +180,26 @@ def test_integrity_errors_roll_back_and_become_conflicts(
         service.session.commit.assert_not_called()
 
 
-@pytest.mark.parametrize("failure_stage", ["query", "flush", "commit", "refresh"])
+@pytest.mark.parametrize(
+    "operation, failure_stage",
+    [
+        ("create", "query"),
+        ("create", "flush"),
+        ("create", "commit"),
+        ("create", "refresh"),
+        ("update", "query"),
+        ("update", "flush"),
+        ("update", "commit"),
+        ("update", "refresh"),
+        ("delete", "flush"),
+        ("delete", "commit"),
+    ],
+)
 @pytest.mark.parametrize("error_type", [OperationalError, RuntimeError])
 def test_errors_are_rolled_back_and_propagated(
     service: ServiceService,
     service_data: ServiceCreate,
+    operation: str,
     failure_stage: str,
     error_type: type[Exception],
 ) -> None:
@@ -194,14 +209,23 @@ def test_errors_are_rolled_back_and_propagated(
         else RuntimeError("failure")
     )
     target = {
-        "query": service.business_repository.get_by_id,
-        "flush": service.repository.create,
+        "query": (
+            service.business_repository.get_by_id
+            if operation == "create"
+            else service.repository.get_by_id
+        ),
+        "flush": getattr(service.repository, operation),
         "commit": service.session.commit,
         "refresh": service.session.refresh,
     }[failure_stage]
     target.side_effect = error
     with pytest.raises(error_type) as caught:
-        service.create(service_data)
+        if operation == "create":
+            service.create(service_data)
+        elif operation == "update":
+            service.update(service_id, ServiceUpdate(), business_id=business_id)
+        else:
+            service.delete(service_id, business_id=business_id)
     assert caught.value is error
     service.session.rollback.assert_called_once_with()
     if failure_stage in ("query", "flush"):
@@ -260,6 +284,16 @@ def test_real_crud_is_scoped_to_business(
     entity = service.create(service_data)
     entity_id = entity.id
     other_business_id = uuid4()
+    database_session.add(
+        Business(
+            id=other_business_id,
+            name="Other studio",
+            category_id=1,
+            whatsapp="85999999999",
+            service_mode=ServiceMode.HIBRIDO,
+        )
+    )
+    database_session.commit()
     assert service.list(business_id=business_id) == [entity]
     assert service.list(business_id=other_business_id) == []
     assert service.get_by_id(entity_id, business_id=business_id) is entity
@@ -272,8 +306,31 @@ def test_real_crud_is_scoped_to_business(
     with pytest.raises(ServiceNotFoundError):
         service.delete(entity_id, business_id=other_business_id)
     assert service.get_by_id(entity_id, business_id=business_id).name == "Haircut"
+    missing_service_id = uuid4()
+    with pytest.raises(ServiceNotFoundError):
+        service.get_by_id(missing_service_id, business_id=business_id)
+    with pytest.raises(ServiceNotFoundError):
+        service.update(
+            missing_service_id, ServiceUpdate(name="Wrong"), business_id=business_id
+        )
+    with pytest.raises(ServiceNotFoundError):
+        service.delete(missing_service_id, business_id=business_id)
+    assert service.get_by_id(entity_id, business_id=business_id).name == "Haircut"
     service.delete(entity_id, business_id=business_id)
     assert service.list(business_id=business_id) == []
+
+
+def test_real_create_rejects_missing_business(
+    database_session: Session, service_data: ServiceCreate
+) -> None:
+    service = ServiceService(database_session)
+    data = service_data.model_copy(update={"business_id": uuid4()})
+
+    with pytest.raises(BusinessNotFoundError):
+        service.create(data)
+
+    assert database_session.scalars(select(Service)).all() == []
+    assert service.business_repository.get_by_id(business_id) is not None
 
 
 def test_real_rollback_removes_flushed_write(
@@ -291,3 +348,29 @@ def test_real_rollback_removes_flushed_write(
         service.create(service_data)
     assert database_session.scalars(select(Service)).all() == []
     assert service.business_repository.get_by_id(business_id) is not None
+
+
+@pytest.mark.parametrize("operation", ["update", "delete"])
+def test_real_rollback_restores_existing_service(
+    database_session: Session, service_data: ServiceCreate, operation: str
+) -> None:
+    service = ServiceService(database_session)
+    entity_id = service.create(service_data).id
+    original_operation = getattr(service.repository, operation)
+
+    def fail_after_flush(*args: object, **kwargs: object) -> None:
+        original_operation(*args, **kwargs)
+        raise RuntimeError("after flush")
+
+    setattr(service.repository, operation, Mock(side_effect=fail_after_flush))
+    with pytest.raises(RuntimeError, match="after flush"):
+        if operation == "update":
+            service.update(
+                entity_id, ServiceUpdate(name="Changed"), business_id=business_id
+            )
+        else:
+            service.delete(entity_id, business_id=business_id)
+
+    restored = service.get_by_id(entity_id, business_id=business_id)
+    assert restored.name == "Haircut"
+    assert restored.business_id == business_id
