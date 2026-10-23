@@ -1,11 +1,27 @@
 from decimal import Decimal
+from typing import TYPE_CHECKING
+from uuid import UUID, uuid4
 
-from sqlalchemy import String, Text, Numeric, Integer, Boolean, ForeignKey, CheckConstraint, text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    Uuid,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
-
 from app.modules.services.associations import professional_services
+
+if TYPE_CHECKING:
+    from app.modules.businesses.models import Business
+    from app.modules.professionals.models import Professional
 
 
 class Service(Base):
@@ -17,11 +33,12 @@ class Service(Base):
         UniqueConstraint("id", "business_id", name="uq_services_id_business"),
     )
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[UUID] = mapped_column(
+        Uuid, primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
 
-    business_id: Mapped[int] = mapped_column(
-        ForeignKey("businesses.id"),
-        nullable=False
+    business_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("businesses.id"), nullable=False
     )
 
     name: Mapped[str] = mapped_column(String(150), nullable=False)
@@ -33,19 +50,11 @@ class Service(Base):
     duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
 
     is_active: Mapped[bool] = mapped_column(
-        Boolean,
-        default=True,
-        server_default=text("true"),
-        nullable=False
+        Boolean, default=True, server_default=text("true"), nullable=False
     )
 
-    business: Mapped["Business"] = relationship(
-        "Business",
-        back_populates="services"
-    )
-    
+    business: Mapped["Business"] = relationship("Business", back_populates="services")
+
     professionals: Mapped[list["Professional"]] = relationship(
-        "Professional",
-        secondary=professional_services,
-        back_populates="services"
+        "Professional", secondary=professional_services, back_populates="services"
     )
