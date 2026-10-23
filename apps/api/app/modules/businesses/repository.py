@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -6,7 +8,6 @@ from app.modules.businesses.schemas import BusinessCreate, BusinessUpdate
 
 
 class BusinessRepository:
-
     def __init__(self, session: Session) -> None:
         self.session = session
 
@@ -16,16 +17,11 @@ class BusinessRepository:
         self.session.flush()
         return business
 
-    def get_by_id(self, business_id: int) -> Business | None:
+    def get_by_id(self, business_id: UUID) -> Business | None:
         return self.session.get(Business, business_id)
 
     def list(self, *, offset: int = 0, limit: int = 100) -> list[Business]:
-        statement = (
-            select(Business)
-            .order_by(Business.id)
-            .offset(offset)
-            .limit(limit)
-        )
+        statement = select(Business).order_by(Business.id).offset(offset).limit(limit)
         return list(self.session.scalars(statement).all())
 
     def update(self, business: Business, business_data: BusinessUpdate) -> Business:
@@ -37,7 +33,7 @@ class BusinessRepository:
         self.session.flush()
         return business
 
-    def delete(self, business_id: int) -> bool:
+    def delete(self, business_id: UUID) -> bool:
         business = self.get_by_id(business_id)
 
         if business is None:

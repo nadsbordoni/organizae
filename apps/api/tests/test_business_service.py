@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 from unittest.mock import Mock
+from uuid import UUID
 
 import pytest
 from sqlalchemy import create_engine, inspect
@@ -24,6 +25,8 @@ from app.modules.businesses.service import (
 from app.modules.professionals.models import Professional  # noqa: F401
 from app.modules.services.models import Service  # noqa: F401
 
+business_id = UUID("8ccacb20-1d36-44a7-9d32-08ac5f6bf15e")
+
 
 @pytest.fixture
 def service() -> BusinessService:
@@ -36,7 +39,7 @@ def service() -> BusinessService:
 @pytest.fixture
 def business_data() -> BusinessCreate:
     return BusinessCreate(
-        name="Studio", category_id=1, whatsapp="85999999999", service_mode="both"
+        name="Studio", category_id=1, whatsapp="85999999999", service_mode="HIBRIDO"
     )
 
 
@@ -67,15 +70,15 @@ def test_create_rejects_missing_category(
 
 
 def test_get_existing_business(service: BusinessService) -> None:
-    assert service.get_by_id(1) is service.repository.get_by_id.return_value
-    service.repository.get_by_id.assert_called_once_with(1)
+    assert service.get_by_id(business_id) is service.repository.get_by_id.return_value
+    service.repository.get_by_id.assert_called_once_with(business_id)
     service.session.commit.assert_not_called()
 
 
 def test_get_missing_business(service: BusinessService) -> None:
     service.repository.get_by_id.return_value = None
     with pytest.raises(BusinessNotFoundError):
-        service.get_by_id(1)
+        service.get_by_id(business_id)
 
 
 def test_list_passes_pagination_without_committing(service: BusinessService) -> None:
@@ -99,8 +102,11 @@ def test_update_preserves_partial_update_contract(
     service: BusinessService, payload: dict[str, str | None]
 ) -> None:
     business_data = BusinessUpdate(**payload)
-    assert service.update(1, business_data) is service.repository.update.return_value
-    service.repository.get_by_id.assert_called_once_with(1)
+    assert (
+        service.update(business_id, business_data)
+        is service.repository.update.return_value
+    )
+    service.repository.get_by_id.assert_called_once_with(business_id)
     service.repository.update.assert_called_once_with(
         service.repository.get_by_id.return_value, business_data
     )
@@ -113,7 +119,7 @@ def test_update_preserves_partial_update_contract(
 
 
 def test_update_validates_new_category(service: BusinessService) -> None:
-    service.update(1, BusinessUpdate(category_id=2))
+    service.update(business_id, BusinessUpdate(category_id=2))
     service.session.get.assert_called_once_with(BusinessCategory, 2)
     service.session.commit.assert_called_once_with()
 
@@ -121,7 +127,7 @@ def test_update_validates_new_category(service: BusinessService) -> None:
 def test_update_rejects_missing_category(service: BusinessService) -> None:
     service.session.get.return_value = None
     with pytest.raises(BusinessCategoryNotFoundError):
-        service.update(1, BusinessUpdate(category_id=2))
+        service.update(business_id, BusinessUpdate(category_id=2))
     service.repository.update.assert_not_called()
     service.session.commit.assert_not_called()
     service.session.rollback.assert_called_once_with()
@@ -130,7 +136,7 @@ def test_update_rejects_missing_category(service: BusinessService) -> None:
 def test_update_missing_business(service: BusinessService) -> None:
     service.repository.get_by_id.return_value = None
     with pytest.raises(BusinessNotFoundError):
-        service.update(1, BusinessUpdate(name="Updated"))
+        service.update(business_id, BusinessUpdate(name="Updated"))
     service.session.commit.assert_not_called()
     service.session.rollback.assert_called_once_with()
     service.repository.update.assert_not_called()
@@ -142,7 +148,7 @@ def test_update_missing_business_takes_precedence_over_category(
     service.repository.get_by_id.return_value = None
     service.session.get.return_value = None
     with pytest.raises(BusinessNotFoundError):
-        service.update(1, BusinessUpdate(category_id=2))
+        service.update(business_id, BusinessUpdate(category_id=2))
     service.session.get.assert_not_called()
     service.repository.update.assert_not_called()
     service.session.commit.assert_not_called()
@@ -150,15 +156,15 @@ def test_update_missing_business_takes_precedence_over_category(
 
 
 def test_delete_commits(service: BusinessService) -> None:
-    assert service.delete(1) is None
-    service.repository.delete.assert_called_once_with(1)
+    assert service.delete(business_id) is None
+    service.repository.delete.assert_called_once_with(business_id)
     service.session.commit.assert_called_once_with()
 
 
 def test_delete_missing_business(service: BusinessService) -> None:
     service.repository.delete.return_value = False
     with pytest.raises(BusinessNotFoundError):
-        service.delete(1)
+        service.delete(business_id)
     service.session.commit.assert_not_called()
     service.session.rollback.assert_called_once_with()
 
@@ -183,9 +189,9 @@ def test_integrity_failure_rolls_back_and_hides_database_details(
         if operation == "create":
             service.create(business_data)
         elif operation == "update":
-            service.update(1, BusinessUpdate(name="Updated"))
+            service.update(business_id, BusinessUpdate(name="Updated"))
         else:
-            service.delete(1)
+            service.delete(business_id)
 
     assert "sensitive" not in str(caught.value)
     assert "internal detail" not in str(caught.value)
@@ -223,7 +229,7 @@ def test_refresh_failure_rolls_back_and_propagates(
         if operation == "create":
             service.create(business_data)
         else:
-            service.update(1, BusinessUpdate(name="Updated"))
+            service.update(business_id, BusinessUpdate(name="Updated"))
     assert caught.value is error
     service.session.commit.assert_called_once_with()
     service.session.rollback.assert_called_once_with()
@@ -266,7 +272,8 @@ def test_created_business_can_be_serialized_after_session_closes(
     database_session.close()
 
     response = BusinessResponse.model_validate(business)
-    assert response.id > 0
+    assert isinstance(response.id, UUID)
+    assert response.id.version == 4
     assert response.name == "Studio"
     assert response.category_id == 1
     assert response.service_mode == business_data.service_mode

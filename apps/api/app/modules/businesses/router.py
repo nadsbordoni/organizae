@@ -1,7 +1,8 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, Request, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from fastapi.responses import JSONResponse
+from pydantic import UUID4
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -60,7 +61,7 @@ def list_businesses(
 
 @router.get("/{business_id}", response_model=BusinessResponse)
 def get_business(
-    business_id: Annotated[int, Path(gt=0)],
+    business_id: UUID4,
     service: Annotated[BusinessService, Depends(get_business_service)],
 ) -> Business:
     return service.get_by_id(business_id)
@@ -68,7 +69,7 @@ def get_business(
 
 @router.patch("/{business_id}", response_model=BusinessResponse)
 def update_business(
-    business_id: Annotated[int, Path(gt=0)],
+    business_id: UUID4,
     business_data: BusinessUpdate,
     service: Annotated[BusinessService, Depends(get_business_service)],
 ) -> Business:
@@ -77,7 +78,7 @@ def update_business(
 
 @router.delete("/{business_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_business(
-    business_id: Annotated[int, Path(gt=0)],
+    business_id: UUID4,
     service: Annotated[BusinessService, Depends(get_business_service)],
 ) -> Response:
     service.delete(business_id)

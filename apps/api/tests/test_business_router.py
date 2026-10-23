@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 from unittest.mock import Mock, patch
+from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
@@ -30,15 +31,18 @@ from app.modules.businesses.models import Business, ServiceMode
 from app.modules.businesses.schemas import BusinessCreate, BusinessUpdate
 from app.modules.businesses.service import BusinessService
 
+business_id = UUID("8ccacb20-1d36-44a7-9d32-08ac5f6bf15e")
+business_path = f"/api/v1/businesses/{business_id}"
+
 
 @pytest.fixture
 def business() -> Business:
     return Business(
-        id=1,
+        id=business_id,
         name="Studio",
         category_id=1,
         whatsapp="85999999999",
-        service_mode=ServiceMode.BOTH,
+        service_mode=ServiceMode.HIBRIDO,
     )
 
 
@@ -63,14 +67,14 @@ def test_create_business(api_client: tuple[TestClient, Mock]) -> None:
         "name": "Studio",
         "category_id": 1,
         "whatsapp": "85999999999",
-        "service_mode": "both",
+        "service_mode": "HIBRIDO",
     }
-    response = client.post("/businesses", json=payload)
+    response = client.post("/api/v1/businesses", json=payload)
 
     assert response.status_code == 201
     assert response.json() == {
         **payload,
-        "id": 1,
+        "id": str(business_id),
         "logo_url": None,
         "description": None,
         "external_link": None,
@@ -86,26 +90,26 @@ def test_list_businesses(
     api_client: tuple[TestClient, Mock], query: str, offset: int, limit: int
 ) -> None:
     client, service = api_client
-    response = client.get(f"/businesses{query}")
+    response = client.get(f"/api/v1/businesses{query}")
     assert response.status_code == 200
-    assert response.json()[0]["id"] == 1
+    assert response.json()[0]["id"] == str(business_id)
     service.list.assert_called_once_with(offset=offset, limit=limit)
 
 
 def test_list_empty_businesses(api_client: tuple[TestClient, Mock]) -> None:
     client, service = api_client
     service.list.return_value = []
-    response = client.get("/businesses")
+    response = client.get("/api/v1/businesses")
     assert response.status_code == 200
     assert response.json() == []
 
 
 def test_get_business(api_client: tuple[TestClient, Mock]) -> None:
     client, service = api_client
-    response = client.get("/businesses/1")
+    response = client.get(business_path)
     assert response.status_code == 200
-    assert response.json()["id"] == 1
-    service.get_by_id.assert_called_once_with(1)
+    assert response.json()["id"] == str(business_id)
+    service.get_by_id.assert_called_once_with(business_id)
 
 
 @pytest.mark.parametrize("payload", [{"name": "Updated"}, {"description": None}, {}])
@@ -113,32 +117,32 @@ def test_update_business(
     api_client: tuple[TestClient, Mock], payload: dict[str, str | None]
 ) -> None:
     client, service = api_client
-    response = client.patch("/businesses/1", json=payload)
+    response = client.patch(business_path, json=payload)
     assert response.status_code == 200
-    service.update.assert_called_once_with(1, BusinessUpdate(**payload))
+    service.update.assert_called_once_with(business_id, BusinessUpdate(**payload))
     assert service.update.call_args.args[1].model_dump(exclude_unset=True) == payload
 
 
 def test_delete_business(api_client: tuple[TestClient, Mock]) -> None:
     client, service = api_client
-    response = client.delete("/businesses/1")
+    response = client.delete(business_path)
     assert response.status_code == 204
     assert response.content == b""
-    service.delete.assert_called_once_with(1)
+    service.delete.assert_called_once_with(business_id)
 
 
 @pytest.mark.parametrize(
     "method, path, operation, error, expected_status",
     [
-        ("GET", "/businesses/1", "get_by_id", BusinessNotFoundError, 404),
-        ("PATCH", "/businesses/1", "update", BusinessNotFoundError, 404),
-        ("DELETE", "/businesses/1", "delete", BusinessNotFoundError, 404),
-        ("POST", "/businesses", "create", BusinessCategoryNotFoundError, 422),
-        ("PATCH", "/businesses/1", "update", BusinessCategoryNotFoundError, 422),
-        ("POST", "/businesses", "create", BusinessConflictError, 409),
-        ("PATCH", "/businesses/1", "update", BusinessConflictError, 409),
-        ("DELETE", "/businesses/1", "delete", BusinessConflictError, 409),
-        ("GET", "/businesses", "list", InvalidBusinessPaginationError, 422),
+        ("GET", business_path, "get_by_id", BusinessNotFoundError, 404),
+        ("PATCH", business_path, "update", BusinessNotFoundError, 404),
+        ("DELETE", business_path, "delete", BusinessNotFoundError, 404),
+        ("POST", "/api/v1/businesses", "create", BusinessCategoryNotFoundError, 422),
+        ("PATCH", business_path, "update", BusinessCategoryNotFoundError, 422),
+        ("POST", "/api/v1/businesses", "create", BusinessConflictError, 409),
+        ("PATCH", business_path, "update", BusinessConflictError, 409),
+        ("DELETE", business_path, "delete", BusinessConflictError, 409),
+        ("GET", "/api/v1/businesses", "list", InvalidBusinessPaginationError, 422),
     ],
 )
 def test_business_errors_map_to_http_responses(
@@ -155,7 +159,7 @@ def test_business_errors_map_to_http_responses(
         "name": "Studio",
         "category_id": 1,
         "whatsapp": "85999999999",
-        "service_mode": "both",
+        "service_mode": "HIBRIDO",
     }
     response = client.request(method, path, json=payload)
     assert response.status_code == expected_status
@@ -165,19 +169,21 @@ def test_business_errors_map_to_http_responses(
 @pytest.mark.parametrize(
     "method, path, payload",
     [
-        ("GET", "/businesses/0", None),
-        ("GET", "/businesses/invalid", None),
-        ("PATCH", "/businesses/-1", {}),
-        ("DELETE", "/businesses/0", None),
-        ("GET", "/businesses?offset=-1", None),
-        ("GET", "/businesses?limit=0", None),
-        ("GET", "/businesses?limit=invalid", None),
-        ("POST", "/businesses", {}),
-        ("POST", "/businesses", {"name": " "}),
-        ("PATCH", "/businesses/1", {"name": None}),
-        ("PATCH", "/businesses/1", {"category_id": 0}),
-        ("PATCH", "/businesses/1", {"service_mode": "invalid"}),
-        ("PATCH", "/businesses/1", {"unknown": "value"}),
+        ("GET", "/api/v1/businesses/0", None),
+        ("GET", "/api/v1/businesses/1", None),
+        ("GET", "/api/v1/businesses/invalid", None),
+        ("GET", "/api/v1/businesses/6ba7b810-9dad-11d1-80b4-00c04fd430c8", None),
+        ("PATCH", "/api/v1/businesses/-1", {}),
+        ("DELETE", "/api/v1/businesses/0", None),
+        ("GET", "/api/v1/businesses?offset=-1", None),
+        ("GET", "/api/v1/businesses?limit=0", None),
+        ("GET", "/api/v1/businesses?limit=invalid", None),
+        ("POST", "/api/v1/businesses", {}),
+        ("POST", "/api/v1/businesses", {"name": " "}),
+        ("PATCH", business_path, {"name": None}),
+        ("PATCH", business_path, {"category_id": 0}),
+        ("PATCH", business_path, {"service_mode": "invalid"}),
+        ("PATCH", business_path, {"unknown": "value"}),
     ],
 )
 def test_invalid_requests_do_not_call_service(

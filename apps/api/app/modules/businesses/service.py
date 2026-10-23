@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
+from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -21,7 +22,7 @@ class BusinessService:
         self.session = session
         self.repository = BusinessRepository(session)
 
-    def get_by_id(self, business_id: int) -> Business:
+    def get_by_id(self, business_id: UUID) -> Business:
         business = self.repository.get_by_id(business_id)
         if business is None:
             raise BusinessNotFoundError("Business not found")
@@ -42,7 +43,7 @@ class BusinessService:
             self.session.refresh(business)
         return business
 
-    def update(self, business_id: int, business_data: BusinessUpdate) -> Business:
+    def update(self, business_id: UUID, business_data: BusinessUpdate) -> Business:
         with self._transaction():
             business = self.get_by_id(business_id)
 
@@ -55,7 +56,7 @@ class BusinessService:
 
         return business
 
-    def delete(self, business_id: int) -> None:
+    def delete(self, business_id: UUID) -> None:
         with self._transaction():
             if not self.repository.delete(business_id):
                 raise BusinessNotFoundError("Business not found")

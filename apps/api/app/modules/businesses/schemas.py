@@ -1,10 +1,22 @@
 from typing import Annotated
 
-from app.modules.businesses.models import ServiceMode
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    UUID4,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    model_validator,
+)
 
-BusinessName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=150)]
-WhatsAppNumber = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20)]
+from app.modules.businesses.models import ServiceMode
+
+BusinessName = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=150)
+]
+WhatsAppNumber = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20)
+]
 
 
 class BusinessCreate(BaseModel):
@@ -35,7 +47,10 @@ class BusinessUpdate(BaseModel):
     @model_validator(mode="after")
     def validate_required_fields(self) -> "BusinessUpdate":
         for field_name in ("name", "category_id", "whatsapp", "service_mode"):
-            if field_name in self.model_fields_set and getattr(self, field_name) is None:
+            if (
+                field_name in self.model_fields_set
+                and getattr(self, field_name) is None
+            ):
                 raise ValueError(f"{field_name} cannot be null")
         return self
 
@@ -43,4 +58,4 @@ class BusinessUpdate(BaseModel):
 class BusinessResponse(BusinessCreate):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
-    id: int
+    id: UUID4
