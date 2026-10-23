@@ -152,6 +152,58 @@ def test_get_and_list_are_scoped_and_paginated(
     assert repository.list(business_id=uuid4()) == []
 
 
+@pytest.mark.parametrize("is_active", [None, True, False])
+def test_status_filter_is_scoped_applied_before_pagination_and_loads_services(
+    session: Session,
+    businesses: tuple[Business, Business],
+    services: tuple[Service, Service, Service],
+    is_active: bool | None,
+) -> None:
+    repository = ProfessionalRepository(session)
+    business_id = businesses[0].id
+    service_id = services[0].id
+    professionals = sorted(
+        [create_professional(repository, business_id, [service_id]) for _ in range(4)],
+        key=lambda professional: professional.id,
+    )
+    for index, professional in enumerate(professionals):
+        repository.update(professional, ProfessionalUpdate(is_active=index % 2 == 0))
+    for status in (True, False):
+        other_professional = create_professional(
+            repository, businesses[1].id, [services[2].id]
+        )
+        repository.update(other_professional, ProfessionalUpdate(is_active=status))
+    expected_ids = [
+        professional.id
+        for professional in professionals
+        if is_active is None or professional.is_active is is_active
+    ]
+    session.expunge_all()
+
+    results = repository.list(business_id=business_id, is_active=is_active)
+    assert [professional.id for professional in results] == expected_ids
+    page = repository.list(
+        business_id=business_id, is_active=is_active, offset=1, limit=1
+    )
+    assert [professional.id for professional in page] == expected_ids[1:2]
+    assert (
+        repository.list(
+            business_id=business_id, is_active=is_active, offset=len(expected_ids)
+        )
+        == []
+    )
+
+    session.close()
+    responses = [
+        ProfessionalResponse.model_validate(professional) for professional in results
+    ]
+    assert all(response.business_id == business_id for response in responses)
+    assert all(
+        [service.id for service in response.services] == [service_id]
+        for response in responses
+    )
+
+
 def test_partial_update_preserves_links_and_supports_deactivation(
     session: Session,
     businesses: tuple[Business, Business],
@@ -247,7 +299,7 @@ def test_database_rejects_invalid_links_and_caller_can_roll_back(
     assert len(repository.list(business_id=business_id)) == 1
 
 
-def test_delete_is_scoped_removes_only_links_and_preserves_services(
+def test_deactivation_preserves_professional_links_and_services(
     session: Session,
     businesses: tuple[Business, Business],
     services: tuple[Service, Service, Service],
@@ -255,15 +307,22 @@ def test_delete_is_scoped_removes_only_links_and_preserves_services(
     repository = ProfessionalRepository(session)
     professional = create_professional(repository, businesses[0].id, [services[0].id])
     professional_id = professional.id
-    assert repository.delete(professional_id, business_id=businesses[1].id) is False
+    assert repository.get_by_id(professional_id, business_id=businesses[1].id) is None
     assert (
         repository.get_by_id(professional_id, business_id=businesses[0].id)
         is professional
     )
-    assert repository.delete(professional_id, business_id=businesses[0].id) is True
-    assert repository.get_by_id(professional_id, business_id=businesses[0].id) is None
-    assert repository.delete(professional_id, business_id=businesses[0].id) is False
-    assert session.execute(select(professional_services)).all() == []
+    repository.update(professional, ProfessionalUpdate(is_active=False))
+    assert (
+        repository.get_by_id(professional_id, business_id=businesses[0].id)
+        is professional
+    )
+    assert professional.is_active is False
+    assert professional.services == [services[0]]
+    link = session.execute(select(professional_services)).one()
+    assert link.professional_id == professional_id
+    assert link.service_id == services[0].id
+    assert link.business_id == businesses[0].id
     assert session.get(Service, services[0].id) is services[0]
 
 
@@ -307,7 +366,7 @@ def test_repository_leaves_transactions_to_caller(
     repository.replace_services(
         professional, ProfessionalServicesUpdate(service_ids=[service_id])
     )
-    repository.delete(professional.id, business_id=business_id)
+    repository.update(professional, ProfessionalUpdate(is_active=False))
     remaining_professional = create_professional(repository, business_id, [service_id])
     remaining_id = remaining_professional.id
     session.commit.assert_not_called()

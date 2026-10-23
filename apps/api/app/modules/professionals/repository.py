@@ -42,16 +42,21 @@ class ProfessionalRepository:
         return self.session.scalar(statement)
 
     def list(
-        self, *, business_id: UUID, offset: int = 0, limit: int = 100
+        self,
+        *,
+        business_id: UUID,
+        is_active: bool | None = None,
+        offset: int = 0,
+        limit: int = 100,
     ) -> list[Professional]:
         statement = (
             select(Professional)
             .options(selectinload(Professional.services))
             .where(Professional.business_id == business_id)
-            .order_by(Professional.id)
-            .offset(offset)
-            .limit(limit)
         )
+        if is_active is not None:
+            statement = statement.where(Professional.is_active.is_(is_active))
+        statement = statement.order_by(Professional.id).offset(offset).limit(limit)
         return list(self.session.scalars(statement).all())
 
     def update(
@@ -78,14 +83,6 @@ class ProfessionalRepository:
         # Core writes bypass the ORM collection, which may already be loaded.
         self.session.refresh(professional, attribute_names=["services"])
         return professional
-
-    def delete(self, professional_id: UUID, *, business_id: UUID) -> bool:
-        professional = self.get_by_id(professional_id, business_id=business_id)
-        if professional is None:
-            return False
-        self.session.delete(professional)
-        self.session.flush()
-        return True
 
     def _insert_services(
         self, professional: Professional, service_ids: list[UUID]
