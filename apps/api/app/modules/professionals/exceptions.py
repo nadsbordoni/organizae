@@ -1,0 +1,2 @@
+class InvalidProfessionalPaginationError(ValueError):
+    pass

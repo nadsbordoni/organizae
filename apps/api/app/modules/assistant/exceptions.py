@@ -91,3 +91,34 @@ class AssistantInvalidResponseError(AssistantError):
         "O Gemini não retornou uma resposta de texto completa e utilizável. "
         "A resposta pode ter sido bloqueada ou atingido o limite de saída."
     )
+
+
+class AssistantDemoConfigurationError(AssistantUnavailableError):
+    code = "assistant_demo_not_configured"
+    public_message = (
+        "As ferramentas de demonstração exigem APP_ENV=development ou test e "
+        "ASSISTANT_DEMO_BUSINESS_ID configurado no backend. Não habilite em produção."
+    )
+
+
+class AssistantDemoBusinessNotFoundError(AssistantError):
+    code = "assistant_demo_business_not_found"
+    public_message = "A empresa de demonstração configurada no backend não existe."
+
+
+class AssistantToolCallError(AssistantError):
+    code = "assistant_invalid_tool_call"
+    public_message = (
+        "O modelo solicitou uma ferramenta não autorizada ou argumentos inválidos. "
+        "A consulta foi interrompida."
+    )
+
+
+class AssistantToolLimitError(AssistantError):
+    code = "assistant_tool_limit"
+    public_message = "Limite de cinco chamadas de ferramentas por mensagem atingido."
+
+
+class AssistantToolDatabaseError(AssistantUnavailableError):
+    code = "assistant_database_unavailable"
+    public_message = "Não foi possível consultar os dados da empresa de demonstração."

@@ -18,7 +18,7 @@ with patch.dict(
 ):
     from app.core.config import Settings
     from app.main import app
-    from app.modules.assistant.router import get_assistant_provider
+    from app.modules.assistant.router import get_assistant_provider, get_assistant_tools
 
 from app.modules.assistant.exceptions import (
     AssistantConnectionError,
@@ -45,11 +45,13 @@ def api_client() -> Iterator[tuple[TestClient, Mock]]:
     provider = Mock(spec=AssistantProvider)
     provider.generate.return_value = "Olá! Sou a assistente do Organizaê."
     app.dependency_overrides[get_assistant_provider] = lambda: provider
+    app.dependency_overrides[get_assistant_tools] = lambda: None
     try:
         with TestClient(app) as client:
             yield client, provider
     finally:
         app.dependency_overrides.pop(get_assistant_provider)
+        app.dependency_overrides.pop(get_assistant_tools)
 
 
 def test_chat(api_client: tuple[TestClient, Mock]) -> None:
