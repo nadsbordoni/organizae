@@ -1,7 +1,8 @@
 #Esse arquivo será responsável por ler as variáveis de ambiente.
 from pathlib import Path
-from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from pydantic import SecretStr
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 #BaseSettings lê as configurações do .env, enquanto URL.create() monta a conexão sem problemas com caracteres especiais na senha.
 ROOT_DIR = Path(__file__).resolve().parents[4]
@@ -12,6 +13,8 @@ class Settings(BaseSettings):
     DB_NAME: str
     DB_USER: str
     DB_PASSWORD: str
+    GEMINI_API_KEY: SecretStr = SecretStr("")
+    GEMINI_MODEL: str = "gemini-3.1-flash-lite"
 
     model_config = SettingsConfigDict(
         env_file=ROOT_DIR / ".env",
