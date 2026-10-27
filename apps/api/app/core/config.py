@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Literal
 from uuid import UUID
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 #BaseSettings lê as configurações do .env, enquanto URL.create() monta a conexão sem problemas com caracteres especiais na senha.
@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     DB_PASSWORD: str
     GEMINI_API_KEY: SecretStr = SecretStr("")
     GEMINI_MODEL: str = "gemini-3.1-flash-lite"
+    GEMINI_TIMEOUT_MS: int = Field(default=30000, gt=0)
     APP_ENV: Literal["development", "test", "production"] = "production"
     ASSISTANT_DEMO_ENABLED: bool = False
     ASSISTANT_DEMO_BUSINESS_ID: UUID | None = None

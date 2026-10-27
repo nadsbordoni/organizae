@@ -234,7 +234,9 @@ def test_service_orchestrates_multiple_tools_and_final_text(
     names = {
         item["name"] for item in provider.conversation.call_args.kwargs["declarations"]
     }
-    assert names == {"get_business_info", "list_professionals", "list_services"}
+    assert {"get_business_info", "list_professionals", "list_services"} <= names
+    if settings.APP_ENV != "development" or not settings.ASSISTANT_DEMO_ENABLED:
+        assert names == {"get_business_info", "list_professionals", "list_services"}
     assert "business_id" not in str(tools.declarations())
     tools.professional_service.list.assert_called_once_with(
         business_id=tools.business_id,
@@ -439,9 +441,10 @@ def test_endpoint_failure_after_tool_result(
         sdk_reply(
             types.Part(function_call=types.FunctionCall(name="list_services", args={}))
         ),
-        failure,
+        failure, failure, failure,
     ]
-    response = client.post(PATH, json={"message": "oi"})
+    with patch("app.modules.assistant.providers.gemini.time.sleep"):
+        response = client.post(PATH, json={"message": "oi"})
     assert response.status_code == 503
     assert response.json()["code"] == code
     assert "sensitive-provider-detail" not in response.text

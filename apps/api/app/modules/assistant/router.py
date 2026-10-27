@@ -1,4 +1,5 @@
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
@@ -6,16 +7,21 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.session import get_db
+from app.modules.assistant.actions import ActionDecision
 from app.modules.assistant.exceptions import (
+    AssistantActionStateError,
     AssistantDemoBusinessNotFoundError,
     AssistantDemoConfigurationError,
     AssistantError,
     AssistantInvalidResponseError,
     AssistantRateLimitError,
+    AssistantRequestConflictError,
     AssistantTimeoutError,
     AssistantToolCallError,
     AssistantToolLimitError,
     AssistantUnavailableError,
+    AssistantWriteBusinessError,
+    AssistantWriteDisabledError,
 )
 from app.modules.assistant.providers.gemini import GeminiProvider
 from app.modules.assistant.schemas import ChatRequest, ChatResponse
@@ -62,6 +68,10 @@ async def assistant_error_handler(
 ) -> JSONResponse:
     status_codes = {
         AssistantDemoBusinessNotFoundError: 404,
+        AssistantActionStateError: 409,
+        AssistantRequestConflictError: 409,
+        AssistantWriteDisabledError: 403,
+        AssistantWriteBusinessError: 422,
         AssistantToolCallError: 502,
         AssistantToolLimitError: 502,
         AssistantTimeoutError: 504,
@@ -79,9 +89,26 @@ async def assistant_error_handler(
     )
 
 
-@router.post("/chat", response_model=ChatResponse)
+@router.post("/chat", response_model=ChatResponse, response_model_exclude_none=True)
 def chat(
     data: ChatRequest,
     service: Annotated[AssistantService, Depends(get_assistant_service)],
 ) -> ChatResponse:
     return service.chat(data)
+
+
+@router.post("/actions/{action_id}/confirm")
+def confirm_action(
+    action_id: UUID,
+    data: ActionDecision,
+    service: Annotated[AssistantService, Depends(get_assistant_service)],
+) -> dict:
+    return service.decide_action(action_id, data)
+
+
+@router.post("/actions/{action_id}/cancel")
+def cancel_action(
+    action_id: UUID,
+    service: Annotated[AssistantService, Depends(get_assistant_service)],
+) -> dict:
+    return service.decide_action(action_id, ActionDecision(decision="cancel"))

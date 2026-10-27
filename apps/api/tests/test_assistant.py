@@ -190,7 +190,10 @@ def test_gemini_errors(
     failure: Exception,
     expected: type[Exception],
 ) -> None:
-    with patch("app.modules.assistant.providers.gemini.genai.Client") as factory:
+    with (
+        patch("app.modules.assistant.providers.gemini.genai.Client") as factory,
+        patch("app.modules.assistant.providers.gemini.time.sleep"),
+    ):
         client = factory.return_value.__enter__.return_value
         client.models.generate_content.side_effect = failure
         with pytest.raises(expected) as caught:
