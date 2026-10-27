@@ -10,6 +10,9 @@ from app.modules.businesses.router import (
 from app.modules.businesses.router import (
     router as businesses_router,
 )
+from app.modules.professionals.exceptions import ProfessionalError
+from app.modules.professionals.route import professional_error_handler
+from app.modules.professionals.route import router as professionals_router
 from app.modules.services.exceptions import ServiceError
 from app.modules.services.route import router as services_router
 from app.modules.services.route import service_error_handler
@@ -22,10 +25,12 @@ app = FastAPI(
 
 app.include_router(businesses_router, prefix="/api/v1")
 app.include_router(services_router, prefix="/api/v1")
+app.include_router(professionals_router, prefix="/api/v1")
 app.include_router(assistant_router, prefix="/api/v1")
 app.add_exception_handler(AssistantError, assistant_error_handler)
 app.add_exception_handler(BusinessError, business_error_handler)
 app.add_exception_handler(ServiceError, service_error_handler)
+app.add_exception_handler(ProfessionalError, professional_error_handler)
 
 
 @app.get("/health")
