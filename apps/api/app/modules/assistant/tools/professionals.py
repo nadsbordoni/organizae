@@ -20,6 +20,7 @@ def list_professionals(
     return {
         "items": [
             {
+                **({"id": str(item.id)} if item.id is not None else {}),
                 "name": item.name,
                 "description": item.description,
                 "is_active": item.is_active,

@@ -234,7 +234,9 @@ def test_service_orchestrates_multiple_tools_and_final_text(
     names = {
         item["name"] for item in provider.conversation.call_args.kwargs["declarations"]
     }
-    assert names == {"get_business_info", "list_professionals", "list_services"}
+    assert {"get_business_info", "list_professionals", "list_services"} <= names
+    if settings.APP_ENV != "development" or not settings.ASSISTANT_DEMO_ENABLED:
+        assert names == {"get_business_info", "list_professionals", "list_services"}
     assert "business_id" not in str(tools.declarations())
     tools.professional_service.list.assert_called_once_with(
         business_id=tools.business_id,

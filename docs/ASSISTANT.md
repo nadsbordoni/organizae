@@ -105,11 +105,11 @@ O módulo fica em `apps/api/app/modules/assistant/` e é registrado em `app/main
 
 Listagens aceitam `offset` (padrão 0) e `limit` (padrão 20, máximo 100). Nenhuma função aceita `business_id`, SQL ou nomes de funções arbitrários. Telefones, endereço e identificadores internos não são enviados nos resultados. O prompt instrui o modelo a tratar esses resultados como dados, não como instruções.
 
-As ferramentas reutilizam `BusinessService` e `ServiceService`. Como o módulo de profissionais possuía apenas o model, foi adicionada uma consulta de leitura em `ProfessionalService` e `ProfessionalRepository`, sem criar um CRUD novo. Os Services compartilham a sessão recebida por `get_db`; seu context manager fecha a sessão e libera transações pendentes ao terminar a requisição, inclusive em falhas. Nenhuma ferramenta chama `commit()` ou realiza escrita. O cliente Gemini também é fechado ao terminar a conversa.
+As ferramentas reutilizam `BusinessService`, `ProfessionalService` e `ServiceService`. Os Services compartilham a sessão recebida por `get_db`; seu context manager fecha a sessão ao terminar a requisição, inclusive em falhas. As ferramentas de escrita apenas preparam pendências. Após confirmação explícita pela API, o `AssistantService` chama os Services existentes, que mantêm suas regras e limites de transação. O cliente Gemini também é fechado ao terminar a conversa.
 
 ## Dados fictícios para teste local
 
-Em um banco **exclusivo de desenvolvimento**, aplique as migrations existentes com `uv run alembic upgrade head`. Empresas e serviços podem ser cadastrados pelos POSTs já disponíveis no Swagger. Como não há endpoint de criação de profissionais nesta versão, este exemplo opcional prepara um conjunto completo: execute `uv run python` em `apps/api/` e cole o código abaixo. Ele cria dados somente quando executado manualmente; cada execução cria uma nova empresa.
+Em um banco **exclusivo de desenvolvimento**, aplique as migrations existentes com `uv run alembic upgrade head`. Empresas, serviços e profissionais podem ser cadastrados pelos POSTs disponíveis no Swagger. Como alternativa, este exemplo opcional prepara um conjunto completo: execute `uv run python` em `apps/api/` e cole o código abaixo. Ele cria dados somente quando executado manualmente; cada execução cria uma nova empresa.
 
 ```python
 from decimal import Decimal
@@ -157,6 +157,66 @@ Os testes da assistente simulam Services e SDK, sem consumir a API Gemini ou ace
 
 ## Limitações e evolução
 
-A assistente consulta somente a empresa de demonstração quando habilitada. Não altera dados, não executa SQL e não mantém histórico entre requisições. O Google recebe o prompt, a mensagem e os campos permitidos retornados pelas ferramentas. Não há autenticação; o mecanismo temporário não deve ser publicado ou usado para dados reais.
+A assistente acessa somente a empresa de demonstração quando habilitada. Escritas exigem confirmação explícita pela API, conforme a seção abaixo. Não executa SQL e não mantém histórico de conversa entre requisições. O Google recebe o prompt, a mensagem e os campos permitidos retornados pelas ferramentas. Não há autenticação; o mecanismo temporário não deve ser publicado ou usado para dados reais.
 
-Function Calling nativo de leitura está implementado, mas a execução automática de funções Python pelo SDK permanece desabilitada: somente o backend despacha as funções permitidas. Análise financeira, comandos por voz, extração de dados de imagens, Text-to-SQL e operações de escrita não foram implementados. A evolução deverá substituir o contexto de demonstração pela autenticação e preservar a autorização nos Services.
+Function Calling nativo está implementado, mas a execução automática de funções Python pelo SDK permanece desabilitada: somente o backend despacha as funções permitidas. Análise financeira, comandos por voz, extração de dados de imagens e Text-to-SQL não foram implementados. A evolução deverá substituir o contexto de demonstração pela autenticação e preservar a autorização nos Services.
+
+
+## Escrita com confirmação explícita (demonstração local)
+
+As ferramentas `create_service`, `update_service`, `create_professional` e
+`update_professional` usam o SDK nativo do Gemini e apenas preparam ações.
+A escrita exige `APP_ENV=development`, `ASSISTANT_DEMO_ENABLED=true` e
+`ASSISTANT_DEMO_BUSINESS_ID` configurado no backend. Em `test` as consultas
+continuam disponíveis, mas escrita é bloqueada. Não há autenticação: utilize
+somente dados fictícios e não exponha esta demonstração publicamente.
+
+Envie `POST /api/v1/assistant/chat` com, por exemplo:
+
+```json
+{"message": "Cadastre o serviço Corte, por R$ 45,00, com duração de 30 minutos"}
+```
+
+Outros exemplos: "Altere o preço do Corte para R$ 50,00", "Cadastre a profissional
+Ana" e "Desative a profissional Ana". As listagens retornam IDs para identificar
+registros; em caso de ambiguidade a assistente deve perguntar. O backend valida
+os argumentos com os schemas existentes e devolve erros de campos ao modelo
+para solicitar correções. Não existe SQL arbitrário ou acesso do Gemini ao banco.
+
+A resposta inclui `response` e `pending_actions`, com `id`, `operation`,
+`arguments`, `expires_at` e `state=pending`. Exiba os parâmetros para revisão do
+usuário. Para atualizações, a ferramenta recebe `record_id` e `data`, como
+`{"record_id": "UUID", "data": {"price": "50.00"}}` ou
+`{"record_id": "UUID", "data": {"is_active": false}}`.
+
+Após o usuário confirmar explicitamente, envie:
+
+```http
+POST /api/v1/assistant/actions/{id}/confirm
+Content-Type: application/json
+
+{"decision": "confirm"}
+```
+
+Para cancelar, envie `POST /api/v1/assistant/actions/{id}/cancel`, sem corpo.
+Responder "sim" no chat não confirma ações. Os endpoints não recebem novos
+parâmetros de negócio: executam exclusivamente os parâmetros já validados e
+armazenados. Qualquer alteração requer preparar outra ação e cancelar a anterior.
+
+As pendências expiram em cinco minutos. Estados possíveis: `pending`, `executing`,
+`confirmed`, `cancelled`, `expired`, `failed`. Ações inexistentes, expiradas ou já
+consumidas retornam 409. Falhas de negócio retornam 422, indisponibilidade do
+banco 503 e bloqueio de ambiente 403. Uma falha de execução também consome a
+ação, pois um commit pode ter ocorrido antes de uma falha no refresh; consulte
+os registros antes de preparar outra ação.
+
+O armazenamento é em memória, protegido por lock para consumo único dentro do
+processo. Reiniciar o servidor invalida pendências. Execute a demonstração com
+um único worker; múltiplos workers precisam de armazenamento compartilhado e
+consumo atômico persistente antes de serem suportados. O ID funciona como uma
+capacidade temporária, sem vínculo a usuário autenticado. Antes de produção,
+é necessário implementar autenticação, autorização e vínculo das ações ao usuário.
+Não foram adicionadas dependências ou migrations.
+
+Testes de escrita: `uv run pytest tests/test_assistant_writes.py` (mocks, sem
+chamadas externas ao Gemini ou banco real).

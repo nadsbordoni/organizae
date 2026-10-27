@@ -14,6 +14,7 @@ def list_services(
     return {
         "items": [
             {
+                **({"id": str(item.id)} if item.id is not None else {}),
                 "name": item.name,
                 "description": item.description,
                 "price": str(item.price),

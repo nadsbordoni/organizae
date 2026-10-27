@@ -13,3 +13,4 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     response: str
+    pending_actions: list[dict] | None = None

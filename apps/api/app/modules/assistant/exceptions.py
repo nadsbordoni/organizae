@@ -122,3 +122,18 @@ class AssistantToolLimitError(AssistantError):
 class AssistantToolDatabaseError(AssistantUnavailableError):
     code = "assistant_database_unavailable"
     public_message = "Não foi possível consultar os dados da empresa de demonstração."
+
+
+class AssistantWriteDisabledError(AssistantError):
+    code = "assistant_write_disabled"
+    public_message = "Escrita disponível apenas na demonstração em development."
+
+
+class AssistantActionStateError(AssistantError):
+    code = "assistant_action_unavailable"
+    public_message = "Ação inexistente, expirada ou já finalizada."
+
+
+class AssistantWriteBusinessError(AssistantError):
+    code = "assistant_write_rejected"
+    public_message = "Operação recusada: registro ausente ou conflito com regras do negócio."
