@@ -1,5 +1,7 @@
 #Esse arquivo será responsável por ler as variáveis de ambiente.
 from pathlib import Path
+from typing import Literal
+from uuid import UUID
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -15,6 +17,9 @@ class Settings(BaseSettings):
     DB_PASSWORD: str
     GEMINI_API_KEY: SecretStr = SecretStr("")
     GEMINI_MODEL: str = "gemini-3.1-flash-lite"
+    APP_ENV: Literal["development", "test", "production"] = "production"
+    ASSISTANT_DEMO_ENABLED: bool = False
+    ASSISTANT_DEMO_BUSINESS_ID: UUID | None = None
 
     model_config = SettingsConfigDict(
         env_file=ROOT_DIR / ".env",
