@@ -40,6 +40,10 @@ organizae/
   docker-compose.yml   PostgreSQL local
 ```
 
+## Assistente de IA
+
+A API inclui uma assistente de texto integrada ao Google Gemini para orientar o usuário sobre o Organizaê. Consulte o [guia da assistente](docs/ASSISTANT.md) para configuração, execução, arquitetura, testes e limitações atuais.
+
 ## Como contribuir
 
 Antes de subir código, leia o `.env.example` e nunca envie o arquivo `.env`.
