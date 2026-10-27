@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.modules.business_categories.models import BusinessCategory
     from app.modules.professionals.models import Professional
     from app.modules.services.models import Service
+    from app.modules.users.models import User
 
 
 class ServiceMode(str, Enum):
@@ -50,3 +51,9 @@ class Business(Base):
     services: Mapped[list["Service"]] = relationship(
         "Service", back_populates="business"
     )
+    
+    user: Mapped["User | None"] = relationship(
+    "User",
+    back_populates="business",
+    uselist=False,
+)
