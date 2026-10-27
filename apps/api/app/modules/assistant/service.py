@@ -37,6 +37,29 @@ class AssistantService:
         self.tools = tools
 
     def chat(self, data: ChatRequest) -> ChatResponse:
+        if self.tools is None or data.request_id is None:
+            return self._chat(data)
+        business_id = self.tools.business_id
+        cached = action_repository.begin_request(
+            business_id, data.request_id, data.message
+        )
+        if cached is not None:
+            if cached.get("pending_actions"):
+                require_write_enabled(business_id)
+            return ChatResponse.model_validate(cached)
+        completed = False
+        try:
+            result = self._chat(data)
+            action_repository.complete_request(
+                business_id, data.request_id, result.model_dump(mode="json")
+            )
+            completed = True
+            return result
+        finally:
+            if not completed:
+                action_repository.fail_request(business_id, data.request_id)
+
+    def _chat(self, data: ChatRequest) -> ChatResponse:
         if self.tools is None:
             response = self.provider.generate(data.message, system_prompt=SYSTEM_PROMPT)
         else:
@@ -68,16 +91,18 @@ class AssistantService:
                     raise AssistantToolLimitError()
                 # Validate the entire batch before executing any requested tool.
                 tools.validate_calls(reply.calls)
-                results = [tools.execute(call) for call in reply.calls]
-                pending = [
-                    result.response["pending_action"]
+                results = tools.execute_batch(reply.calls)
+                pending = {
+                    result.response["pending_action"]["id"]: result.response[
+                        "pending_action"
+                    ]
                     for result in results
                     if "pending_action" in result.response
-                ]
+                }
                 if pending:
                     return ChatResponse(
                         response="Revise os parâmetros e confirme ou cancele cada ação pelo identificador. Nenhuma alteração foi executada.",
-                        pending_actions=pending,
+                        pending_actions=list(pending.values()),
                     )
                 call_count += len(reply.calls)
                 reply = conversation.generate(results)

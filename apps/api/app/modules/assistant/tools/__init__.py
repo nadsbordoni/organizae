@@ -1,3 +1,5 @@
+import json
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -119,6 +121,51 @@ class AssistantTools:
                 **arguments.model_dump(),
             )
         return ToolResult(name=call.name, response=result, id=call.id)
+
+    def execute_batch(self, calls: list[ToolCall]) -> list[ToolResult]:
+        self.validate_calls(calls)
+        keys: list[tuple[str, str] | None] = []
+        call_ids: dict[str, tuple[str, str]] = {}
+        for call in calls:
+            if call.name not in WRITE_SCHEMAS:
+                keys.append(None)
+                continue
+            try:
+                arguments = WRITE_SCHEMAS[call.name].model_validate(call.arguments)
+                payload = arguments.model_dump(
+                    mode="python", exclude_unset=call.name.startswith("update_")
+                )
+            except ValidationError:
+                payload = call.arguments
+            key = (
+                call.name,
+                json.dumps(
+                    payload,
+                    sort_keys=True,
+                    default=lambda value: (
+                        str(value.normalize())
+                        if isinstance(value, Decimal)
+                        else str(value)
+                    ),
+                ),
+            )
+            if call.id is not None:
+                if call.id in call_ids and call_ids[call.id] != key:
+                    raise AssistantToolCallError()
+                call_ids[call.id] = key
+            keys.append(key)
+        results: list[ToolResult] = []
+        writes: dict[tuple[str, str], ToolResult] = {}
+        for call, key in zip(calls, keys, strict=True):
+            if key is not None and key in writes:
+                result = writes[key]
+                results.append(ToolResult(call.name, result.response, call.id))
+            else:
+                result = self.execute(call)
+                results.append(result)
+                if key is not None:
+                    writes[key] = result
+        return results
 
     def prepare_write(self, call: ToolCall) -> ToolResult:
         require_write_enabled(self.business_id)

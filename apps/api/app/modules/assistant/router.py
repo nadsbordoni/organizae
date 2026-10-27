@@ -15,6 +15,7 @@ from app.modules.assistant.exceptions import (
     AssistantError,
     AssistantInvalidResponseError,
     AssistantRateLimitError,
+    AssistantRequestConflictError,
     AssistantTimeoutError,
     AssistantToolCallError,
     AssistantToolLimitError,
@@ -68,6 +69,7 @@ async def assistant_error_handler(
     status_codes = {
         AssistantDemoBusinessNotFoundError: 404,
         AssistantActionStateError: 409,
+        AssistantRequestConflictError: 409,
         AssistantWriteDisabledError: 403,
         AssistantWriteBusinessError: 422,
         AssistantToolCallError: 502,

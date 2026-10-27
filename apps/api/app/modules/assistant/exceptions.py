@@ -137,3 +137,10 @@ class AssistantActionStateError(AssistantError):
 class AssistantWriteBusinessError(AssistantError):
     code = "assistant_write_rejected"
     public_message = "Operação recusada: registro ausente ou conflito com regras do negócio."
+
+
+class AssistantRequestConflictError(AssistantError):
+    code = "assistant_request_conflict"
+    public_message = (
+        "O request_id já está em processamento, falhou ou foi usado com outra mensagem."
+    )

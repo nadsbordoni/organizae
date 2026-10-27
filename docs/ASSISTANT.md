@@ -250,3 +250,47 @@ Não foram adicionadas dependências ou migrations.
 
 Testes de escrita: `uv run pytest tests/test_assistant_writes.py` (mocks, sem
 chamadas externas ao Gemini ou banco real).
+
+### Concorrência e idempotência das escritas
+
+Para habilitar idempotência em `POST /api/v1/assistant/chat`, o cliente deve
+gerar um UUID em `request_id` para cada nova solicitação e reutilizá-lo nos
+reenvios dessa mesma solicitação:
+
+```json
+{
+  "message": "Cadastre a profissional Ana",
+  "request_id": "a924d8d3-cbeb-4d8e-bd95-76304d222d2b"
+}
+```
+
+A mesma empresa, chave e mensagem reutilizam a resposta original e os mesmos
+IDs de ações, sem chamar novamente o Gemini. Uma solicitação legítima adicional,
+mesmo com mensagem e parâmetros iguais, deve usar outro UUID. O campo é opcional
+para manter compatibilidade: sem ele, cada envio continua sendo uma nova
+solicitação. O ID não é enviado ao Gemini.
+
+Reutilizar a chave com outra mensagem, durante seu processamento ou depois de
+uma falha retorna HTTP 409 (`assistant_request_conflict`). Após o primeiro envio
+concluir com sucesso, o cliente pode reenviar a mesma chave para recuperar sua
+resposta. Chaves de lotes que falharam ficam consumidas, pois podem ter criado
+pendências antes da falha. A resposta reapresentada é um retrato da preparação;
+as rotas de decisão verificam o estado atual e recusam ações já consumidas ou
+expiradas. Uma chave nunca recria pendências por terem expirado.
+
+Os registros de idempotência de escrita e os estados finais ficam na memória
+até o processo terminar. Reinícios invalidam essa garantia e múltiplos workers
+continuam sem suporte. Respostas sem ações de escrita não são armazenadas para
+reuso; consultas continuam obtendo dados atuais.
+
+Dentro de um lote, chamadas de escrita com operação e parâmetros validados
+iguais compartilham uma única pendência, mesmo com IDs diferentes ou ausentes.
+Reutilizar o mesmo `ToolCall.id` com conteúdos diferentes invalida o lote antes
+de criar ações. Chamadas de leitura não são deduplicadas.
+
+Somente ações `pending` expiram. Ações `executing` permanecem disponíveis para
+finalização mesmo após cinco minutos e não podem ser confirmadas ou canceladas
+novamente. O lock protege a disputa entre confirmar e cancelar, permitindo
+apenas uma decisão vencedora. A mesma ação executa no máximo uma vez no processo.
+
+Testes: `uv run pytest tests/test_assistant_idempotency.py`.

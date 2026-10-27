@@ -1,4 +1,6 @@
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from threading import Lock
 from typing import Literal
 from uuid import UUID, uuid4
@@ -8,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, create_model
 from app.core.config import settings
 from app.modules.assistant.exceptions import (
     AssistantActionStateError,
+    AssistantRequestConflictError,
     AssistantWriteDisabledError,
 )
 from app.modules.professionals.schemas import ProfessionalCreate, ProfessionalUpdate
@@ -64,40 +67,84 @@ class ActionDecision(BaseModel):
     decision: Literal["confirm", "cancel"]
 
 
+class ChatRequestRecord(BaseModel):
+    message_hash: str
+    response: dict | None = None
+    state: Literal["processing", "completed", "failed"] = "processing"
+
+
 class ActionRepository:
     """Process-local demo storage. Never stores sessions or ORM objects."""
 
     def __init__(self) -> None:
         self.lock = Lock()
         self.actions: dict[UUID, PendingAction] = {}
+        self.requests: dict[tuple[UUID, UUID], ChatRequestRecord] = {}
 
     def add(self, action: PendingAction) -> PendingAction:
         with self.lock:
-            # Expired capabilities can be forgotten without permitting replay.
             now = datetime.now(UTC)
-            self.actions = {
-                key: value
-                for key, value in self.actions.items()
-                if value.expires_at > now or value.state == "executing"
-            }
+            for key, value in list(self.actions.items()):
+                if value.state == "pending" and value.expires_at <= now:
+                    value.state = "expired"
+                if value.state == "expired":
+                    del self.actions[key]
             self.actions[action.id] = action.model_copy(deep=True)
         return action.model_copy(deep=True)
 
     def claim(self, action_id: UUID, business_id: UUID, decision: str) -> PendingAction:
         with self.lock:
             action = self.actions.get(action_id)
-            if action is None or action.business_id != business_id:
+            if (
+                action is None
+                or action.business_id != business_id
+                or action.state != "pending"
+            ):
                 raise AssistantActionStateError()
             if action.expires_at <= datetime.now(UTC):
                 action.state = "expired"
-            if action.state != "pending":
                 raise AssistantActionStateError()
             action.state = "cancelled" if decision == "cancel" else "executing"
             return action.model_copy(deep=True)
 
     def finish(self, action_id: UUID, state: Literal["confirmed", "failed"]) -> None:
         with self.lock:
-            self.actions[action_id].state = state
+            action = self.actions.get(action_id)
+            if action is None or action.state != "executing":
+                raise AssistantActionStateError()
+            action.state = state
+
+    def begin_request(
+        self, business_id: UUID, request_id: UUID, message: str
+    ) -> dict | None:
+        key = (business_id, request_id)
+        message_hash = sha256(message.encode()).hexdigest()
+        with self.lock:
+            record = self.requests.get(key)
+            if record is not None:
+                if record.message_hash != message_hash or record.state != "completed":
+                    raise AssistantRequestConflictError()
+                return record.model_copy(deep=True).response
+            self.requests[key] = ChatRequestRecord(message_hash=message_hash)
+            return None
+
+    def complete_request(
+        self, business_id: UUID, request_id: UUID, response: dict
+    ) -> None:
+        key = (business_id, request_id)
+        with self.lock:
+            if not response.get("pending_actions"):
+                # Read-only responses must keep consulting current business data.
+                del self.requests[key]
+                return
+            record = self.requests[key]
+            record.response = deepcopy(response)
+            record.state = "completed"
+
+    def fail_request(self, business_id: UUID, request_id: UUID) -> None:
+        with self.lock:
+            # Never replay a partially processed batch after an uncertain failure.
+            self.requests[(business_id, request_id)].state = "failed"
 
 
 action_repository = ActionRepository()
