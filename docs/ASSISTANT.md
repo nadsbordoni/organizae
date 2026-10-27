@@ -157,6 +157,36 @@ Os testes da assistente simulam Services e SDK, sem consumir a API Gemini ou ace
 
 ## Limitações e evolução
 
+### Falhas transitórias do Gemini
+
+O provider repete exclusivamente a chamada `generate_content` para HTTP 429,
+500, 502, 503 e 504, com no máximo **três tentativas no total por chamada**.
+Os retries internos do SDK permanecem desativados para evitar multiplicar esse
+limite. Erros definitivos, como 400, 401 e 403, respostas inválidas do modelo,
+falhas de conexão e timeouts locais não são repetidos; mantêm o tratamento de
+erros existente. Ao esgotar as tentativas, os códigos públicos da API permanecem
+os mesmos, incluindo `gemini_timeout` para HTTP 504.
+
+O backoff espera um segundo antes da segunda tentativa e dois segundos antes
+da terceira, acrescidos de jitter aleatório de até 50% de cada intervalo.
+`Retry-After`, quando válido, define a espera mínima, tanto em segundos quanto
+em data HTTP. Valores inválidos são ignorados; datas passadas não acrescentam
+espera ao backoff.
+
+Configure `GEMINI_TIMEOUT_MS=30000` no `.env` para definir o timeout HTTP em
+milissegundos **por tentativa**, com valor positivo. Esse timeout não é um prazo
+global: o tempo total inclui até três chamadas e as esperas entre elas, que podem
+ser maiores quando o servidor informa `Retry-After`.
+
+Cada tentativa registra status HTTP, duração em milissegundos e número da
+tentativa. Sucessos usam nível INFO e falhas usam WARNING. Os logs do provider
+não incluem API keys, prompts, argumentos de ferramentas ou corpos de resposta.
+
+Os retries não envolvem o `AssistantService`: não repetem consultas aos Services,
+criação de pendências nem execução de ações confirmadas. O histórico de respostas
+de ferramentas é incluído uma única vez e reutilizado nas tentativas HTTP.
+Testes com mocks: `uv run pytest tests/test_gemini_retries.py`.
+
 A assistente acessa somente a empresa de demonstração quando habilitada. Escritas exigem confirmação explícita pela API, conforme a seção abaixo. Não executa SQL e não mantém histórico de conversa entre requisições. O Google recebe o prompt, a mensagem e os campos permitidos retornados pelas ferramentas. Não há autenticação; o mecanismo temporário não deve ser publicado ou usado para dados reais.
 
 Function Calling nativo está implementado, mas a execução automática de funções Python pelo SDK permanece desabilitada: somente o backend despacha as funções permitidas. Análise financeira, comandos por voz, extração de dados de imagens e Text-to-SQL não foram implementados. A evolução deverá substituir o contexto de demonstração pela autenticação e preservar a autorização nos Services.

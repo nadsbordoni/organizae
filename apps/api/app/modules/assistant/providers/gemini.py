@@ -1,6 +1,11 @@
 import logging
+import math
+import random
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
@@ -24,6 +29,76 @@ from app.modules.assistant.exceptions import (
 from app.modules.assistant.providers.base import ProviderReply, ToolCall, ToolResult
 
 logger = logging.getLogger(__name__)
+RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+MAX_ATTEMPTS = 3
+
+
+def _retry_after_seconds(exc: errors.APIError) -> float:
+    if exc.response is None:
+        return 0.0
+    value = exc.response.headers.get("Retry-After")
+    if not value:
+        return 0.0
+    try:
+        seconds = float(value)
+    except ValueError:
+        try:
+            retry_at = parsedate_to_datetime(value)
+            if retry_at.tzinfo is None:
+                retry_at = retry_at.replace(tzinfo=UTC)
+            seconds = (retry_at - datetime.now(UTC)).total_seconds()
+        except (ValueError, TypeError, OverflowError):
+            return 0.0
+    return max(0.0, seconds) if math.isfinite(seconds) else 0.0
+
+
+def _generate_content(
+    client: genai.Client,
+    *,
+    model: str,
+    contents: Any,
+    config: types.GenerateContentConfig,
+) -> types.GenerateContentResponse:
+    # Retry only the model request, never tool dispatch or action execution.
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        started_at = time.monotonic()
+        try:
+            result = client.models.generate_content(
+                model=model, contents=contents, config=config
+            )
+        except errors.APIError as exc:
+            logger.warning(
+                "Gemini request: HTTP %s duration_ms=%.1f attempt=%d/%d",
+                exc.code,
+                (time.monotonic() - started_at) * 1000,
+                attempt,
+                MAX_ATTEMPTS,
+            )
+            if exc.code not in RETRYABLE_STATUS_CODES or attempt == MAX_ATTEMPTS:
+                raise
+            backoff = 2 ** (attempt - 1)
+            delay = max(
+                backoff + random.uniform(0, backoff / 2),
+                _retry_after_seconds(exc),
+            )
+            time.sleep(delay)
+        except (httpx.RequestError, TimeoutError):
+            logger.warning(
+                "Gemini request: HTTP unavailable duration_ms=%.1f attempt=%d/%d",
+                (time.monotonic() - started_at) * 1000,
+                attempt,
+                MAX_ATTEMPTS,
+            )
+            raise
+        else:
+            logger.info(
+                "Gemini request: HTTP 200 duration_ms=%.1f attempt=%d/%d",
+                (time.monotonic() - started_at) * 1000,
+                attempt,
+                MAX_ATTEMPTS,
+            )
+            return result
+    raise AssertionError("Unreachable retry state")
 
 
 class GeminiProvider:
@@ -45,7 +120,7 @@ class GeminiProvider:
                 api_key=api_key,
                 vertexai=False,
                 http_options=types.HttpOptions(
-                    timeout=30000,
+                    timeout=self.settings.GEMINI_TIMEOUT_MS,
                     retry_options=types.HttpRetryOptions(attempts=1),
                 ),
             ) as client:
@@ -84,7 +159,8 @@ class GeminiProvider:
 
     def generate(self, message: str, *, system_prompt: str) -> str:
         with self._client() as client:
-            result = client.models.generate_content(
+            result = _generate_content(
+                client,
                 model=self.settings.GEMINI_MODEL.strip(),
                 contents=message,
                 config=_config(system_prompt),
@@ -193,7 +269,8 @@ class GeminiConversation:
                     ],
                 )
             )
-        result = self.client.models.generate_content(
+        result = _generate_content(
+            self.client,
             model=self.model,
             contents=list(self.contents),
             config=self.config,

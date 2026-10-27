@@ -441,9 +441,10 @@ def test_endpoint_failure_after_tool_result(
         sdk_reply(
             types.Part(function_call=types.FunctionCall(name="list_services", args={}))
         ),
-        failure,
+        failure, failure, failure,
     ]
-    response = client.post(PATH, json={"message": "oi"})
+    with patch("app.modules.assistant.providers.gemini.time.sleep"):
+        response = client.post(PATH, json={"message": "oi"})
     assert response.status_code == 503
     assert response.json()["code"] == code
     assert "sensitive-provider-detail" not in response.text
