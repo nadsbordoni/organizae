@@ -16,8 +16,9 @@ def revision() -> ModuleType:
         "script_location", str(Path(__file__).resolve().parents[1] / "alembic")
     )
     script = ScriptDirectory.from_config(config)
-    assert script.get_current_head() == "a8f14c2d9e60"
-    return script.get_revision("a8f14c2d9e60").module
+    migration = script.get_revision("a8f14c2d9e60")
+    assert migration.down_revision == "d7d890e644e1"
+    return migration.module
 
 
 def test_migration_renders_postgresql_sql_without_connecting(
