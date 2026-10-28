@@ -17,15 +17,18 @@ ServicePrice = Annotated[Decimal, Field(ge=0, max_digits=10, decimal_places=2)]
 ServiceDuration = Annotated[int, Field(gt=0, le=1440)]
 
 
-class ServiceCreate(BaseModel):
+class ServiceCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    business_id: UUID4
     name: ServiceName
     price: ServicePrice
     duration_minutes: ServiceDuration
     description: str | None = None
     is_active: bool = True
+
+
+class ServiceCreate(ServiceCreateRequest):
+    business_id: UUID4
 
 
 class ServiceUpdate(BaseModel):

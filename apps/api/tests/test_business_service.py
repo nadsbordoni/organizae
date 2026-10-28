@@ -84,7 +84,9 @@ def test_get_missing_business(service: BusinessService) -> None:
 def test_list_passes_pagination_without_committing(service: BusinessService) -> None:
     service.repository.list.return_value = []
     assert service.list(offset=10, limit=5) == []
-    service.repository.list.assert_called_once_with(offset=10, limit=5)
+    service.repository.list.assert_called_once_with(
+        business_id=None, offset=10, limit=5
+    )
     service.session.commit.assert_not_called()
 
 

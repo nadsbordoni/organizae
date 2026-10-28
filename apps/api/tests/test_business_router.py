@@ -1,6 +1,6 @@
 from collections.abc import Iterator
 from unittest.mock import Mock, patch
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -20,6 +20,7 @@ with patch.dict(
     from app.main import app
     from app.modules.businesses.router import get_business_service
 
+from app.modules.auth.dependencies import get_current_user
 from app.modules.businesses.exceptions import (
     BusinessCategoryNotFoundError,
     BusinessConflictError,
@@ -30,9 +31,11 @@ from app.modules.businesses.exceptions import (
 from app.modules.businesses.models import Business, ServiceMode
 from app.modules.businesses.schemas import BusinessCreate, BusinessUpdate
 from app.modules.businesses.service import BusinessService
+from app.modules.users.models import User
 
 business_id = UUID("8ccacb20-1d36-44a7-9d32-08ac5f6bf15e")
 business_path = f"/api/v1/businesses/{business_id}"
+current_user_id = uuid4()
 
 
 @pytest.fixture
@@ -49,16 +52,20 @@ def business() -> Business:
 @pytest.fixture
 def api_client(business: Business) -> Iterator[tuple[TestClient, Mock]]:
     service = Mock(spec=BusinessService)
-    service.create.return_value = business
+    service.create_for_user.return_value = business
     service.get_by_id.return_value = business
     service.update.return_value = business
     service.list.return_value = [business]
     app.dependency_overrides[get_business_service] = lambda: service
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=current_user_id, business_id=business_id, is_active=True
+    )
     try:
         with TestClient(app) as client:
             yield client, service
     finally:
         app.dependency_overrides.pop(get_business_service)
+        app.dependency_overrides.pop(get_current_user)
 
 
 def test_create_business(api_client: tuple[TestClient, Mock]) -> None:
@@ -80,7 +87,9 @@ def test_create_business(api_client: tuple[TestClient, Mock]) -> None:
         "external_link": None,
         "address": None,
     }
-    service.create.assert_called_once_with(BusinessCreate(**payload))
+    service.create_for_user.assert_called_once_with(
+        BusinessCreate(**payload), user_id=current_user_id
+    )
 
 
 @pytest.mark.parametrize(
@@ -93,7 +102,9 @@ def test_list_businesses(
     response = client.get(f"/api/v1/businesses{query}")
     assert response.status_code == 200
     assert response.json()[0]["id"] == str(business_id)
-    service.list.assert_called_once_with(offset=offset, limit=limit)
+    service.list.assert_called_once_with(
+        business_id=business_id, offset=offset, limit=limit
+    )
 
 
 def test_list_empty_businesses(api_client: tuple[TestClient, Mock]) -> None:
@@ -137,9 +148,15 @@ def test_delete_business(api_client: tuple[TestClient, Mock]) -> None:
         ("GET", business_path, "get_by_id", BusinessNotFoundError, 404),
         ("PATCH", business_path, "update", BusinessNotFoundError, 404),
         ("DELETE", business_path, "delete", BusinessNotFoundError, 404),
-        ("POST", "/api/v1/businesses", "create", BusinessCategoryNotFoundError, 422),
+        (
+            "POST",
+            "/api/v1/businesses",
+            "create_for_user",
+            BusinessCategoryNotFoundError,
+            422,
+        ),
         ("PATCH", business_path, "update", BusinessCategoryNotFoundError, 422),
-        ("POST", "/api/v1/businesses", "create", BusinessConflictError, 409),
+        ("POST", "/api/v1/businesses", "create_for_user", BusinessConflictError, 409),
         ("PATCH", business_path, "update", BusinessConflictError, 409),
         ("DELETE", business_path, "delete", BusinessConflictError, 409),
         ("GET", "/api/v1/businesses", "list", InvalidBusinessPaginationError, 422),

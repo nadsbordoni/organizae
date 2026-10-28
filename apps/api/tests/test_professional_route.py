@@ -2,7 +2,7 @@ from collections.abc import Iterator
 from decimal import Decimal
 from sqlite3 import Connection
 from unittest.mock import Mock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -24,6 +24,7 @@ with patch.dict(
     from app.modules.professionals.route import get_professional_service
 
 from app.db.base import Base
+from app.modules.auth.dependencies import get_current_user
 from app.modules.business_categories.models import BusinessCategory
 from app.modules.businesses.models import Business, ServiceMode
 from app.modules.professionals.exceptions import (
@@ -35,11 +36,16 @@ from app.modules.professionals.exceptions import (
 )
 from app.modules.professionals.service import ProfessionalService
 from app.modules.services.models import Service
+from app.modules.users.models import User
 
 business_id, other_business_id = uuid4(), uuid4()
 first_service_id, second_service_id, other_service_id = uuid4(), uuid4(), uuid4()
 base_path = "/api/v1/professionals"
 business_query = {"business_id": str(business_id)}
+
+
+def user_for_business(identifier: UUID) -> User:
+    return User(id=uuid4(), business_id=identifier, is_active=True)
 
 
 @pytest.fixture
@@ -100,17 +106,20 @@ def client() -> Iterator[TestClient]:
             )
             session.commit()
         app.dependency_overrides[get_db] = get_test_db
+        app.dependency_overrides[get_current_user] = lambda: user_for_business(
+            business_id
+        )
         with TestClient(app) as client:
             yield client
     finally:
         app.dependency_overrides.pop(get_db, None)
+        app.dependency_overrides.pop(get_current_user, None)
         engine.dispose()
 
 
 @pytest.fixture
 def payload() -> dict[str, object]:
     return {
-        "business_id": str(business_id),
         "name": "Professional",
         "phone": "85999999999",
         "service_ids": [str(first_service_id)],
@@ -139,8 +148,10 @@ def test_complete_crud_and_replacement(
         == []
     )
     assert (
-        client.get(base_path, params={"business_id": str(other_business_id)}).json()
-        == []
+        len(
+            client.get(base_path, params={"business_id": str(other_business_id)}).json()
+        )
+        == 1
     )
     response = client.patch(
         professional_path,
@@ -194,15 +205,18 @@ def test_list_filters_status_before_pagination_and_keeps_soft_deleted_links(
         assert response.json()["is_active"] is False
         assert response.json()["services"][0]["id"] == str(first_service_id)
     for status in (True, False):
-        response = client.post(
-            base_path,
-            json={
-                **payload,
-                "business_id": str(other_business_id),
-                "service_ids": [str(other_service_id)],
-                "is_active": status,
-            },
-        )
+        with patch.dict(
+            app.dependency_overrides,
+            {get_current_user: lambda: user_for_business(other_business_id)},
+        ):
+            response = client.post(
+                base_path,
+                json={
+                    **payload,
+                    "service_ids": [str(other_service_id)],
+                    "is_active": status,
+                },
+            )
         assert response.status_code == 201
     query = dict(business_query)
     if is_active is not None:
@@ -244,12 +258,16 @@ def test_existing_other_business_cannot_read_or_mutate_professional(
     client: TestClient, professional_path: str, method: str, suffix: str
 ) -> None:
     payload = {"service_ids": []} if method == "PUT" else {"name": "Wrong"}
-    response = client.request(
-        method,
-        f"{professional_path}{suffix}",
-        params={"business_id": str(other_business_id)},
-        json=payload,
-    )
+    with patch.dict(
+        app.dependency_overrides,
+        {get_current_user: lambda: user_for_business(other_business_id)},
+    ):
+        response = client.request(
+            method,
+            f"{professional_path}{suffix}",
+            params={"business_id": str(business_id)},
+            json=payload,
+        )
     assert response.status_code == 404
     assert response.json() == {"detail": "Professional not found"}
     original = client.get(professional_path, params=business_query).json()
@@ -288,12 +306,11 @@ def test_invalid_associations_do_not_change_existing_links(
     assert [item["id"] for item in original["services"]] == [str(first_service_id)]
 
 
-def test_create_requires_existing_business(
+def test_create_rejects_client_business_id(
     client: TestClient, payload: dict[str, object]
 ) -> None:
     response = client.post(base_path, json={**payload, "business_id": str(uuid4())})
-    assert response.status_code == 404
-    assert response.json() == {"detail": "Business not found"}
+    assert response.status_code == 422
     assert client.get(base_path, params=business_query).json() == []
 
 
@@ -305,7 +322,7 @@ def test_create_requires_existing_business(
     "query",
     [{}, {"business_id": "1"}, {"business_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8"}],
 )
-def test_business_id_is_required_and_must_be_uuid4(
+def test_client_business_query_does_not_change_authenticated_scope(
     client: TestClient,
     professional_path: str,
     method: str,
@@ -316,7 +333,7 @@ def test_business_id_is_required_and_must_be_uuid4(
     response = client.request(
         method, path, params=query, json={"service_ids": []} if method == "PUT" else {}
     )
-    assert response.status_code == 422
+    assert response.status_code == (204 if method == "DELETE" else 200)
 
 
 @pytest.mark.parametrize(

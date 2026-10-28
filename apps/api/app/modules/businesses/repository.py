@@ -20,8 +20,13 @@ class BusinessRepository:
     def get_by_id(self, business_id: UUID) -> Business | None:
         return self.session.get(Business, business_id)
 
-    def list(self, *, offset: int = 0, limit: int = 100) -> list[Business]:
-        statement = select(Business).order_by(Business.id).offset(offset).limit(limit)
+    def list(
+        self, *, business_id: UUID | None = None, offset: int = 0, limit: int = 100
+    ) -> list[Business]:
+        statement = select(Business)
+        if business_id is not None:
+            statement = statement.where(Business.id == business_id)
+        statement = statement.order_by(Business.id).offset(offset).limit(limit)
         return list(self.session.scalars(statement).all())
 
     def update(self, business: Business, business_data: BusinessUpdate) -> Business:
