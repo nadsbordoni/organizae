@@ -1,17 +1,15 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-from app.modules.businesses.models import Business
+from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 from app.core.config import settings
-
 from app.db.base import Base
-from app.modules.businesses.models import Business
-from app.modules.business_categories.models import BusinessCategory
-from app.modules.professionals.models import Professional
-from app.modules.services.models import Service
+from app.modules.business_categories.models import BusinessCategory  # noqa: F401
+from app.modules.businesses.models import Business  # noqa: F401
+from app.modules.professionals.models import Professional  # noqa: F401
+from app.modules.services.models import Service  # noqa: F401
+from app.modules.users.models import User  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -67,7 +65,7 @@ def run_migrations_online() -> None:
     """
     config.set_main_option(
         "sqlalchemy.url",
-        settings.database_url.render_as_string(hide_password=False).replace("%", "%%")
+        settings.database_url.render_as_string(hide_password=False).replace("%", "%%"),
     )
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
@@ -76,9 +74,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()
