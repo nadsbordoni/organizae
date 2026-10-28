@@ -1,4 +1,5 @@
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from fastapi.responses import JSONResponse
@@ -6,6 +7,7 @@ from pydantic import UUID4
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.modules.auth.dependencies import get_current_business_id
 from app.modules.professionals.exceptions import (
     InvalidProfessionalPaginationError,
     InvalidProfessionalServicesError,
@@ -16,6 +18,7 @@ from app.modules.professionals.exceptions import (
 from app.modules.professionals.models import Professional
 from app.modules.professionals.schemas import (
     ProfessionalCreate,
+    ProfessionalCreateRequest,
     ProfessionalResponse,
     ProfessionalServicesUpdate,
     ProfessionalUpdate,
@@ -60,15 +63,18 @@ async def professional_error_handler(
     "", response_model=ProfessionalResponse, status_code=status.HTTP_201_CREATED
 )
 def create_professional(
-    professional_data: ProfessionalCreate,
+    professional_data: ProfessionalCreateRequest,
+    business_id: Annotated[UUID, Depends(get_current_business_id)],
     service: Annotated[ProfessionalService, Depends(get_professional_service)],
 ) -> Professional:
-    return service.create(professional_data)
+    return service.create(
+        ProfessionalCreate(**professional_data.model_dump(), business_id=business_id)
+    )
 
 
 @router.get("", response_model=list[ProfessionalResponse])
 def list_professionals(
-    business_id: Annotated[UUID4, Query()],
+    business_id: Annotated[UUID, Depends(get_current_business_id)],
     service: Annotated[ProfessionalService, Depends(get_professional_service)],
     is_active: Annotated[
         bool | None,
@@ -85,7 +91,7 @@ def list_professionals(
 @router.get("/{professional_id}", response_model=ProfessionalResponse)
 def get_professional(
     professional_id: UUID4,
-    business_id: Annotated[UUID4, Query()],
+    business_id: Annotated[UUID, Depends(get_current_business_id)],
     service: Annotated[ProfessionalService, Depends(get_professional_service)],
 ) -> Professional:
     return service.get_by_id(professional_id, business_id=business_id)
@@ -94,7 +100,7 @@ def get_professional(
 @router.patch("/{professional_id}", response_model=ProfessionalResponse)
 def update_professional(
     professional_id: UUID4,
-    business_id: Annotated[UUID4, Query()],
+    business_id: Annotated[UUID, Depends(get_current_business_id)],
     professional_data: ProfessionalUpdate,
     service: Annotated[ProfessionalService, Depends(get_professional_service)],
 ) -> Professional:
@@ -104,7 +110,7 @@ def update_professional(
 @router.put("/{professional_id}/services", response_model=ProfessionalResponse)
 def replace_professional_services(
     professional_id: UUID4,
-    business_id: Annotated[UUID4, Query()],
+    business_id: Annotated[UUID, Depends(get_current_business_id)],
     services_data: ProfessionalServicesUpdate,
     service: Annotated[ProfessionalService, Depends(get_professional_service)],
 ) -> Professional:
@@ -120,7 +126,7 @@ def replace_professional_services(
 )
 def delete_professional(
     professional_id: UUID4,
-    business_id: Annotated[UUID4, Query()],
+    business_id: Annotated[UUID, Depends(get_current_business_id)],
     service: Annotated[ProfessionalService, Depends(get_professional_service)],
 ) -> Response:
     service.delete(professional_id, business_id=business_id)

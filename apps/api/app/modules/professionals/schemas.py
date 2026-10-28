@@ -30,15 +30,18 @@ def validate_unique_service_ids(service_ids: list[UUID]) -> list[UUID]:
 ServiceIds = Annotated[list[UUID4], AfterValidator(validate_unique_service_ids)]
 
 
-class ProfessionalCreate(BaseModel):
+class ProfessionalCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    business_id: UUID4
     name: ProfessionalName
     phone: ProfessionalPhone | None = None
     description: str | None = None
     is_active: bool = True
     service_ids: ServiceIds = Field(default_factory=list)
+
+
+class ProfessionalCreate(ProfessionalCreateRequest):
+    business_id: UUID4
 
 
 class ProfessionalUpdate(BaseModel):

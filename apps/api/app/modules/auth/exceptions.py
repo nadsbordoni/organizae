@@ -8,3 +8,7 @@ class AuthConfigurationError(AuthError):
 
 class InvalidAccessTokenError(AuthError):
     pass
+
+
+class InvalidCredentialsError(AuthError):
+    pass

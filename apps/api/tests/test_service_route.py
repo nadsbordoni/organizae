@@ -19,6 +19,7 @@ with patch.dict(
     from app.main import app
     from app.modules.services.route import get_service_service
 
+from app.modules.auth.dependencies import get_current_user
 from app.modules.businesses.exceptions import BusinessNotFoundError
 from app.modules.services.exceptions import (
     InvalidServicePaginationError,
@@ -29,6 +30,7 @@ from app.modules.services.exceptions import (
 from app.modules.services.models import Service
 from app.modules.services.schemas import ServiceCreate, ServiceUpdate
 from app.modules.services.service import ServiceService
+from app.modules.users.models import User
 
 business_id = uuid4()
 service_id = uuid4()
@@ -40,7 +42,6 @@ business_query = {"business_id": str(business_id)}
 @pytest.fixture
 def service_payload() -> dict[str, object]:
     return {
-        "business_id": str(business_id),
         "name": "Haircut",
         "price": "25.50",
         "duration_minutes": 30,
@@ -64,11 +65,15 @@ def api_client() -> Iterator[tuple[TestClient, Mock]]:
     service.update.return_value = entity
     service.list.return_value = [entity]
     app.dependency_overrides[get_service_service] = lambda: service
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id=uuid4(), business_id=business_id, is_active=True
+    )
     try:
         with TestClient(app) as client:
             yield client, service
     finally:
         app.dependency_overrides.pop(get_service_service)
+        app.dependency_overrides.pop(get_current_user)
 
 
 def test_create_service(
@@ -79,11 +84,14 @@ def test_create_service(
     assert response.status_code == 201
     assert response.json() == {
         **service_payload,
+        "business_id": str(business_id),
         "id": str(service_id),
         "description": None,
         "is_active": True,
     }
-    service.create.assert_called_once_with(ServiceCreate(**service_payload))
+    service.create.assert_called_once_with(
+        ServiceCreate(**service_payload, business_id=business_id)
+    )
 
 
 @pytest.mark.parametrize("pagination", [{}, {"offset": 10, "limit": 5}])
@@ -199,13 +207,18 @@ def test_business_errors_map_to_http_responses(
         {"business_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8"},
     ],
 )
-def test_missing_or_invalid_business_id_does_not_call_service(
+def test_client_business_query_does_not_change_authenticated_scope(
     api_client: tuple[TestClient, Mock], method: str, path: str, query: dict[str, str]
 ) -> None:
     client, service = api_client
     response = client.request(method, path, params=query, json={})
-    assert response.status_code == 422
-    assert service.mock_calls == []
+    assert response.status_code == (204 if method == "DELETE" else 200)
+    operation = (
+        "list"
+        if path == base_path
+        else {"GET": "get_by_id", "PATCH": "update", "DELETE": "delete"}[method]
+    )
+    assert getattr(service, operation).call_args.kwargs["business_id"] == business_id
 
 
 @pytest.mark.parametrize("method", ["GET", "PATCH", "DELETE"])
@@ -272,12 +285,13 @@ def test_update_cannot_change_business(api_client: tuple[TestClient, Mock]) -> N
     service.update.assert_not_called()
 
 
-def test_create_requires_business_id(
+def test_create_rejects_client_business_id(
     api_client: tuple[TestClient, Mock], service_payload: dict[str, object]
 ) -> None:
     client, service = api_client
-    service_payload.pop("business_id")
-    response = client.post(base_path, json=service_payload)
+    response = client.post(
+        base_path, json={**service_payload, "business_id": str(uuid4())}
+    )
     assert response.status_code == 422
     service.create.assert_not_called()
 

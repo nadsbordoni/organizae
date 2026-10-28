@@ -1,11 +1,16 @@
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from fastapi.responses import JSONResponse
-from pydantic import UUID4
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.modules.auth.dependencies import (
+    get_current_business_id,
+    get_current_user,
+    get_owned_business_id,
+)
 from app.modules.businesses.exceptions import (
     BusinessCategoryNotFoundError,
     BusinessConflictError,
@@ -20,6 +25,7 @@ from app.modules.businesses.schemas import (
     BusinessUpdate,
 )
 from app.modules.businesses.service import BusinessService
+from app.modules.users.models import User
 
 router = APIRouter(prefix="/businesses", tags=["Businesses"])
 
@@ -45,23 +51,25 @@ async def business_error_handler(request: Request, exc: BusinessError) -> JSONRe
 @router.post("", response_model=BusinessResponse, status_code=status.HTTP_201_CREATED)
 def create_business(
     business_data: BusinessCreate,
+    current_user: Annotated[User, Depends(get_current_user)],
     service: Annotated[BusinessService, Depends(get_business_service)],
 ) -> Business:
-    return service.create(business_data)
+    return service.create_for_user(business_data, user_id=current_user.id)
 
 
 @router.get("", response_model=list[BusinessResponse])
 def list_businesses(
+    business_id: Annotated[UUID, Depends(get_current_business_id)],
     service: Annotated[BusinessService, Depends(get_business_service)],
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(gt=0, le=100)] = 100,
 ) -> list[Business]:
-    return service.list(offset=offset, limit=limit)
+    return service.list(business_id=business_id, offset=offset, limit=limit)
 
 
 @router.get("/{business_id}", response_model=BusinessResponse)
 def get_business(
-    business_id: UUID4,
+    business_id: Annotated[UUID, Depends(get_owned_business_id)],
     service: Annotated[BusinessService, Depends(get_business_service)],
 ) -> Business:
     return service.get_by_id(business_id)
@@ -69,7 +77,7 @@ def get_business(
 
 @router.patch("/{business_id}", response_model=BusinessResponse)
 def update_business(
-    business_id: UUID4,
+    business_id: Annotated[UUID, Depends(get_owned_business_id)],
     business_data: BusinessUpdate,
     service: Annotated[BusinessService, Depends(get_business_service)],
 ) -> Business:
@@ -78,7 +86,7 @@ def update_business(
 
 @router.delete("/{business_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_business(
-    business_id: UUID4,
+    business_id: Annotated[UUID, Depends(get_owned_business_id)],
     service: Annotated[BusinessService, Depends(get_business_service)],
 ) -> Response:
     service.delete(business_id)

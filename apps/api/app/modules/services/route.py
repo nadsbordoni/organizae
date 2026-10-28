@@ -1,4 +1,5 @@
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from fastapi.responses import JSONResponse
@@ -6,6 +7,7 @@ from pydantic import UUID4
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.modules.auth.dependencies import get_current_business_id
 from app.modules.services.exceptions import (
     InvalidServicePaginationError,
     ServiceConflictError,
@@ -13,7 +15,12 @@ from app.modules.services.exceptions import (
     ServiceNotFoundError,
 )
 from app.modules.services.models import Service
-from app.modules.services.schemas import ServiceCreate, ServiceResponse, ServiceUpdate
+from app.modules.services.schemas import (
+    ServiceCreate,
+    ServiceCreateRequest,
+    ServiceResponse,
+    ServiceUpdate,
+)
 from app.modules.services.service import ServiceService
 
 router = APIRouter(prefix="/services", tags=["Services"])
@@ -49,15 +56,18 @@ async def service_error_handler(request: Request, exc: ServiceError) -> JSONResp
 
 @router.post("", response_model=ServiceResponse, status_code=status.HTTP_201_CREATED)
 def create_service(
-    service_data: ServiceCreate,
+    service_data: ServiceCreateRequest,
+    business_id: Annotated[UUID, Depends(get_current_business_id)],
     service: Annotated[ServiceService, Depends(get_service_service)],
 ) -> Service:
-    return service.create(service_data)
+    return service.create(
+        ServiceCreate(**service_data.model_dump(), business_id=business_id)
+    )
 
 
 @router.get("", response_model=list[ServiceResponse])
 def list_services(
-    business_id: Annotated[UUID4, Query()],
+    business_id: Annotated[UUID, Depends(get_current_business_id)],
     service: Annotated[ServiceService, Depends(get_service_service)],
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=100)] = 100,
@@ -68,7 +78,7 @@ def list_services(
 @router.get("/{service_id}", response_model=ServiceResponse)
 def get_service(
     service_id: UUID4,
-    business_id: Annotated[UUID4, Query()],
+    business_id: Annotated[UUID, Depends(get_current_business_id)],
     service: Annotated[ServiceService, Depends(get_service_service)],
 ) -> Service:
     return service.get_by_id(service_id, business_id=business_id)
@@ -77,7 +87,7 @@ def get_service(
 @router.patch("/{service_id}", response_model=ServiceResponse)
 def update_service(
     service_id: UUID4,
-    business_id: Annotated[UUID4, Query()],
+    business_id: Annotated[UUID, Depends(get_current_business_id)],
     service_data: ServiceUpdate,
     service: Annotated[ServiceService, Depends(get_service_service)],
 ) -> Service:
@@ -87,7 +97,7 @@ def update_service(
 @router.delete("/{service_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_service(
     service_id: UUID4,
-    business_id: Annotated[UUID4, Query()],
+    business_id: Annotated[UUID, Depends(get_current_business_id)],
     service: Annotated[ServiceService, Depends(get_service_service)],
 ) -> Response:
     service.delete(service_id, business_id=business_id)
