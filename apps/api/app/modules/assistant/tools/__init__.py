@@ -53,6 +53,22 @@ TOOL_SCHEMAS: dict[str, tuple[type[BaseModel], str]] = {
 }
 
 
+def compact_schema(schema: Any) -> Any:
+    if isinstance(schema, list):
+        return [compact_schema(item) for item in schema]
+    if not isinstance(schema, dict):
+        return schema
+    return {
+        key: (
+            {name: compact_schema(value) for name, value in item.items()}
+            if key in ("properties", "$defs")
+            else compact_schema(item)
+        )
+        for key, item in schema.items()
+        if key not in ("title", "default")
+    }
+
+
 class AssistantTools:
     def __init__(
         self,
@@ -87,7 +103,7 @@ class AssistantTools:
             {
                 "name": name,
                 "description": description,
-                "parameters_json_schema": schema.model_json_schema(),
+                "parameters_json_schema": compact_schema(schema.model_json_schema()),
             }
             for name, (schema, description) in schemas.items()
         ]

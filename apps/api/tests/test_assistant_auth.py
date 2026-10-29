@@ -495,4 +495,5 @@ def test_swagger_requires_bearer_for_every_assistant_operation(
     client, _ = api
     for path, methods in client.get("/openapi.json").json()["paths"].items():
         if path.startswith("/api/v1/assistant/"):
-            assert methods["post"]["security"] == [{"HTTPBearer": []}]
+            for operation in methods.values():
+                assert operation["security"] == [{"HTTPBearer": []}]

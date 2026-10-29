@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: SecretStr = SecretStr("")
     GEMINI_MODEL: str = "gemini-3.1-flash-lite"
     GEMINI_TIMEOUT_MS: int = Field(default=30000, gt=0)
+    ASSISTANT_CONTEXT_TOKEN_LIMIT: int = Field(default=8192, gt=0)
+    ASSISTANT_HISTORY_TOKEN_BUDGET: int = Field(default=4096, gt=0)
+    GEMINI_MAX_OUTPUT_TOKENS: int = Field(default=2048, gt=0)
     APP_ENV: Literal["development", "test", "production"] = "production"
     ASSISTANT_WRITES_ENABLED: bool = False
 

@@ -58,9 +58,45 @@ Em **Assistant**, selecione `POST /api/v1/assistant/chat` e use **Try it out**:
 {"message": "Olá, o que você consegue fazer?"}
 ```
 
-A resposta HTTP 200 segue o formato `{"response": "texto da assistente"}`. A mensagem deve conter de 1 a 4000 caracteres após remover espaços nas extremidades. Campos adicionais são rejeitados.
+A resposta HTTP 200 inclui `response` e `conversation_id`. A mensagem deve conter de 1 a 4000 caracteres após remover espaços nas extremidades. Campos adicionais são rejeitados.
 
 Experimente mensagens como “Descreva minha empresa”, “Quais profissionais estão ativos?” e “Quais serviços e preços estão cadastrados?”. Não envie `business_id` ou `user_id` na requisição; campos extras no corpo são rejeitados e parâmetros na URL não alteram o contexto autenticado.
+
+### Histórico e contexto de conversas
+
+Antes de usar o histórico, aplique a migration `e6f8a2c93104` em `apps/api/`:
+
+```bash
+uv run alembic upgrade head
+```
+
+Ela cria `assistant_conversations` e `assistant_messages`, sem alterar tabelas existentes. Conversas e mensagens são vinculadas ao usuário e à empresa autenticados; uma chave estrangeira composta impede mensagens com proprietário diferente da conversa.
+
+| Método | Endpoint (prefixo `/api/v1/assistant`) | Resultado |
+| --- | --- | --- |
+| POST | `/conversations` | Cria uma conversa; corpo `{}` ou `{"title": "Atendimento"}`; HTTP 201. |
+| GET | `/conversations` | Lista as próprias conversas, da mais recente para a mais antiga. |
+| GET | `/conversations/{id}` | Consulta título, datas e quantidade de mensagens. |
+| GET | `/conversations/{id}/messages` | Retorna mensagens em ordem cronológica, com papel, conteúdo, posição e data. |
+| DELETE | `/conversations/{id}` | Exclui a conversa e suas mensagens; HTTP 204. |
+
+As listagens aceitam `offset` e `limit` (máximo 100). O limite padrão é 20 conversas ou 100 mensagens. Conversas inexistentes ou pertencentes a outro usuário/empresa retornam o mesmo HTTP 404, sem revelar sua existência. Transferir a empresa para outra conta não transfere o histórico privado do usuário anterior.
+
+`POST /chat` continua aceitando apenas `message`; nesse caso, cria uma conversa automaticamente. Para continuar uma conversa, envie seu identificador:
+
+```json
+{"message": "Detalhe a resposta anterior", "conversation_id": "UUID_RETORNADO_NO_CHAT"}
+```
+
+O backend persiste o par usuário/assistente e retorna o mesmo `conversation_id`. Em falhas de integração ou persistência, o par é revertido; uma conversa implícita que falhar também não é criada. Conversas criadas explicitamente permanecem disponíveis mesmo sem mensagens. Um bloqueio de linha no PostgreSQL serializa envios e exclusão da mesma conversa, evitando posições duplicadas. O bloqueio e a transação duram até a resposta terminar.
+
+O histórico é selecionado por **orçamento de tokens, sem corte fixo de mensagens**. `ASSISTANT_HISTORY_TOKEN_BUDGET=4096` limita o histórico anterior; `ASSISTANT_CONTEXT_TOKEN_LIMIT=8192` continua limitando o conteúdo completo do turno, com a mensagem atual e resultados de ferramentas. O SDK faz a contagem e remove turnos antigos completos da cópia enviada. `GEMINI_MAX_OUTPUT_TOKENS=2048` configura a saída máxima por geração. Instruções de sistema e declarações de ferramentas ficam fora do orçamento de conteúdo, mas entram no consumo real informado pelo Gemini.
+
+Consulte [Monitoramento e orçamento de tokens](ASSISTANT_TOKENS.md) para detalhes dos logs, fallback de estimativa, reprodução da comparação e limites dessas medições.
+
+Quando necessário, o Provider remove os turnos mais antigos somente da cópia enviada ao Gemini. O histórico completo permanece no PostgreSQL. A mensagem atual e as chamadas/respostas de ferramentas do turno atual não são truncadas: se não couberem, retorna `assistant_context_limit` (422), sem persistir um turno parcial. Não há RAG, banco vetorial ou memória de longo prazo.
+
+O histórico salva o texto final e, quando houver, um retrato de `pending_actions`. Não persiste raciocínio interno ou transcrições das ferramentas. As pendências continuam no armazenamento em memória existente: mensagens históricas não confirmam ações, não reexecutam escritas e não restauram pendências após reiniciar o processo. Confirmação/cancelamento continuam usando os endpoints protegidos. Excluir uma conversa remove seu histórico, sem cancelar automaticamente pendências já preparadas.
 
 ### Respostas de erro
 
@@ -77,6 +113,8 @@ Erros tratados da assistente retornam `{"detail": "causa e orientação", "code"
 | 429 | `gemini_rate_limit` | Cota ou limite de requisições do Google excedido. |
 | 502 | `gemini_invalid_response` | Resposta sem texto utilizável, incompleta ou bloqueada. |
 | 404 | `assistant_business_not_found` | Empresa vinculada ao usuário não encontrada. |
+| 404 | `assistant_conversation_not_found` | Conversa inexistente ou não acessível ao usuário e à empresa atuais. |
+| 422 | `assistant_context_limit` | Conteúdo atual ou resultados de ferramentas excedem o orçamento de contexto. |
 | 502 | `assistant_invalid_tool_call` / `assistant_tool_limit` | Nome/argumentos não autorizados ou limite de ferramentas excedido. |
 | 503 | `assistant_database_unavailable` | Falha ao consultar os dados pelo SQLAlchemy. |
 | 503 | `gemini_api_key_missing` / `gemini_model_missing` | Chave ou modelo vazio na configuração. |
@@ -106,8 +144,9 @@ O módulo fica em `apps/api/app/modules/assistant/` e é registrado em `app/main
 | `router.py` | Endpoints protegidos pelas dependências de autenticação, injeção dos Services e tradução de exceções. |
 | `schemas.py` | Validação da mensagem e contrato da resposta. |
 | `service.py` | Orquestração do ciclo de ferramentas e limite de chamadas, sem detalhes do SDK. |
+| `models.py`, `repository.py`, `history_service.py` | Entidades, consultas filtradas por usuário/empresa e transações do histórico. |
 | `providers/base.py` | Contratos de conversa, chamadas e resultados independentes do Gemini. |
-| `providers/gemini.py` | Comunicação com o Gemini, histórico apenas na requisição e retries HTTP limitados conforme a seção de falhas transitórias. |
+| `providers/gemini.py` | Comunicação com o Gemini, conversão do histórico persistido, contagem de tokens e retries HTTP limitados. |
 | `tools/` | Lista explícita de funções, validação estrita dos argumentos e projeção dos campos autorizados. |
 | `prompts/system.py` | Identidade, contexto do sistema e instruções para não inventar dados ou ações. |
 | `exceptions.py` | Categorias de erro independentes do FastAPI. |
@@ -136,6 +175,8 @@ Execute em `apps/api/`:
 uv run pytest tests/test_assistant.py
 uv run pytest tests/test_assistant_tools.py tests/test_professional_read.py
 uv run pytest tests/test_assistant_auth.py
+uv run pytest tests/test_assistant_history.py
+uv run pytest tests/test_assistant_tokens.py
 uv run pytest
 uv run ruff check .
 ```
@@ -174,7 +215,7 @@ criação de pendências nem execução de ações confirmadas. O histórico de 
 de ferramentas é incluído uma única vez e reutilizado nas tentativas HTTP.
 Testes com mocks: `uv run pytest tests/test_gemini_retries.py`.
 
-A assistente acessa somente a empresa vinculada ao usuário autenticado. Escritas exigem configuração de desenvolvimento e confirmação explícita pela API, conforme a seção abaixo. Não executa SQL e não mantém histórico de conversa entre requisições. O Google recebe apenas o prompt, a mensagem e os campos permitidos retornados pelas ferramentas, sem token ou dados de autenticação.
+A assistente acessa somente a empresa vinculada ao usuário autenticado. Escritas exigem configuração de desenvolvimento e confirmação explícita pela API, conforme a seção abaixo. Não executa SQL. O Google recebe o prompt, a janela de mensagens da conversa e os campos permitidos retornados pelas ferramentas, sem token ou dados de autenticação.
 
 Function Calling nativo está implementado, mas a execução automática de funções Python pelo SDK permanece desabilitada: somente o backend despacha as funções permitidas. Análise financeira, comandos por voz, extração de dados de imagens e Text-to-SQL não foram implementados. O JWT atual não tem logout com revogação individual nem refresh token; a expiração e a situação atual da conta são verificadas em cada requisição.
 
@@ -258,6 +299,8 @@ IDs de ações, sem chamar novamente o Gemini. Uma solicitação legítima adici
 mesmo com mensagem e parâmetros iguais, deve usar outro UUID. O campo é opcional
 para manter compatibilidade: sem ele, cada envio continua sendo uma nova
 solicitação. O ID não é enviado ao Gemini.
+
+Com histórico, a chave também fica vinculada ao `conversation_id` enviado. Reenvios devem manter o mesmo corpo, inclusive a omissão do identificador quando o primeiro envio criou a conversa. Reutilizar a chave com outra conversa retorna 409. Reapresentar uma pendência não duplica mensagens; a conversa é revalidada antes de devolver a resposta em cache, e excluir a conversa faz esse reenvio retornar 404. A idempotência das ações continua em memória, mesmo com as mensagens persistidas.
 
 Reutilizar a chave com outra mensagem, durante seu processamento ou depois de
 uma falha retorna HTTP 409 (`assistant_request_conflict`). Após o primeiro envio

@@ -16,10 +16,12 @@ from app.modules.assistant.exceptions import (
     AssistantWriteBusinessError,
     AssistantWriteDisabledError,
 )
+from app.modules.assistant.history_service import ConversationService
 from app.modules.assistant.prompts.system import SYSTEM_PROMPT, TOOLS_PROMPT
-from app.modules.assistant.providers.base import AssistantProvider
+from app.modules.assistant.providers.base import AssistantProvider, ContextMessage
 from app.modules.assistant.schemas import ChatRequest, ChatResponse
 from app.modules.assistant.tools import AssistantTools
+from app.modules.assistant.usage import monitor_usage
 from app.modules.businesses.exceptions import BusinessNotFoundError
 from app.modules.professionals.exceptions import ProfessionalError
 from app.modules.professionals.schemas import ProfessionalCreate, ProfessionalUpdate
@@ -32,21 +34,33 @@ class AssistantService:
         self,
         provider: AssistantProvider,
         tools: AssistantTools | None = None,
+        history: ConversationService | None = None,
     ) -> None:
         self.provider = provider
         self.tools = tools
+        self.history = history
 
     def chat(self, data: ChatRequest) -> ChatResponse:
+        with monitor_usage():
+            return self._chat_request(data)
+
+    def _chat_request(self, data: ChatRequest) -> ChatResponse:
         if self.tools is None or data.request_id is None:
             return self._chat(data)
         business_id = self.tools.business_id
+        if self.history is not None and data.conversation_id is not None:
+            self.history.get(data.conversation_id)
         cached = action_repository.begin_request(
             business_id,
             data.request_id,
-            data.message,
+            f"{data.conversation_id}:{data.message}"
+            if data.conversation_id
+            else data.message,
             user_id=self.tools.user_id,
         )
         if cached is not None:
+            if self.history is not None and cached.get("conversation_id"):
+                self.history.get(UUID(cached["conversation_id"]))
             if cached.get("pending_actions"):
                 require_write_enabled()
             return ChatResponse.model_validate(cached)
@@ -70,11 +84,26 @@ class AssistantService:
                 )
 
     def _chat(self, data: ChatRequest) -> ChatResponse:
+        if self.history is None:
+            return self._respond(data)
+        with self.history.transaction():
+            conversation = self.history.open_turn(data.conversation_id, data.message)
+            context = self.history.recent_context(conversation.id)
+            response = self._respond(data, context)
+            response.conversation_id = conversation.id
+            self.history.save_turn(conversation, data.message, response)
+        return response
+
+    def _respond(
+        self,
+        data: ChatRequest,
+        context: list[ContextMessage] | None = None,
+    ) -> ChatResponse:
         if self.tools is None:
             response = self.provider.generate(data.message, system_prompt=SYSTEM_PROMPT)
         else:
             try:
-                response = self._chat_with_tools(data.message)
+                response = self._chat_with_tools(data.message, context)
             except BusinessNotFoundError as exc:
                 raise AssistantBusinessNotFoundError() from exc
             except SQLAlchemyError as exc:
@@ -85,7 +114,11 @@ class AssistantService:
             raise AssistantInvalidResponseError()
         return ChatResponse(response=response.strip())
 
-    def _chat_with_tools(self, message: str) -> str | ChatResponse | None:
+    def _chat_with_tools(
+        self,
+        message: str,
+        context: list[ContextMessage] | None = None,
+    ) -> str | ChatResponse | None:
         tools = self.tools
         assert tools is not None
         tools.business_service.get_by_id(tools.business_id)
@@ -93,6 +126,7 @@ class AssistantService:
             message,
             system_prompt=f"{SYSTEM_PROMPT}\n\n{TOOLS_PROMPT}",
             declarations=tools.declarations(),
+            **({"history": context} if context is not None else {}),
         ) as conversation:
             reply = conversation.generate()
             call_count = 0
