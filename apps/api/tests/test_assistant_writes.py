@@ -23,6 +23,7 @@ from app.modules.assistant.tools import AssistantTools
 from app.modules.services.exceptions import ServiceNotFoundError
 
 pytest_plugins = ["test_assistant_tools"]
+pytestmark = pytest.mark.usefixtures("assistant_identity")
 
 
 @pytest.fixture(autouse=True)
@@ -31,8 +32,7 @@ def demo(tools: AssistantTools) -> Iterator[None]:
     with patch.multiple(
         settings,
         APP_ENV="development",
-        ASSISTANT_DEMO_ENABLED=True,
-        ASSISTANT_DEMO_BUSINESS_ID=tools.business_id,
+        ASSISTANT_WRITES_ENABLED=True,
     ):
         yield
     action_repository.actions.clear()
@@ -167,7 +167,9 @@ def test_write_guard_on_prepare_and_confirm(
     tools: AssistantTools, environment: str, enabled: bool
 ) -> None:
     action_id = prepare(tools)
-    with patch.multiple(settings, APP_ENV=environment, ASSISTANT_DEMO_ENABLED=enabled):
+    with patch.multiple(
+        settings, APP_ENV=environment, ASSISTANT_WRITES_ENABLED=enabled
+    ):
         with pytest.raises(AssistantWriteDisabledError):
             prepare(tools)
         with pytest.raises(AssistantWriteDisabledError):
@@ -221,7 +223,7 @@ def test_concurrent_confirmations_execute_once(tools: AssistantTools) -> None:
 def test_unknown_company_cannot_claim_action(tools: AssistantTools) -> None:
     action_id = prepare(tools)
     with pytest.raises(AssistantActionStateError):
-        action_repository.claim(action_id, uuid4(), "confirm")
+        action_repository.claim(action_id, uuid4(), "confirm", user_id=tools.user_id)
     assert action_repository.actions[action_id].state == "pending"
 
 

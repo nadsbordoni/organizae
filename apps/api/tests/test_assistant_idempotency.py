@@ -21,6 +21,7 @@ from app.modules.assistant.service import AssistantService
 from app.modules.assistant.tools import AssistantTools
 
 pytest_plugins = ["test_assistant_tools"]
+pytestmark = pytest.mark.usefixtures("assistant_identity")
 
 
 @pytest.fixture
@@ -30,8 +31,7 @@ def repository(tools: AssistantTools) -> Iterator[ActionRepository]:
         patch.multiple(
             settings,
             APP_ENV="development",
-            ASSISTANT_DEMO_ENABLED=True,
-            ASSISTANT_DEMO_BUSINESS_ID=tools.business_id,
+            ASSISTANT_WRITES_ENABLED=True,
         ),
         patch("app.modules.assistant.tools.action_repository", repository),
         patch("app.modules.assistant.service.action_repository", repository),
@@ -99,7 +99,7 @@ def test_terminal_states_do_not_expire(
     repository.actions[action_id].state = state
     repository.actions[action_id].expires_at = datetime.now(UTC) - timedelta(seconds=1)
     with pytest.raises(AssistantActionStateError):
-        repository.claim(action_id, tools.business_id, "confirm")
+        repository.claim(action_id, tools.business_id, "confirm", user_id=tools.user_id)
     prepare(tools)
     assert repository.actions[action_id].state == state
 
@@ -291,10 +291,17 @@ def test_request_key_cannot_be_reused_for_different_message(
     assert len(repository.actions) == 1
 
 
-def test_request_keys_are_scoped_to_business(repository: ActionRepository) -> None:
+def test_request_keys_are_scoped_to_business(
+    repository: ActionRepository,
+    tools: AssistantTools,
+) -> None:
     key = uuid4()
-    assert repository.begin_request(uuid4(), key, "message") is None
-    assert repository.begin_request(uuid4(), key, "message") is None
+    assert (
+        repository.begin_request(uuid4(), key, "message", user_id=tools.user_id) is None
+    )
+    assert (
+        repository.begin_request(uuid4(), key, "message", user_id=tools.user_id) is None
+    )
     assert len(repository.requests) == 2
 
 

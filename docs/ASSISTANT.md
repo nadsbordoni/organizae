@@ -2,7 +2,7 @@
 
 ## Visão geral e tecnologias
 
-A assistente responde em português brasileiro e consulta dados de uma empresa de demonstração por Function Calling nativo do Gemini. A integração utiliza Python 3.12+, FastAPI, SQLAlchemy, PostgreSQL, Pydantic v2 e o SDK oficial `google-genai`, com dependências gerenciadas pelo uv. Não utiliza LangChain ou LangGraph.
+A assistente responde em português brasileiro e consulta exclusivamente a empresa do usuário autenticado por Function Calling nativo do Gemini. A integração utiliza Python 3.12+, FastAPI, SQLAlchemy, PostgreSQL, Pydantic v2 e o SDK oficial `google-genai`, com dependências gerenciadas pelo uv. Não utiliza LangChain ou LangGraph.
 
 ## Configuração
 
@@ -19,19 +19,27 @@ GEMINI_MODEL=gemini-3.1-flash-lite
 
 As variáveis do processo têm prioridade sobre o `.env`, que prevalece sobre os valores padrão do código. Reinicie o servidor após alterar a configuração. Não versione o `.env` nem exponha a chave no frontend.
 
-### Empresa de demonstração
+### Autenticação e isolamento por empresa
 
-As ferramentas ficam desabilitadas por padrão, preservando o chat de texto sem consultas ao banco. Para habilitá-las **somente em ambiente local com dados fictícios**, configure:
+Todas as rotas `/api/v1/assistant/*`, incluindo chat, confirmação e cancelamento, exigem `Authorization: Bearer <access_token>`. Não há fallback anônimo ou para empresa configurada no `.env`. As antigas variáveis `ASSISTANT_DEMO_ENABLED` e `ASSISTANT_DEMO_BUSINESS_ID` foram removidas das configurações e são ignoradas se ainda estiverem no arquivo.
+
+O login existente usa Argon2 para verificar a senha e emite um JWT HS256 com `sub`, `iat`, `exp` e `token_type=access`. Configure `JWT_SECRET_KEY` com uma chave aleatória de pelo menos 32 bytes. O tempo padrão é `JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30`. A assistente reutiliza a validação existente, sem implementar um segundo mecanismo de autenticação:
+
+1. Valida assinatura, algoritmo, expiração e finalidade do token.
+2. Busca o usuário indicado pelo `sub` e verifica se ele ainda existe e está ativo.
+3. Obtém `business_id` do cadastro atual do usuário no banco, nunca do cliente ou do Gemini.
+4. Usa essa empresa em todas as ferramentas e revalida a identidade em cada requisição, inclusive decisões sobre ações pendentes.
+
+O JWT, a senha, o e-mail e o hash de senha não são enviados ao Gemini. Alterar o vínculo do usuário ou desativá-lo afeta as próximas requisições mesmo com um token emitido anteriormente. As ações pendentes e as chaves de idempotência são isoladas por usuário e empresa.
+
+Leituras autenticadas funcionam também em produção. Escritas continuam opcionais e restritas ao desenvolvimento:
 
 ```dotenv
 APP_ENV=development
-ASSISTANT_DEMO_ENABLED=true
-ASSISTANT_DEMO_BUSINESS_ID=uuid-da-empresa-ficticia
+ASSISTANT_WRITES_ENABLED=true
 ```
 
-Substitua o valor de `ASSISTANT_DEMO_BUSINESS_ID` por um UUID existente. `APP_ENV` aceita `development`, `test` e `production`; o padrão é `production`. Com a demonstração habilitada, ambiente de produção ou empresa não configurada resultam em erro controlado antes de enviar mensagens ao Gemini. A existência da empresa é verificada antes da conversa.
-
-O UUID é escolhido pelo operador do backend, nunca pelo modelo ou pelo corpo da requisição. **Isso não é autenticação:** não publique a demonstração nem configure dados reais. Em produção, mantenha `ASSISTANT_DEMO_ENABLED=false` e `APP_ENV=production`. Futuramente, o contexto deverá vir do usuário autenticado, com autorização e isolamento entre empresas.
+`APP_ENV` aceita `development`, `test` e `production`; o padrão é `production`. `ASSISTANT_WRITES_ENABLED` tem padrão `false`. Em `test` e `production`, a preparação e a execução de escritas são bloqueadas mesmo com a flag habilitada, pois o armazenamento de pendências ainda é em memória e suporta apenas um processo. Não habilite escritas locais com dados de produção.
 
 ## Execução e endpoint
 
@@ -42,7 +50,9 @@ uv sync --locked
 uv run uvicorn app.main:app --reload
 ```
 
-Abra o [Swagger local](http://127.0.0.1:8000/docs). Em **Assistant**, selecione `POST /api/v1/assistant/chat` e use **Try it out**:
+Abra o [Swagger local](http://127.0.0.1:8000/docs). Faça login em `POST /api/v1/auth/login` com `email` e `password`. Copie o `access_token` retornado e cole somente o token em **Authorize → HTTPBearer**. O Swagger enviará o prefixo `Bearer` automaticamente. O usuário precisa ter uma empresa vinculada.
+
+Em **Assistant**, selecione `POST /api/v1/assistant/chat` e use **Try it out**:
 
 ```json
 {"message": "Olá, o que você consegue fazer?"}
@@ -50,7 +60,7 @@ Abra o [Swagger local](http://127.0.0.1:8000/docs). Em **Assistant**, selecione 
 
 A resposta HTTP 200 segue o formato `{"response": "texto da assistente"}`. A mensagem deve conter de 1 a 4000 caracteres após remover espaços nas extremidades. Campos adicionais são rejeitados.
 
-Com a demonstração habilitada, experimente mensagens como “Descreva a empresa de demonstração”, “Quais profissionais estão ativos?” e “Quais serviços e preços estão cadastrados?”. Não envie `business_id` na requisição.
+Experimente mensagens como “Descreva minha empresa”, “Quais profissionais estão ativos?” e “Quais serviços e preços estão cadastrados?”. Não envie `business_id` ou `user_id` na requisição; campos extras no corpo são rejeitados e parâmetros na URL não alteram o contexto autenticado.
 
 ### Respostas de erro
 
@@ -58,11 +68,16 @@ Erros tratados da assistente retornam `{"detail": "causa e orientação", "code"
 
 | HTTP | Código | Significado |
 | --- | --- | --- |
+| 401 | Sem `code` da assistente | Token ausente, inválido ou expirado; usuário removido ou inativo. Retorna `WWW-Authenticate: Bearer`. |
+| 403 | Sem `code` da assistente | Usuário autenticado sem empresa vinculada. |
+| 403 | `assistant_write_disabled` | Preparação ou decisão de escrita bloqueada pela configuração. |
+| 409 | `assistant_action_unavailable` | Ação não pertence ao usuário/empresa atual, não existe, expirou ou foi consumida. |
+| 409 | `assistant_request_conflict` | Chave de idempotência em processamento, falha ou reutilizada com outra mensagem. |
+| 422 | `assistant_write_rejected` | Registro ausente na empresa atual ou outra regra de negócio impediu a escrita. |
 | 429 | `gemini_rate_limit` | Cota ou limite de requisições do Google excedido. |
-| 502 | `gemini_invalid_response` | Resposta sem texto utilizável, incompleta ou bloqueada; chamadas de ferramentas também são rejeitadas quando a demonstração está desabilitada. |
-| 404 | `assistant_demo_business_not_found` | Empresa de demonstração inexistente. |
+| 502 | `gemini_invalid_response` | Resposta sem texto utilizável, incompleta ou bloqueada. |
+| 404 | `assistant_business_not_found` | Empresa vinculada ao usuário não encontrada. |
 | 502 | `assistant_invalid_tool_call` / `assistant_tool_limit` | Nome/argumentos não autorizados ou limite de ferramentas excedido. |
-| 503 | `assistant_demo_not_configured` | Demonstração habilitada em produção ou sem UUID configurado. |
 | 503 | `assistant_database_unavailable` | Falha ao consultar os dados pelo SQLAlchemy. |
 | 503 | `gemini_api_key_missing` / `gemini_model_missing` | Chave ou modelo vazio na configuração. |
 | 503 | `gemini_api_key_invalid` | Chave rejeitada pelo Google. |
@@ -82,17 +97,17 @@ O módulo fica em `apps/api/app/modules/assistant/` e é registrado em `app/main
 
 1. O Service envia a mensagem e as declarações de ferramentas ao Gemini pelo Provider.
 2. O Gemini pode solicitar uma ou mais funções; o backend valida todo o lote antes de executá-lo.
-3. As ferramentas chamam os Services com o UUID fixado pelo backend. Os Repositories fazem consultas parametrizadas.
+3. As ferramentas chamam os Services com o UUID obtido do usuário autenticado. Os Repositories fazem consultas parametrizadas e filtram por empresa.
 4. O Provider envia os resultados como `function_response`, preservando o conteúdo original do modelo e suas assinaturas de pensamento.
 5. O processo continua até obter texto final, com no máximo cinco chamadas de ferramentas por mensagem, incluindo chamadas em lote.
 
 | Componente | Responsabilidade |
 | --- | --- |
-| `router.py` | Endpoint, injeção de dependências e tradução das exceções para HTTP. |
+| `router.py` | Endpoints protegidos pelas dependências de autenticação, injeção dos Services e tradução de exceções. |
 | `schemas.py` | Validação da mensagem e contrato da resposta. |
 | `service.py` | Orquestração do ciclo de ferramentas e limite de chamadas, sem detalhes do SDK. |
 | `providers/base.py` | Contratos de conversa, chamadas e resultados independentes do Gemini. |
-| `providers/gemini.py` | Comunicação nativa com o Gemini, histórico apenas na requisição e timeout de 30 segundos por chamada, sem tentativas automáticas. |
+| `providers/gemini.py` | Comunicação com o Gemini, histórico apenas na requisição e retries HTTP limitados conforme a seção de falhas transitórias. |
 | `tools/` | Lista explícita de funções, validação estrita dos argumentos e projeção dos campos autorizados. |
 | `prompts/system.py` | Identidade, contexto do sistema e instruções para não inventar dados ou ações. |
 | `exceptions.py` | Categorias de erro independentes do FastAPI. |
@@ -103,44 +118,15 @@ O módulo fica em `apps/api/app/modules/assistant/` e é registrado em `app/main
 | `list_professionals` | `ProfessionalService.list` | Nome, descrição e situação ativa; filtro opcional `is_active`. |
 | `list_services` | `ServiceService.list` | Nome, descrição, preço decimal em texto, duração e situação ativa. |
 
-Listagens aceitam `offset` (padrão 0) e `limit` (padrão 20, máximo 100). Nenhuma função aceita `business_id`, SQL ou nomes de funções arbitrários. Telefones, endereço e identificadores internos não são enviados nos resultados. O prompt instrui o modelo a tratar esses resultados como dados, não como instruções.
+Listagens aceitam `offset` (padrão 0) e `limit` (padrão 20, máximo 100). Nenhuma função aceita `business_id`, SQL ou nomes de funções arbitrários. As listagens incluem IDs de serviços e profissionais da própria empresa para preparar atualizações, mas não enviam telefones, endereço ou dados da conta. O prompt instrui o modelo a tratar os resultados como dados, não como instruções.
 
 As ferramentas reutilizam `BusinessService`, `ProfessionalService` e `ServiceService`. Os Services compartilham a sessão recebida por `get_db`; seu context manager fecha a sessão ao terminar a requisição, inclusive em falhas. As ferramentas de escrita apenas preparam pendências. Após confirmação explícita pela API, o `AssistantService` chama os Services existentes, que mantêm suas regras e limites de transação. O cliente Gemini também é fechado ao terminar a conversa.
 
 ## Dados fictícios para teste local
 
-Em um banco **exclusivo de desenvolvimento**, aplique as migrations existentes com `uv run alembic upgrade head`. Empresas, serviços e profissionais podem ser cadastrados pelos POSTs disponíveis no Swagger. Como alternativa, este exemplo opcional prepara um conjunto completo: execute `uv run python` em `apps/api/` e cole o código abaixo. Ele cria dados somente quando executado manualmente; cada execução cria uma nova empresa.
+Em um banco **exclusivo de desenvolvimento**, aplique as migrations existentes com `uv run alembic upgrade head`. Crie um usuário fictício em `POST /api/v1/users`, faça login e cadastre sua empresa em `POST /api/v1/businesses`, com uma `category_id` existente. O onboarding vincula a empresa à conta autenticada; não é necessário reemitir o JWT após criar a empresa.
 
-```python
-from decimal import Decimal
-from sqlalchemy import select
-from app.db.session import SessionLocal
-from app.modules.business_categories.models import BusinessCategory
-from app.modules.businesses.models import Business, ServiceMode
-from app.modules.professionals.models import Professional
-from app.modules.services.models import Service
-
-with SessionLocal.begin() as session:
-    category = session.scalar(select(BusinessCategory).where(BusinessCategory.name == "Demo IA"))
-    if category is None:
-        category = BusinessCategory(name="Demo IA")
-        session.add(category)
-        session.flush()
-    business = Business(name="Salão Demo", category_id=category.id,
-                        whatsapp="00000000000", service_mode=ServiceMode.PRESENCIAL)
-    session.add(business)
-    session.flush()
-    session.add_all([
-        Professional(business_id=business.id, name="Ana Demo", is_active=True),
-        Professional(business_id=business.id, name="Bruno Demo", is_active=False),
-        Service(business_id=business.id, name="Corte Demo", price=Decimal("35.50"),
-                duration_minutes=30, is_active=True),
-    ])
-
-print(business.id)
-```
-
-Copie o UUID exibido para `ASSISTANT_DEMO_BUSINESS_ID`, habilite a demonstração e reinicie o servidor. Não há necessidade de associar profissionais a serviços para testar as três ferramentas.
+Com o mesmo token, cadastre serviços e profissionais pelos POSTs do Swagger e consulte-os pela assistente. Nenhum desses fluxos exige um UUID de empresa no `.env`. Para verificar o isolamento, use duas contas com empresas diferentes e confirme que cada token acessa apenas os próprios registros. Não há necessidade de associar profissionais a serviços para testar as três ferramentas de leitura.
 
 ## Testes
 
@@ -149,11 +135,12 @@ Execute em `apps/api/`:
 ```bash
 uv run pytest tests/test_assistant.py
 uv run pytest tests/test_assistant_tools.py tests/test_professional_read.py
+uv run pytest tests/test_assistant_auth.py
 uv run pytest
 uv run ruff check .
 ```
 
-Os testes da assistente simulam Services e SDK, sem consumir a API Gemini ou acessar PostgreSQL. Cobrem seleção e execução das três ferramentas, validação, bloqueio de acesso a outra empresa, empresa ausente/inexistente, produção bloqueada, listas vazias, limite de chamadas, falhas após a execução e fechamento da sessão. O Repository de profissionais também é verificado em SQLite isolado em memória, para validar filtro e paginação por empresa. O teste manual pelo Swagger exige chave válida, rede, cota e PostgreSQL local.
+Os testes usam mocks do Gemini, sem chamadas externas ou acesso a PostgreSQL. A integração JWT usa login e validação reais com SQLite isolado em memória e duas empresas. Cobre tokens inválidos/expirados, contas inativas/sem empresa, consulta pelo vínculo atual, rejeição de empresa fornecida pelo cliente/modelo, proteção de ações e idempotência por usuário e empresa, além da confirmação de escrita. Os testes existentes cobrem as ferramentas, validação, listas vazias, limites, falhas e fechamento da sessão. O teste manual pelo Swagger exige chave válida, rede, cota, PostgreSQL local e login.
 
 ## Limitações e evolução
 
@@ -187,19 +174,19 @@ criação de pendências nem execução de ações confirmadas. O histórico de 
 de ferramentas é incluído uma única vez e reutilizado nas tentativas HTTP.
 Testes com mocks: `uv run pytest tests/test_gemini_retries.py`.
 
-A assistente acessa somente a empresa de demonstração quando habilitada. Escritas exigem confirmação explícita pela API, conforme a seção abaixo. Não executa SQL e não mantém histórico de conversa entre requisições. O Google recebe o prompt, a mensagem e os campos permitidos retornados pelas ferramentas. Não há autenticação; o mecanismo temporário não deve ser publicado ou usado para dados reais.
+A assistente acessa somente a empresa vinculada ao usuário autenticado. Escritas exigem configuração de desenvolvimento e confirmação explícita pela API, conforme a seção abaixo. Não executa SQL e não mantém histórico de conversa entre requisições. O Google recebe apenas o prompt, a mensagem e os campos permitidos retornados pelas ferramentas, sem token ou dados de autenticação.
 
-Function Calling nativo está implementado, mas a execução automática de funções Python pelo SDK permanece desabilitada: somente o backend despacha as funções permitidas. Análise financeira, comandos por voz, extração de dados de imagens e Text-to-SQL não foram implementados. A evolução deverá substituir o contexto de demonstração pela autenticação e preservar a autorização nos Services.
+Function Calling nativo está implementado, mas a execução automática de funções Python pelo SDK permanece desabilitada: somente o backend despacha as funções permitidas. Análise financeira, comandos por voz, extração de dados de imagens e Text-to-SQL não foram implementados. O JWT atual não tem logout com revogação individual nem refresh token; a expiração e a situação atual da conta são verificadas em cada requisição.
 
 
-## Escrita com confirmação explícita (demonstração local)
+## Escrita com confirmação explícita (desenvolvimento)
 
 As ferramentas `create_service`, `update_service`, `create_professional` e
 `update_professional` usam o SDK nativo do Gemini e apenas preparam ações.
-A escrita exige `APP_ENV=development`, `ASSISTANT_DEMO_ENABLED=true` e
-`ASSISTANT_DEMO_BUSINESS_ID` configurado no backend. Em `test` as consultas
-continuam disponíveis, mas escrita é bloqueada. Não há autenticação: utilize
-somente dados fictícios e não exponha esta demonstração publicamente.
+A escrita exige JWT válido, empresa vinculada, `APP_ENV=development` e
+`ASSISTANT_WRITES_ENABLED=true`. Em `test` e `production` as consultas
+continuam disponíveis, mas escrita é bloqueada. Utilize dados fictícios para
+validar esse fluxo localmente. Os antigos parâmetros de demonstração não habilitam escrita.
 
 Envie `POST /api/v1/assistant/chat` com, por exemplo:
 
@@ -223,12 +210,13 @@ Após o usuário confirmar explicitamente, envie:
 
 ```http
 POST /api/v1/assistant/actions/{id}/confirm
+Authorization: Bearer <access_token>
 Content-Type: application/json
 
 {"decision": "confirm"}
 ```
 
-Para cancelar, envie `POST /api/v1/assistant/actions/{id}/cancel`, sem corpo.
+Para cancelar, envie `POST /api/v1/assistant/actions/{id}/cancel`, sem corpo e com o JWT.
 Responder "sim" no chat não confirma ações. Os endpoints não recebem novos
 parâmetros de negócio: executam exclusivamente os parâmetros já validados e
 armazenados. Qualquer alteração requer preparar outra ação e cancelar a anterior.
@@ -241,11 +229,12 @@ ação, pois um commit pode ter ocorrido antes de uma falha no refresh; consulte
 os registros antes de preparar outra ação.
 
 O armazenamento é em memória, protegido por lock para consumo único dentro do
-processo. Reiniciar o servidor invalida pendências. Execute a demonstração com
+processo. Reiniciar o servidor invalida pendências. Execute o fluxo de escrita com
 um único worker; múltiplos workers precisam de armazenamento compartilhado e
-consumo atômico persistente antes de serem suportados. O ID funciona como uma
-capacidade temporária, sem vínculo a usuário autenticado. Antes de produção,
-é necessário implementar autenticação, autorização e vínculo das ações ao usuário.
+consumo atômico persistente antes de serem suportados. Cada ação é vinculada
+ao usuário e à empresa que a prepararam. Conhecer o ID não permite decidir
+ações de outro usuário ou empresa. Mudanças no vínculo da conta são verificadas
+novamente antes da confirmação ou cancelamento.
 Não foram adicionadas dependências ou migrations.
 
 Testes de escrita: `uv run pytest tests/test_assistant_writes.py` (mocks, sem
@@ -264,7 +253,7 @@ reenvios dessa mesma solicitação:
 }
 ```
 
-A mesma empresa, chave e mensagem reutilizam a resposta original e os mesmos
+O mesmo usuário, empresa, chave e mensagem reutilizam a resposta original e os mesmos
 IDs de ações, sem chamar novamente o Gemini. Uma solicitação legítima adicional,
 mesmo com mensagem e parâmetros iguais, deve usar outro UUID. O campo é opcional
 para manter compatibilidade: sem ele, cada envio continua sendo uma nova

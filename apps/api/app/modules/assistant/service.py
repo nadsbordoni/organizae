@@ -9,7 +9,7 @@ from app.modules.assistant.actions import (
     require_write_enabled,
 )
 from app.modules.assistant.exceptions import (
-    AssistantDemoBusinessNotFoundError,
+    AssistantBusinessNotFoundError,
     AssistantInvalidResponseError,
     AssistantToolDatabaseError,
     AssistantToolLimitError,
@@ -41,23 +41,33 @@ class AssistantService:
             return self._chat(data)
         business_id = self.tools.business_id
         cached = action_repository.begin_request(
-            business_id, data.request_id, data.message
+            business_id,
+            data.request_id,
+            data.message,
+            user_id=self.tools.user_id,
         )
         if cached is not None:
             if cached.get("pending_actions"):
-                require_write_enabled(business_id)
+                require_write_enabled()
             return ChatResponse.model_validate(cached)
         completed = False
         try:
             result = self._chat(data)
             action_repository.complete_request(
-                business_id, data.request_id, result.model_dump(mode="json")
+                business_id,
+                data.request_id,
+                result.model_dump(mode="json"),
+                user_id=self.tools.user_id,
             )
             completed = True
             return result
         finally:
             if not completed:
-                action_repository.fail_request(business_id, data.request_id)
+                action_repository.fail_request(
+                    business_id,
+                    data.request_id,
+                    user_id=self.tools.user_id,
+                )
 
     def _chat(self, data: ChatRequest) -> ChatResponse:
         if self.tools is None:
@@ -66,7 +76,7 @@ class AssistantService:
             try:
                 response = self._chat_with_tools(data.message)
             except BusinessNotFoundError as exc:
-                raise AssistantDemoBusinessNotFoundError() from exc
+                raise AssistantBusinessNotFoundError() from exc
             except SQLAlchemyError as exc:
                 raise AssistantToolDatabaseError() from exc
         if isinstance(response, ChatResponse):
@@ -112,10 +122,15 @@ class AssistantService:
         tools = self.tools
         if tools is None:
             raise AssistantWriteDisabledError()
-        require_write_enabled(tools.business_id)
-        action = action_repository.claim(action_id, tools.business_id, data.decision)
+        require_write_enabled()
+        action = action_repository.claim(
+            action_id,
+            tools.business_id,
+            data.decision,
+            user_id=tools.user_id,
+        )
         if data.decision == "cancel":
-            return action.model_dump(mode="json", exclude={"business_id"})
+            return action.model_dump(mode="json", exclude={"business_id", "user_id"})
         succeeded = False
         try:
             self._execute_action(action, tools)
@@ -128,7 +143,7 @@ class AssistantService:
             # A commit may have succeeded before a refresh failed. Never retry.
             action_repository.finish(action.id, "confirmed" if succeeded else "failed")
         action.state = "confirmed"
-        return action.model_dump(mode="json", exclude={"business_id"})
+        return action.model_dump(mode="json", exclude={"business_id", "user_id"})
 
     def _execute_action(self, action: PendingAction, tools: AssistantTools) -> None:
         arguments = action.arguments

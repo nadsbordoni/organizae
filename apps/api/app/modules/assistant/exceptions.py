@@ -93,17 +93,9 @@ class AssistantInvalidResponseError(AssistantError):
     )
 
 
-class AssistantDemoConfigurationError(AssistantUnavailableError):
-    code = "assistant_demo_not_configured"
-    public_message = (
-        "As ferramentas de demonstração exigem APP_ENV=development ou test e "
-        "ASSISTANT_DEMO_BUSINESS_ID configurado no backend. Não habilite em produção."
-    )
-
-
-class AssistantDemoBusinessNotFoundError(AssistantError):
-    code = "assistant_demo_business_not_found"
-    public_message = "A empresa de demonstração configurada no backend não existe."
+class AssistantBusinessNotFoundError(AssistantError):
+    code = "assistant_business_not_found"
+    public_message = "A empresa vinculada ao usuário não foi encontrada."
 
 
 class AssistantToolCallError(AssistantError):
@@ -121,12 +113,15 @@ class AssistantToolLimitError(AssistantError):
 
 class AssistantToolDatabaseError(AssistantUnavailableError):
     code = "assistant_database_unavailable"
-    public_message = "Não foi possível consultar os dados da empresa de demonstração."
+    public_message = "Não foi possível consultar os dados da empresa do usuário."
 
 
 class AssistantWriteDisabledError(AssistantError):
     code = "assistant_write_disabled"
-    public_message = "Escrita disponível apenas na demonstração em development."
+    public_message = (
+        "Escrita exige APP_ENV=development e ASSISTANT_WRITES_ENABLED=true, "
+        "além de autenticação e confirmação explícita."
+    )
 
 
 class AssistantActionStateError(AssistantError):
@@ -136,7 +131,9 @@ class AssistantActionStateError(AssistantError):
 
 class AssistantWriteBusinessError(AssistantError):
     code = "assistant_write_rejected"
-    public_message = "Operação recusada: registro ausente ou conflito com regras do negócio."
+    public_message = (
+        "Operação recusada: registro ausente ou conflito com regras do negócio."
+    )
 
 
 class AssistantRequestConflictError(AssistantError):

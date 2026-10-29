@@ -269,8 +269,7 @@ def test_retries_prepare_only_one_action_and_never_write(
         patch.multiple(
             settings,
             APP_ENV="development",
-            ASSISTANT_DEMO_ENABLED=True,
-            ASSISTANT_DEMO_BUSINESS_ID=tools.business_id,
+            ASSISTANT_WRITES_ENABLED=True,
         ),
         patch(f"{MODULE}.genai.Client") as factory,
         patch(f"{MODULE}.time.sleep"),
@@ -308,8 +307,7 @@ def test_action_execution_is_never_retried(tools: AssistantTools) -> None:
         patch.multiple(
             settings,
             APP_ENV="development",
-            ASSISTANT_DEMO_ENABLED=True,
-            ASSISTANT_DEMO_BUSINESS_ID=tools.business_id,
+            ASSISTANT_WRITES_ENABLED=True,
         ),
         patch(f"{MODULE}.time.sleep") as sleep,
     ):

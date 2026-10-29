@@ -30,8 +30,7 @@ with patch.dict(
     )
 
 from app.modules.assistant.exceptions import (
-    AssistantDemoBusinessNotFoundError,
-    AssistantDemoConfigurationError,
+    AssistantBusinessNotFoundError,
     AssistantInvalidResponseError,
     AssistantToolCallError,
     AssistantToolDatabaseError,
@@ -46,6 +45,7 @@ from app.modules.assistant.providers.gemini import GeminiProvider
 from app.modules.assistant.schemas import ChatRequest
 from app.modules.assistant.service import AssistantService
 from app.modules.assistant.tools import AssistantTools
+from app.modules.auth.dependencies import get_current_user
 from app.modules.businesses.exceptions import BusinessNotFoundError
 from app.modules.businesses.models import Business, ServiceMode
 from app.modules.businesses.service import BusinessService
@@ -53,13 +53,26 @@ from app.modules.professionals.models import Professional
 from app.modules.professionals.service import ProfessionalService
 from app.modules.services.models import Service
 from app.modules.services.service import ServiceService
+from app.modules.users.models import User
+
+pytestmark = pytest.mark.usefixtures("assistant_identity")
 
 PATH = "/api/v1/assistant/chat"
 
 
 @pytest.fixture
-def tools() -> AssistantTools:
-    business_id = uuid4()
+def assistant_identity() -> Iterator[User]:
+    user = User(id=uuid4(), business_id=uuid4(), is_active=True)
+    app.dependency_overrides[get_current_user] = lambda: user
+    try:
+        yield user
+    finally:
+        app.dependency_overrides.pop(get_current_user)
+
+
+@pytest.fixture
+def tools(assistant_identity: User) -> AssistantTools:
+    business_id = assistant_identity.business_id
     businesses = Mock(spec=BusinessService)
     businesses.get_by_id.return_value = Business(
         id=business_id,
@@ -89,7 +102,13 @@ def tools() -> AssistantTools:
             is_active=True,
         )
     ]
-    return AssistantTools(business_id, businesses, professionals, services)
+    return AssistantTools(
+        business_id,
+        businesses,
+        professionals,
+        services,
+        user_id=assistant_identity.id,
+    )
 
 
 @pytest.mark.parametrize(
@@ -235,7 +254,7 @@ def test_service_orchestrates_multiple_tools_and_final_text(
         item["name"] for item in provider.conversation.call_args.kwargs["declarations"]
     }
     assert {"get_business_info", "list_professionals", "list_services"} <= names
-    if settings.APP_ENV != "development" or not settings.ASSISTANT_DEMO_ENABLED:
+    if settings.APP_ENV != "development" or not settings.ASSISTANT_WRITES_ENABLED:
         assert names == {"get_business_info", "list_professionals", "list_services"}
     assert "business_id" not in str(tools.declarations())
     tools.professional_service.list.assert_called_once_with(
@@ -281,7 +300,7 @@ def test_limits_calls_including_parallel_batches(
 @pytest.mark.parametrize(
     "failure, expected",
     [
-        (BusinessNotFoundError("internal"), AssistantDemoBusinessNotFoundError),
+        (BusinessNotFoundError("internal"), AssistantBusinessNotFoundError),
         (
             OperationalError("private-sql", {}, Exception("private-password")),
             AssistantToolDatabaseError,
@@ -308,22 +327,32 @@ def test_context_errors_before_contacting_gemini(
         ("test", None),
     ],
 )
-def test_demo_guard(environment: str, business_id: object) -> None:
-    with (
-        patch.multiple(
-            settings,
-            APP_ENV=environment,
-            ASSISTANT_DEMO_ENABLED=True,
-            ASSISTANT_DEMO_BUSINESS_ID=business_id,
-        ),
-        pytest.raises(AssistantDemoConfigurationError),
-    ):
-        get_assistant_tools(Mock(spec=Session))
+def test_demo_settings_cannot_override_authenticated_business(
+    environment: str,
+    business_id: object,
+    assistant_identity: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ASSISTANT_DEMO_ENABLED", "true")
+    monkeypatch.setenv("ASSISTANT_DEMO_BUSINESS_ID", str(business_id))
+    with patch.object(settings, "APP_ENV", environment):
+        tools = get_assistant_tools(
+            Mock(spec=Session),
+            assistant_identity,
+            assistant_identity.business_id,
+        )
+    assert tools.business_id == assistant_identity.business_id
+    assert tools.user_id == assistant_identity.id
 
 
-def test_disabled_demo_preserves_plain_chat() -> None:
-    with patch.multiple(settings, APP_ENV="production", ASSISTANT_DEMO_ENABLED=False):
-        assert get_assistant_tools(Mock(spec=Session)) is None
+def test_production_keeps_authenticated_read_tools(assistant_identity: User) -> None:
+    with patch.object(settings, "APP_ENV", "production"):
+        tools = get_assistant_tools(
+            Mock(spec=Session),
+            assistant_identity,
+            assistant_identity.business_id,
+        )
+    assert tools.business_id == assistant_identity.business_id
 
 
 def sdk_reply(*parts: types.Part) -> types.GenerateContentResponse:
@@ -441,7 +470,9 @@ def test_endpoint_failure_after_tool_result(
         sdk_reply(
             types.Part(function_call=types.FunctionCall(name="list_services", args={}))
         ),
-        failure, failure, failure,
+        failure,
+        failure,
+        failure,
     ]
     with patch("app.modules.assistant.providers.gemini.time.sleep"):
         response = client.post(PATH, json={"message": "oi"})
@@ -450,19 +481,24 @@ def test_endpoint_failure_after_tool_result(
     assert "sensitive-provider-detail" not in response.text
 
 
-def test_demo_error_is_public_and_blocks_model(tools: AssistantTools) -> None:
+def test_demo_cannot_bypass_authentication(
+    assistant_identity: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ASSISTANT_DEMO_ENABLED", "true")
     session = Mock(spec=Session)
     app.dependency_overrides[get_db] = lambda: session
+    identity_override = app.dependency_overrides.pop(get_current_user)
     try:
         with (
-            patch.multiple(settings, ASSISTANT_DEMO_ENABLED=True, APP_ENV="production"),
+            patch.object(settings, "APP_ENV", "production"),
             TestClient(app) as client,
         ):
             response = client.post(PATH, json={"message": "oi"})
-        assert response.status_code == 503
-        assert response.json()["code"] == "assistant_demo_not_configured"
+        assert response.status_code == 401
     finally:
         app.dependency_overrides.pop(get_db)
+        app.dependency_overrides[get_current_user] = identity_override
 
 
 def test_nontext_final_reply_is_rejected(tools: AssistantTools) -> None:
@@ -475,13 +511,9 @@ def test_nontext_final_reply_is_rejected(tools: AssistantTools) -> None:
 def test_dependencies_bind_all_services_to_same_session(environment: str) -> None:
     session = Mock(spec=Session)
     business_id = uuid4()
-    with patch.multiple(
-        settings,
-        APP_ENV=environment,
-        ASSISTANT_DEMO_ENABLED=True,
-        ASSISTANT_DEMO_BUSINESS_ID=business_id,
-    ):
-        tools = get_assistant_tools(session)
+    with patch.object(settings, "APP_ENV", environment):
+        user = User(id=uuid4(), business_id=business_id, is_active=True)
+        tools = get_assistant_tools(session, user, business_id)
     assert tools.business_id == business_id
     assert tools.business_service.repository.session is session
     assert tools.professional_service.repository.session is session
@@ -492,7 +524,7 @@ def test_dependencies_bind_all_services_to_same_session(environment: str) -> Non
 @pytest.mark.parametrize(
     "failure, expected_status, code",
     [
-        (BusinessNotFoundError("private"), 404, "assistant_demo_business_not_found"),
+        (BusinessNotFoundError("private"), 404, "assistant_business_not_found"),
         (
             OperationalError("private-sql", {}, Exception("private-password")),
             503,
@@ -518,8 +550,6 @@ def test_request_session_is_released_on_success_and_failure(
             patch.multiple(
                 settings,
                 APP_ENV="test",
-                ASSISTANT_DEMO_ENABLED=True,
-                ASSISTANT_DEMO_BUSINESS_ID=tools.business_id,
             ),
             patch("app.db.session.SessionLocal", session_factory),
             patch(

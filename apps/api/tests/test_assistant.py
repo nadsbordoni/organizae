@@ -39,6 +39,9 @@ from app.modules.assistant.service import AssistantProvider
 
 PATH = "/api/v1/assistant/chat"
 
+pytest_plugins = ["test_assistant_tools"]
+pytestmark = pytest.mark.usefixtures("assistant_identity")
+
 
 @pytest.fixture
 def api_client() -> Iterator[tuple[TestClient, Mock]]:

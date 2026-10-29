@@ -40,15 +40,15 @@ class ProfessionalArguments(ListArguments):
 TOOL_SCHEMAS: dict[str, tuple[type[BaseModel], str]] = {
     "get_business_info": (
         BusinessInfoArguments,
-        "Consulta informações da empresa de demonstração.",
+        "Consulta informações da empresa do usuário autenticado.",
     ),
     "list_professionals": (
         ProfessionalArguments,
-        "Lista profissionais da empresa de demonstração, com filtro opcional is_active.",
+        "Lista profissionais da empresa do usuário, com filtro opcional is_active.",
     ),
     "list_services": (
         ListArguments,
-        "Lista serviços e preços da empresa de demonstração.",
+        "Lista serviços e preços da empresa do usuário autenticado.",
     ),
 }
 
@@ -60,8 +60,11 @@ class AssistantTools:
         business_service: BusinessService,
         professional_service: ProfessionalService,
         service_service: ServiceService,
+        *,
+        user_id: UUID,
     ) -> None:
         self.business_id = business_id
+        self.user_id = user_id
         self.business_service = business_service
         self.professional_service = professional_service
         self.service_service = service_service
@@ -70,7 +73,7 @@ class AssistantTools:
         schemas = dict(TOOL_SCHEMAS)
         from app.core.config import settings
 
-        if settings.APP_ENV == "development" and settings.ASSISTANT_DEMO_ENABLED:
+        if settings.APP_ENV == "development" and settings.ASSISTANT_WRITES_ENABLED:
             schemas.update(
                 {
                     name: (
@@ -92,7 +95,7 @@ class AssistantTools:
     def validate_calls(self, calls: list[ToolCall]) -> None:
         for call in calls:
             if call.name in WRITE_SCHEMAS:
-                require_write_enabled(self.business_id)
+                require_write_enabled()
                 continue
             if call.name not in TOOL_SCHEMAS:
                 raise AssistantToolCallError()
@@ -168,7 +171,7 @@ class AssistantTools:
         return results
 
     def prepare_write(self, call: ToolCall) -> ToolResult:
-        require_write_enabled(self.business_id)
+        require_write_enabled()
         try:
             arguments = WRITE_SCHEMAS[call.name].model_validate(call.arguments)
             if call.name.startswith("create_"):
@@ -202,6 +205,7 @@ class AssistantTools:
         action = action_repository.add(
             PendingAction(
                 business_id=self.business_id,
+                user_id=self.user_id,
                 operation=call.name,
                 arguments=arguments.model_dump(
                     mode="json", exclude_unset=call.name.startswith("update_")
@@ -210,6 +214,10 @@ class AssistantTools:
         )
         return ToolResult(
             call.name,
-            {"pending_action": action.model_dump(mode="json", exclude={"business_id"})},
+            {
+                "pending_action": action.model_dump(
+                    mode="json", exclude={"business_id", "user_id"}
+                )
+            },
             call.id,
         )
