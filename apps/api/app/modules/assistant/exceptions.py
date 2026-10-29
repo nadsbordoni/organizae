@@ -5,6 +5,16 @@ class AssistantError(Exception):
     public_message = "Erro interno da assistente."
 
 
+class AssistantConversationNotFoundError(AssistantError):
+    code = "assistant_conversation_not_found"
+    public_message = "Conversa não encontrada."
+
+
+class AssistantContextLimitError(AssistantError):
+    code = "assistant_context_limit"
+    public_message = "A mensagem ou o resultado das ferramentas excede o limite de tokens do contexto."
+
+
 class AssistantUnavailableError(AssistantError):
     code = "gemini_unavailable"
     public_message = (

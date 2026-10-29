@@ -4,6 +4,12 @@ from typing import Any, Protocol
 
 
 @dataclass(frozen=True)
+class ContextMessage:
+    role: str
+    content: str
+
+
+@dataclass(frozen=True)
 class ToolCall:
     name: str
     arguments: dict[str, Any]
@@ -36,4 +42,5 @@ class AssistantProvider(Protocol):
         *,
         system_prompt: str,
         declarations: list[dict[str, Any]],
+        history: list[ContextMessage] | None = None,
     ) -> AbstractContextManager[AssistantConversation]: ...

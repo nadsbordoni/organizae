@@ -15,6 +15,7 @@ from google.genai import errors, types
 from app.core.config import Settings
 from app.modules.assistant.exceptions import (
     AssistantConnectionError,
+    AssistantContextLimitError,
     AssistantInvalidKeyError,
     AssistantInvalidResponseError,
     AssistantMissingKeyError,
@@ -26,7 +27,12 @@ from app.modules.assistant.exceptions import (
     AssistantTimeoutError,
     AssistantUnavailableError,
 )
-from app.modules.assistant.providers.base import ProviderReply, ToolCall, ToolResult
+from app.modules.assistant.providers.base import (
+    ContextMessage,
+    ProviderReply,
+    ToolCall,
+    ToolResult,
+)
 
 logger = logging.getLogger(__name__)
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
@@ -177,6 +183,7 @@ class GeminiProvider:
         *,
         system_prompt: str,
         declarations: list[dict[str, Any]],
+        history: list[ContextMessage] | None = None,
     ) -> Iterator["GeminiConversation"]:
         with self._client() as client:
             yield GeminiConversation(
@@ -185,6 +192,8 @@ class GeminiProvider:
                 message,
                 system_prompt,
                 declarations,
+                history=history,
+                token_limit=self.settings.ASSISTANT_CONTEXT_TOKEN_LIMIT,
             )
 
 
@@ -241,16 +250,48 @@ class GeminiConversation:
         message: str,
         system_prompt: str,
         declarations: list[dict[str, Any]],
+        *,
+        history: list[ContextMessage] | None = None,
+        token_limit: int = 8192,
     ) -> None:
         self.client = client
         self.model = model
         self.config = _config(system_prompt, declarations)
+        self.token_limit = token_limit if history is not None else None
+        self.history_count = len(history or [])
         self.contents = [
+            *[
+                types.Content(
+                    role="model" if item.role == "assistant" else "user",
+                    parts=[types.Part.from_text(text=item.content)],
+                )
+                for item in (history or [])
+            ],
             types.Content(
                 role="user",
                 parts=[types.Part.from_text(text=message)],
-            )
+            ),
         ]
+
+    def _fit_context(self) -> None:
+        if self.token_limit is None:
+            return
+        while True:
+            counted = self.client.models.count_tokens(
+                model=self.model,
+                contents=list(self.contents),
+            ).total_tokens
+            if not isinstance(counted, int) or counted < 0:
+                raise AssistantInvalidResponseError()
+            if counted <= self.token_limit:
+                return
+            if not self.history_count:
+                raise AssistantContextLimitError()
+            self.contents.pop(0)
+            self.history_count -= 1
+            if self.history_count and self.contents[0].role == "model":
+                self.contents.pop(0)
+                self.history_count -= 1
 
     def generate(self, results: list[ToolResult] | None = None) -> ProviderReply:
         if results:
@@ -269,6 +310,7 @@ class GeminiConversation:
                     ],
                 )
             )
+        self._fit_context()
         result = _generate_content(
             self.client,
             model=self.model,

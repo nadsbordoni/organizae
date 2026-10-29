@@ -27,6 +27,7 @@ with patch.dict(
     from app.modules.assistant.router import (
         get_assistant_provider,
         get_assistant_tools,
+        get_conversation_service,
     )
 
 from app.modules.assistant.exceptions import (
@@ -64,10 +65,12 @@ PATH = "/api/v1/assistant/chat"
 def assistant_identity() -> Iterator[User]:
     user = User(id=uuid4(), business_id=uuid4(), is_active=True)
     app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_conversation_service] = lambda: None
     try:
         yield user
     finally:
         app.dependency_overrides.pop(get_current_user)
+        app.dependency_overrides.pop(get_conversation_service)
 
 
 @pytest.fixture
