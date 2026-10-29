@@ -1,3 +1,4 @@
+import json
 import logging
 import math
 import random
@@ -33,6 +34,8 @@ from app.modules.assistant.providers.base import (
     ToolCall,
     ToolResult,
 )
+from app.modules.assistant.tokens import estimate_text_tokens
+from app.modules.assistant.usage import RequestUsage, current_usage, monitor_usage
 
 logger = logging.getLogger(__name__)
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
@@ -65,20 +68,46 @@ def _generate_content(
     contents: Any,
     config: types.GenerateContentConfig,
 ) -> types.GenerateContentResponse:
+    usage = current_usage() or RequestUsage(model=model)
+    usage.generation_calls += 1
     # Retry only the model request, never tool dispatch or action execution.
     for attempt in range(1, MAX_ATTEMPTS + 1):
+        usage.generation_attempts += 1
+        usage.retries += attempt > 1
+        usage.estimated_tool_tokens += (
+            estimate_text_tokens(
+                json.dumps(
+                    [
+                        tool.model_dump(mode="json", exclude_none=True)
+                        for tool in (config.tools or [])
+                    ],
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+            )
+            if config.tools
+            else 0
+        )
         started_at = time.monotonic()
         try:
             result = client.models.generate_content(
                 model=model, contents=contents, config=config
             )
         except errors.APIError as exc:
+            body = getattr(exc, "response_json", None)
+            usage.record_usage(
+                (body.get("usageMetadata") or body.get("usage_metadata"))
+                if isinstance(body, dict)
+                else None
+            )
             logger.warning(
-                "Gemini request: HTTP %s duration_ms=%.1f attempt=%d/%d",
+                "Gemini request: HTTP %s duration_ms=%.1f attempt=%d/%d model=%s usage_request_id=%s",
                 exc.code,
                 (time.monotonic() - started_at) * 1000,
                 attempt,
                 MAX_ATTEMPTS,
+                model,
+                usage.request_id,
             )
             if exc.code not in RETRYABLE_STATUS_CODES or attempt == MAX_ATTEMPTS:
                 raise
@@ -89,19 +118,28 @@ def _generate_content(
             )
             time.sleep(delay)
         except (httpx.RequestError, TimeoutError):
+            usage.record_usage(None)
             logger.warning(
-                "Gemini request: HTTP unavailable duration_ms=%.1f attempt=%d/%d",
+                "Gemini request: HTTP unavailable duration_ms=%.1f attempt=%d/%d model=%s usage_request_id=%s",
                 (time.monotonic() - started_at) * 1000,
                 attempt,
                 MAX_ATTEMPTS,
+                model,
+                usage.request_id,
             )
             raise
         else:
+            tokens = usage.record_usage(result.usage_metadata)
             logger.info(
-                "Gemini request: HTTP 200 duration_ms=%.1f attempt=%d/%d",
+                "Gemini request: HTTP 200 duration_ms=%.1f attempt=%d/%d model=%s input_tokens=%s output_tokens=%s total_tokens=%s usage_source=api_metadata usage_request_id=%s",
                 (time.monotonic() - started_at) * 1000,
                 attempt,
                 MAX_ATTEMPTS,
+                model,
+                tokens["input_tokens"],
+                tokens["output_tokens"],
+                tokens["total_tokens"],
+                usage.request_id,
             )
             return result
     raise AssertionError("Unreachable retry state")
@@ -164,17 +202,22 @@ class GeminiProvider:
             raise AssistantUnavailableError() from exc
 
     def generate(self, message: str, *, system_prompt: str) -> str:
-        with self._client() as client:
+        with (
+            monitor_usage(self.settings.GEMINI_MODEL.strip()),
+            self._client() as client,
+        ):
             result = _generate_content(
                 client,
                 model=self.settings.GEMINI_MODEL.strip(),
                 contents=message,
-                config=_config(system_prompt),
+                config=_config(
+                    system_prompt, output_limit=self.settings.GEMINI_MAX_OUTPUT_TOKENS
+                ),
             )
-        reply = _parse_result(result)
-        if reply.calls or not reply.text:
-            raise AssistantInvalidResponseError()
-        return reply.text
+            reply = _parse_result(result)
+            if reply.calls or not reply.text:
+                raise AssistantInvalidResponseError()
+            return reply.text
 
     @contextmanager
     def conversation(
@@ -185,7 +228,10 @@ class GeminiProvider:
         declarations: list[dict[str, Any]],
         history: list[ContextMessage] | None = None,
     ) -> Iterator["GeminiConversation"]:
-        with self._client() as client:
+        with (
+            monitor_usage(self.settings.GEMINI_MODEL.strip()),
+            self._client() as client,
+        ):
             yield GeminiConversation(
                 client,
                 self.settings.GEMINI_MODEL.strip(),
@@ -194,16 +240,20 @@ class GeminiProvider:
                 declarations,
                 history=history,
                 token_limit=self.settings.ASSISTANT_CONTEXT_TOKEN_LIMIT,
+                history_token_budget=self.settings.ASSISTANT_HISTORY_TOKEN_BUDGET,
+                output_limit=self.settings.GEMINI_MAX_OUTPUT_TOKENS,
             )
 
 
 def _config(
     system_prompt: str,
     declarations: list[dict[str, Any]] | None = None,
+    *,
+    output_limit: int = 2048,
 ) -> types.GenerateContentConfig:
     return types.GenerateContentConfig(
         system_instruction=system_prompt,
-        max_output_tokens=2048,
+        max_output_tokens=output_limit,
         tools=[
             types.Tool(
                 function_declarations=[
@@ -253,11 +303,15 @@ class GeminiConversation:
         *,
         history: list[ContextMessage] | None = None,
         token_limit: int = 8192,
+        history_token_budget: int | None = None,
+        output_limit: int = 2048,
     ) -> None:
         self.client = client
         self.model = model
-        self.config = _config(system_prompt, declarations)
+        self.config = _config(system_prompt, declarations, output_limit=output_limit)
         self.token_limit = token_limit if history is not None else None
+        self.history_token_budget = history_token_budget
+        self.history_fitted = False
         self.history_count = len(history or [])
         self.contents = [
             *[
@@ -276,22 +330,83 @@ class GeminiConversation:
     def _fit_context(self) -> None:
         if self.token_limit is None:
             return
-        while True:
-            counted = self.client.models.count_tokens(
-                model=self.model,
-                contents=list(self.contents),
-            ).total_tokens
-            if not isinstance(counted, int) or counted < 0:
+        if not self.history_fitted and self.history_token_budget is not None:
+            self._trim_to_budget(self.history_token_budget, history_only=True)
+            self.history_fitted = True
+        self._trim_to_budget(self.token_limit, history_only=False)
+
+    def _count_tokens(self, contents: list[types.Content]) -> int:
+        if not contents:
+            return 0
+        usage = current_usage()
+        if usage is not None:
+            usage.count_calls += 1
+        try:
+            result = self.client.models.count_tokens(
+                model=self.model, contents=contents
+            )
+            counted = result.total_tokens
+        except (AttributeError, NotImplementedError):
+            counted = None
+        except errors.APIError as exc:
+            if exc.code not in (404, 501):
+                raise
+            counted = None
+        else:
+            if not isinstance(counted, int) or isinstance(counted, bool) or counted < 0:
                 raise AssistantInvalidResponseError()
-            if counted <= self.token_limit:
-                return
-            if not self.history_count:
-                raise AssistantContextLimitError()
-            self.contents.pop(0)
-            self.history_count -= 1
-            if self.history_count and self.contents[0].role == "model":
-                self.contents.pop(0)
-                self.history_count -= 1
+        if counted is None:
+            # Conservative byte bound when this SDK/model cannot count tokens.
+            counted = sum(
+                len(item.model_dump_json(exclude_none=True).encode("utf-8")) + 32
+                for item in contents
+            )
+            if usage is not None:
+                usage.estimated_context_tokens = counted
+                usage.counted_context_tokens = None
+        elif usage is not None:
+            usage.counted_context_tokens = counted
+            usage.estimated_context_tokens = None
+        return counted
+
+    def _trim_to_budget(self, budget: int, *, history_only: bool) -> None:
+        fixed = [] if history_only else self.contents[self.history_count :]
+        history = self.contents[: self.history_count]
+        if self._count_tokens(history + fixed) <= budget:
+            return
+        starts = [index for index, item in enumerate(history) if item.role == "user"]
+        # Find the largest suffix of complete turns that fits, without one API
+        # request for every removed pair. Current tool transcripts remain intact.
+        low, high = 0, len(starts) - 1
+        selected: int | None = None
+        selected_count = 0
+        selected_estimated = False
+        while low <= high:
+            keep = (low + high) // 2
+            start = starts[-keep] if keep else len(history)
+            count = self._count_tokens(history[start:] + fixed)
+            if count <= budget:
+                selected = start
+                selected_count = count
+                usage = current_usage()
+                selected_estimated = (
+                    usage is not None and usage.estimated_context_tokens is not None
+                )
+                low = keep + 1
+            else:
+                high = keep - 1
+        if selected is None:
+            raise AssistantContextLimitError()
+        self.contents = history[selected:] + self.contents[self.history_count :]
+        self.history_count = len(history) - selected
+        usage = current_usage()
+        if usage is not None:
+            usage.estimated_context_tokens = (
+                selected_count if selected_estimated else None
+            )
+            usage.counted_context_tokens = (
+                None if selected_estimated else selected_count
+            )
 
     def generate(self, results: list[ToolResult] | None = None) -> ProviderReply:
         if results:

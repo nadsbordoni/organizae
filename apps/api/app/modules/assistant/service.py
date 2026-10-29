@@ -21,6 +21,7 @@ from app.modules.assistant.prompts.system import SYSTEM_PROMPT, TOOLS_PROMPT
 from app.modules.assistant.providers.base import AssistantProvider, ContextMessage
 from app.modules.assistant.schemas import ChatRequest, ChatResponse
 from app.modules.assistant.tools import AssistantTools
+from app.modules.assistant.usage import monitor_usage
 from app.modules.businesses.exceptions import BusinessNotFoundError
 from app.modules.professionals.exceptions import ProfessionalError
 from app.modules.professionals.schemas import ProfessionalCreate, ProfessionalUpdate
@@ -40,6 +41,10 @@ class AssistantService:
         self.history = history
 
     def chat(self, data: ChatRequest) -> ChatResponse:
+        with monitor_usage():
+            return self._chat_request(data)
+
+    def _chat_request(self, data: ChatRequest) -> ChatResponse:
         if self.tools is None or data.request_id is None:
             return self._chat(data)
         business_id = self.tools.business_id

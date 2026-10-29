@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.modules.assistant.exceptions import (
     AssistantConversationNotFoundError,
     AssistantToolDatabaseError,
@@ -16,6 +17,7 @@ from app.modules.assistant.models import AssistantConversation, AssistantMessage
 from app.modules.assistant.providers.base import ContextMessage
 from app.modules.assistant.repository import ConversationRepository
 from app.modules.assistant.schemas import ChatResponse
+from app.modules.assistant.tokens import estimate_text_tokens, history_candidates
 
 
 class ConversationService:
@@ -86,17 +88,27 @@ class ConversationService:
             )
 
     def recent_context(self, conversation_id: UUID) -> list[ContextMessage]:
-        messages = self.repository.messages(
-            conversation_id,
-            user_id=self.user_id,
-            business_id=self.business_id,
-            limit=14,
-            newest_first=True,
-        )
-        return [
-            ContextMessage(role=item.role, content=item.content)
-            for item in reversed(messages)
-        ]
+        budget = settings.ASSISTANT_HISTORY_TOKEN_BUDGET
+        candidates: list[ContextMessage] = []
+        estimated = 0
+        offset = 0
+        while True:
+            page = self.repository.messages(
+                conversation_id,
+                user_id=self.user_id,
+                business_id=self.business_id,
+                offset=offset,
+                limit=100,
+                newest_first=True,
+            )
+            for item in page:
+                candidates.append(ContextMessage(role=item.role, content=item.content))
+                estimated += estimate_text_tokens(item.content) + 8
+                if len(candidates) % 2 == 0 and estimated > budget * 2:
+                    return history_candidates(list(reversed(candidates)), budget)
+            if len(page) < 100:
+                return history_candidates(list(reversed(candidates)), budget)
+            offset += len(page)
 
     def save_turn(
         self, conversation: AssistantConversation, message: str, response: ChatResponse

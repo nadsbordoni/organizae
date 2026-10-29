@@ -120,7 +120,7 @@ def test_chat_creates_conversation_and_persists_atomic_turn(
         )
 
 
-def test_context_is_last_fourteen_stored_messages_plus_current(
+def test_token_candidates_can_preserve_more_than_fourteen_messages(
     api: tuple[TestClient, Mock],
 ) -> None:
     _, provider = api
@@ -128,8 +128,8 @@ def test_context_is_last_fourteen_stored_messages_plus_current(
     for index in range(1, 10):
         chat(api, f"Message {index}", identifier)
     history = provider.conversation.call_args.kwargs["history"]
-    assert len(history) == 14
-    assert history[0].content == "Message 2"
+    assert len(history) == 18
+    assert history[0].content == "Message 0"
     assert history[-1].content == "Resposta: Message 8"
     assert provider.conversation.call_args.args == ("Message 9",)
     assert history[0].role == "user" and history[-1].role == "assistant"

@@ -90,7 +90,9 @@ As listagens aceitam `offset` e `limit` (máximo 100). O limite padrão é 20 co
 
 O backend persiste o par usuário/assistente e retorna o mesmo `conversation_id`. Em falhas de integração ou persistência, o par é revertido; uma conversa implícita que falhar também não é criada. Conversas criadas explicitamente permanecem disponíveis mesmo sem mensagens. Um bloqueio de linha no PostgreSQL serializa envios e exclusão da mesma conversa, evitando posições duplicadas. O bloqueio e a transação duram até a resposta terminar.
 
-O Gemini recebe **até 15 mensagens de texto: as 14 anteriores mais a mensagem atual**. O limite `ASSISTANT_CONTEXT_TOKEN_LIMIT=8192` é aplicado pelo `count_tokens` do SDK ao conteúdo da conversa, incluindo resultados de ferramentas durante o turno. Instruções de sistema, declarações de ferramentas e tokens de saída não fazem parte desse orçamento; a saída mantém seu limite próprio de 2048 tokens. A contagem acrescenta chamadas à API e pode aumentar a latência.
+O histórico é selecionado por **orçamento de tokens, sem corte fixo de mensagens**. `ASSISTANT_HISTORY_TOKEN_BUDGET=4096` limita o histórico anterior; `ASSISTANT_CONTEXT_TOKEN_LIMIT=8192` continua limitando o conteúdo completo do turno, com a mensagem atual e resultados de ferramentas. O SDK faz a contagem e remove turnos antigos completos da cópia enviada. `GEMINI_MAX_OUTPUT_TOKENS=2048` configura a saída máxima por geração. Instruções de sistema e declarações de ferramentas ficam fora do orçamento de conteúdo, mas entram no consumo real informado pelo Gemini.
+
+Consulte [Monitoramento e orçamento de tokens](ASSISTANT_TOKENS.md) para detalhes dos logs, fallback de estimativa, reprodução da comparação e limites dessas medições.
 
 Quando necessário, o Provider remove os turnos mais antigos somente da cópia enviada ao Gemini. O histórico completo permanece no PostgreSQL. A mensagem atual e as chamadas/respostas de ferramentas do turno atual não são truncadas: se não couberem, retorna `assistant_context_limit` (422), sem persistir um turno parcial. Não há RAG, banco vetorial ou memória de longo prazo.
 
@@ -174,6 +176,7 @@ uv run pytest tests/test_assistant.py
 uv run pytest tests/test_assistant_tools.py tests/test_professional_read.py
 uv run pytest tests/test_assistant_auth.py
 uv run pytest tests/test_assistant_history.py
+uv run pytest tests/test_assistant_tokens.py
 uv run pytest
 uv run ruff check .
 ```
