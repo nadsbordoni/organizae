@@ -52,6 +52,7 @@ WRITE_SCHEMAS = {
 class PendingAction(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     business_id: UUID
+    user_id: UUID
     operation: str
     arguments: dict
     expires_at: datetime = Field(
@@ -74,12 +75,12 @@ class ChatRequestRecord(BaseModel):
 
 
 class ActionRepository:
-    """Process-local demo storage. Never stores sessions or ORM objects."""
+    """Process-local storage scoped to authenticated identity and business."""
 
     def __init__(self) -> None:
         self.lock = Lock()
         self.actions: dict[UUID, PendingAction] = {}
-        self.requests: dict[tuple[UUID, UUID], ChatRequestRecord] = {}
+        self.requests: dict[tuple[UUID, UUID, UUID], ChatRequestRecord] = {}
 
     def add(self, action: PendingAction) -> PendingAction:
         with self.lock:
@@ -92,12 +93,20 @@ class ActionRepository:
             self.actions[action.id] = action.model_copy(deep=True)
         return action.model_copy(deep=True)
 
-    def claim(self, action_id: UUID, business_id: UUID, decision: str) -> PendingAction:
+    def claim(
+        self,
+        action_id: UUID,
+        business_id: UUID,
+        decision: str,
+        *,
+        user_id: UUID,
+    ) -> PendingAction:
         with self.lock:
             action = self.actions.get(action_id)
             if (
                 action is None
                 or action.business_id != business_id
+                or action.user_id != user_id
                 or action.state != "pending"
             ):
                 raise AssistantActionStateError()
@@ -115,9 +124,14 @@ class ActionRepository:
             action.state = state
 
     def begin_request(
-        self, business_id: UUID, request_id: UUID, message: str
+        self,
+        business_id: UUID,
+        request_id: UUID,
+        message: str,
+        *,
+        user_id: UUID,
     ) -> dict | None:
-        key = (business_id, request_id)
+        key = (user_id, business_id, request_id)
         message_hash = sha256(message.encode()).hexdigest()
         with self.lock:
             record = self.requests.get(key)
@@ -129,9 +143,14 @@ class ActionRepository:
             return None
 
     def complete_request(
-        self, business_id: UUID, request_id: UUID, response: dict
+        self,
+        business_id: UUID,
+        request_id: UUID,
+        response: dict,
+        *,
+        user_id: UUID,
     ) -> None:
-        key = (business_id, request_id)
+        key = (user_id, business_id, request_id)
         with self.lock:
             if not response.get("pending_actions"):
                 # Read-only responses must keep consulting current business data.
@@ -141,19 +160,17 @@ class ActionRepository:
             record.response = deepcopy(response)
             record.state = "completed"
 
-    def fail_request(self, business_id: UUID, request_id: UUID) -> None:
+    def fail_request(
+        self, business_id: UUID, request_id: UUID, *, user_id: UUID
+    ) -> None:
         with self.lock:
             # Never replay a partially processed batch after an uncertain failure.
-            self.requests[(business_id, request_id)].state = "failed"
+            self.requests[(user_id, business_id, request_id)].state = "failed"
 
 
 action_repository = ActionRepository()
 
 
-def require_write_enabled(business_id: UUID) -> None:
-    if (
-        settings.APP_ENV != "development"
-        or not settings.ASSISTANT_DEMO_ENABLED
-        or settings.ASSISTANT_DEMO_BUSINESS_ID != business_id
-    ):
+def require_write_enabled() -> None:
+    if settings.APP_ENV != "development" or not settings.ASSISTANT_WRITES_ENABLED:
         raise AssistantWriteDisabledError()
