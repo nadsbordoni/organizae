@@ -2,6 +2,10 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 
 from app.core.exception_handlers import request_validation_error_handler
+from app.modules.appointments.exceptions import AppointmentError
+from app.modules.appointments.route import appointment_error_handler
+from app.modules.appointments.route import public_router as online_booking_router
+from app.modules.appointments.route import router as appointments_router
 from app.modules.assistant.exceptions import AssistantError
 from app.modules.assistant.router import assistant_error_handler
 from app.modules.assistant.router import router as assistant_router
@@ -37,6 +41,9 @@ app.include_router(professionals_router, prefix="/api/v1")
 app.include_router(assistant_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(appointments_router, prefix="/api/v1")
+app.include_router(online_booking_router, prefix="/api/v1")
+app.add_exception_handler(AppointmentError, appointment_error_handler)
 app.add_exception_handler(AssistantError, assistant_error_handler)
 app.add_exception_handler(BusinessError, business_error_handler)
 app.add_exception_handler(ServiceError, service_error_handler)
