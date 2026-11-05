@@ -23,6 +23,8 @@ from app.modules.assistant.schemas import ChatRequest, ChatResponse
 from app.modules.assistant.tools import AssistantTools
 from app.modules.assistant.usage import monitor_usage
 from app.modules.businesses.exceptions import BusinessNotFoundError
+from app.modules.clients.exceptions import ClientError
+from app.modules.clients.schemas import ClientCreate, ClientUpdate
 from app.modules.professionals.exceptions import ProfessionalError
 from app.modules.professionals.schemas import ProfessionalCreate, ProfessionalUpdate
 from app.modules.services.exceptions import ServiceError
@@ -169,7 +171,7 @@ class AssistantService:
         try:
             self._execute_action(action, tools)
             succeeded = True
-        except (ServiceError, ProfessionalError, BusinessNotFoundError) as exc:
+        except (ServiceError, ProfessionalError, ClientError, BusinessNotFoundError) as exc:
             raise AssistantWriteBusinessError() from exc
         except SQLAlchemyError as exc:
             raise AssistantToolDatabaseError() from exc
@@ -203,5 +205,17 @@ class AssistantService:
             tools.professional_service.update(
                 UUID(arguments["record_id"]),
                 ProfessionalUpdate.model_validate(arguments["data"]),
+                business_id=tools.business_id,
+            )
+        elif action.operation == "create_client":
+            assert tools.client_service is not None
+            tools.client_service.create(
+                ClientCreate.model_validate(arguments), business_id=tools.business_id
+            )
+        elif action.operation == "update_client":
+            assert tools.client_service is not None
+            tools.client_service.update(
+                UUID(arguments["record_id"]),
+                ClientUpdate.model_validate(arguments["data"]),
                 business_id=tools.business_id,
             )

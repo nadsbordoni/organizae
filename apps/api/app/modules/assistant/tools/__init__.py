@@ -14,9 +14,11 @@ from app.modules.assistant.actions import (
 from app.modules.assistant.exceptions import AssistantToolCallError
 from app.modules.assistant.providers.base import ToolCall, ToolResult
 from app.modules.assistant.tools.businesses import get_business_info
+from app.modules.assistant.tools.clients import get_client, list_clients
 from app.modules.assistant.tools.professionals import list_professionals
 from app.modules.assistant.tools.services import list_services
 from app.modules.businesses.service import BusinessService
+from app.modules.clients.service import ClientService
 from app.modules.professionals.schemas import ProfessionalCreate
 from app.modules.professionals.service import ProfessionalService
 from app.modules.services.schemas import ServiceCreate
@@ -36,8 +38,22 @@ class ProfessionalArguments(ListArguments):
     is_active: bool | None = None
 
 
+class ClientListArguments(ListArguments):
+    search: str | None = Field(default=None, max_length=255)
+
+
+class ClientArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    record_id: UUID
+
+
 # Only these names can be declared and dispatched; no dynamic function lookup.
 TOOL_SCHEMAS: dict[str, tuple[type[BaseModel], str]] = {
+    "list_clients": (
+        ClientListArguments,
+        "Lista ou busca clientes por nome, e-mail ou telefone.",
+    ),
+    "get_client": (ClientArguments, "Consulta detalhes do cliente por record_id."),
     "get_business_info": (
         BusinessInfoArguments,
         "Consulta informações da empresa do usuário autenticado.",
@@ -78,7 +94,9 @@ class AssistantTools:
         service_service: ServiceService,
         *,
         user_id: UUID,
+        client_service: ClientService | None = None,
     ) -> None:
+        self.client_service = client_service
         self.business_id = business_id
         self.user_id = user_id
         self.business_service = business_service
@@ -132,6 +150,13 @@ class AssistantTools:
                 self.professional_service,
                 self.business_id,
                 **arguments.model_dump(),
+            )
+        elif call.name in ("list_clients", "get_client"):
+            if self.client_service is None:
+                raise AssistantToolCallError()
+            handler = list_clients if call.name == "list_clients" else get_client
+            result = handler(
+                self.client_service, self.business_id, **arguments.model_dump()
             )
         else:
             result = list_services(
@@ -190,7 +215,7 @@ class AssistantTools:
         require_write_enabled()
         try:
             arguments = WRITE_SCHEMAS[call.name].model_validate(call.arguments)
-            if call.name.startswith("create_"):
+            if call.name.startswith("create_") and call.name != "create_client":
                 schema = (
                     ServiceCreate
                     if call.name == "create_service"
@@ -199,7 +224,9 @@ class AssistantTools:
                 schema.model_validate(
                     {**arguments.model_dump(), "business_id": self.business_id}
                 )
-            elif not arguments.data.model_fields_set:
+            elif (
+                call.name.startswith("update_") and not arguments.data.model_fields_set
+            ):
                 return ToolResult(
                     call.name, {"error": "Informe os campos a atualizar."}, call.id
                 )
