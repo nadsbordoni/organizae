@@ -13,6 +13,7 @@ from app.modules.assistant.exceptions import (
     AssistantRequestConflictError,
     AssistantWriteDisabledError,
 )
+from app.modules.clients.schemas import ClientCreate, ClientUpdate
 from app.modules.professionals.schemas import ProfessionalCreate, ProfessionalUpdate
 from app.modules.services.schemas import ServiceCreate, ServiceUpdate
 
@@ -41,7 +42,15 @@ class ProfessionalUpdateArguments(BaseModel):
     data: ProfessionalUpdate
 
 
+class ClientUpdateArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    record_id: UUID
+    data: ClientUpdate
+
+
 WRITE_SCHEMAS = {
+    "create_client": ClientCreate,
+    "update_client": ClientUpdateArguments,
     "create_service": creation_arguments(ServiceCreate),
     "update_service": ServiceUpdateArguments,
     "create_professional": creation_arguments(ProfessionalCreate),

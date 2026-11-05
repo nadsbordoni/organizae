@@ -413,7 +413,7 @@ def test_compact_schemas_preserve_validation_and_available_tools(tools) -> None:
         "required": ["title"],
     }
     with patch.multiple(settings, APP_ENV="development", ASSISTANT_WRITES_ENABLED=True):
-        assert len(tools.declarations()) == 7
+        assert len(tools.declarations()) == 11
 
 
 def test_prompt_and_schema_comparison_against_equivalent_static_baseline(tools) -> None:
@@ -430,9 +430,10 @@ def test_prompt_and_schema_comparison_against_equivalent_static_baseline(tools) 
             settings, APP_ENV="development", ASSISTANT_WRITES_ENABLED=enabled
         ):
             declarations = tools.declarations()
-        assert {item["name"] for item in declarations} == {
-            item["name"] for item in baseline[key]
-        }
+        # Compare equivalent tools; client tools have no historical baseline.
+        baseline_names = {item["name"] for item in baseline[key]}
+        assert baseline_names <= {item["name"] for item in declarations}
+        declarations = [item for item in declarations if item["name"] in baseline_names]
         serialize = lambda value: json.dumps(
             value, ensure_ascii=False, separators=(",", ":")
         )
@@ -474,6 +475,11 @@ def test_reproducible_estimated_token_comparison(tools) -> None:
             settings, APP_ENV="development", ASSISTANT_WRITES_ENABLED=writes
         ):
             declarations = tools.declarations()
+        # Keep the historical optimization comparison on equivalent tools.
+        baseline_names = {
+            item["name"] for item in baseline["write_tools" if writes else "read_tools"]
+        }
+        declarations = [item for item in declarations if item["name"] in baseline_names]
         old_history = history[-14:]
         before = [
             types.Content(

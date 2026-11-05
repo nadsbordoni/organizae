@@ -37,6 +37,7 @@ from app.modules.assistant.service import AssistantProvider, AssistantService
 from app.modules.assistant.tools import AssistantTools
 from app.modules.auth.dependencies import get_current_business_id, get_current_user
 from app.modules.businesses.service import BusinessService
+from app.modules.clients.service import ClientService
 from app.modules.professionals.service import ProfessionalService
 from app.modules.services.service import ServiceService
 from app.modules.users.models import User
@@ -63,6 +64,7 @@ def get_assistant_tools(
         ProfessionalService(session),
         ServiceService(session),
         user_id=current_user.id,
+        client_service=ClientService(session),
     )
 
 
