@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import settings
 
 # Register all relationship targets before the ORM configures its mappers.
+from app.modules.appointments.models import Appointment, BusinessHour  # noqa: F401
 from app.modules.assistant.models import AssistantConversation, AssistantMessage  # noqa: F401
 from app.modules.business_categories.models import BusinessCategory  # noqa: F401
 from app.modules.businesses.models import Business  # noqa: F401

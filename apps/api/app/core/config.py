@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     GEMINI_MAX_OUTPUT_TOKENS: int = Field(default=2048, gt=0)
     APP_ENV: Literal["development", "test", "production"] = "production"
     ASSISTANT_WRITES_ENABLED: bool = False
+    BUSINESS_TIMEZONE: str = "America/Sao_Paulo"
 
     model_config = SettingsConfigDict(env_file=ROOT_DIR / ".env", extra="ignore")
 
