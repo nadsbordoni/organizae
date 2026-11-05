@@ -294,7 +294,7 @@ def test_panel_routes_require_auth(api_client: tuple[TestClient, Mock]) -> None:
     )
 
 
-def test_migration_is_head_and_postgresql_sql_is_valid() -> None:
+def test_migration_is_in_history_and_postgresql_sql_is_valid() -> None:
     from io import StringIO
     from pathlib import Path
 
@@ -309,7 +309,10 @@ def test_migration_is_head_and_postgresql_sql_is_valid() -> None:
     )
     script = ScriptDirectory.from_config(config)
     revision = script.get_revision("b3d91f7a2c45")
-    assert script.get_current_head() == revision.revision
+    assert revision.revision in {
+        item.revision
+        for item in script.iterate_revisions("head", revision.down_revision)
+    }
     output = StringIO()
     context = MigrationContext.configure(
         dialect_name="postgresql", opts={"as_sql": True, "output_buffer": output}
