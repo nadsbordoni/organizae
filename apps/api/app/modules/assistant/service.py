@@ -10,6 +10,8 @@ from app.modules.appointments.exceptions import (
 from app.modules.assistant.actions import (
     ActionDecision,
     PendingAction,
+    ProfessionalCreateArguments,
+    ProfessionalServicesUpdateArguments,
     action_repository,
     require_write_enabled,
 )
@@ -182,7 +184,11 @@ class AssistantService:
             succeeded = True
         except AppointmentConflictError as exc:
             raise AssistantAppointmentConflictError() from exc
-        except (AppointmentError, ValidationError) as exc:
+        except ValidationError as exc:
+            if action.operation == "create_appointment":
+                raise AssistantAppointmentValidationError() from exc
+            raise AssistantWriteBusinessError() from exc
+        except AppointmentError as exc:
             raise AssistantAppointmentValidationError() from exc
         except (
             ServiceError,
@@ -217,9 +223,10 @@ class AssistantService:
                 )
             )
         elif action.operation == "create_professional":
+            creation = ProfessionalCreateArguments.model_validate(arguments)
             tools.professional_service.create(
                 ProfessionalCreate.model_validate(
-                    {**arguments, "business_id": tools.business_id}
+                    {**creation.model_dump(), "business_id": tools.business_id}
                 )
             )
         elif action.operation == "update_service":
@@ -232,6 +239,13 @@ class AssistantService:
             tools.professional_service.update(
                 UUID(arguments["record_id"]),
                 ProfessionalUpdate.model_validate(arguments["data"]),
+                business_id=tools.business_id,
+            )
+        elif action.operation == "replace_professional_services":
+            replacement = ProfessionalServicesUpdateArguments.model_validate(arguments)
+            tools.professional_service.replace_services(
+                replacement.record_id,
+                replacement.data,
                 business_id=tools.business_id,
             )
         elif action.operation == "create_client":

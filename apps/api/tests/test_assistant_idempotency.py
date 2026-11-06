@@ -40,7 +40,7 @@ def repository(tools: AssistantTools) -> Iterator[ActionRepository]:
 
 
 def write_call(call_id: str | None = None, name: str = "Ana") -> ToolCall:
-    return ToolCall("create_professional", {"name": name}, call_id)
+    return ToolCall("create_professional", {"name": name, "service_ids": []}, call_id)
 
 
 def prepare(tools: AssistantTools) -> UUID:

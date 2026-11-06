@@ -3,13 +3,14 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import UUID4, BaseModel, ConfigDict, Field, ValidationError
 
 from app.modules.appointments.exceptions import InvalidBookingError
 from app.modules.appointments.service import AppointmentService
 from app.modules.assistant.actions import (
     WRITE_SCHEMAS,
     PendingAction,
+    ProfessionalServicesUpdateArguments,
     action_repository,
     require_write_enabled,
 )
@@ -27,7 +28,11 @@ from app.modules.assistant.tools.appointments import (
 )
 from app.modules.assistant.tools.businesses import get_business_info
 from app.modules.assistant.tools.clients import get_client, list_clients
-from app.modules.assistant.tools.professionals import list_professionals
+from app.modules.assistant.tools.professionals import (
+    get_professional_services,
+    get_service_previews,
+    list_professionals,
+)
 from app.modules.assistant.tools.services import list_services
 from app.modules.businesses.service import BusinessService
 from app.modules.clients.exceptions import ClientNotFoundError
@@ -51,6 +56,14 @@ class ListArguments(BusinessInfoArguments):
 
 class ProfessionalArguments(ListArguments):
     is_active: bool | None = None
+
+
+class ProfessionalServicesArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    record_id: UUID4
+    offset: int = Field(default=0, ge=0, strict=True)
+    limit: int = Field(default=20, ge=1, le=100, strict=True)
 
 
 class ClientListArguments(ListArguments):
@@ -85,10 +98,20 @@ TOOL_SCHEMAS: dict[str, tuple[type[BaseModel], str]] = {
         ProfessionalArguments,
         "Lista profissionais da empresa do usuário, com filtro opcional is_active.",
     ),
+    "get_professional_services": (
+        ProfessionalServicesArguments,
+        "Consulta serviços vinculados ao profissional por record_id, com paginação.",
+    ),
     "list_services": (
         ListArguments,
         "Lista serviços e preços da empresa do usuário autenticado.",
     ),
+}
+
+
+WRITE_DESCRIPTIONS = {
+    "create_professional": "Prepara profissional com service_ids explícitos; pergunte se ausentes. [] só por escolha de não vincular. Exige confirmação.",
+    "replace_professional_services": "Prepara substituição de todos os vínculos por data.service_ids; [] remove todos. Exige confirmação.",
 }
 
 
@@ -137,7 +160,10 @@ class AssistantTools:
                 {
                     name: (
                         schema,
-                        "Prepara ação pendente; exige confirmação explícita pela API.",
+                        WRITE_DESCRIPTIONS.get(
+                            name,
+                            "Prepara ação pendente; exige confirmação explícita pela API.",
+                        ),
                     )
                     for name, schema in WRITE_SCHEMAS.items()
                 }
@@ -172,6 +198,12 @@ class AssistantTools:
             result = get_business_info(self.business_service, self.business_id)
         elif call.name == "list_professionals":
             result = list_professionals(
+                self.professional_service,
+                self.business_id,
+                **arguments.model_dump(),
+            )
+        elif call.name == "get_professional_services":
+            result = get_professional_services(
                 self.professional_service,
                 self.business_id,
                 **arguments.model_dump(),
@@ -282,15 +314,41 @@ class AssistantTools:
                     ).isoformat(),
                     "notice": "A confirmação revalida as regras e pode recusar um horário ocupado.",
                 }
+            elif call.name == "replace_professional_services":
+                assert isinstance(arguments, ProfessionalServicesUpdateArguments)
+                professional = self.professional_service.get_by_id(
+                    arguments.record_id, business_id=self.business_id
+                )
+                preview = {
+                    "professional_name": professional.name,
+                    "services": get_service_previews(
+                        self.service_service,
+                        self.business_id,
+                        arguments.data.service_ids,
+                    ),
+                    "notice": "Substitui todos os serviços vinculados. Uma lista vazia remove todos os vínculos.",
+                }
             elif call.name.startswith("create_") and call.name != "create_client":
                 schema = (
                     ServiceCreate
                     if call.name == "create_service"
                     else ProfessionalCreate
                 )
-                schema.model_validate(
+                creation_data = schema.model_validate(
                     {**arguments.model_dump(), "business_id": self.business_id}
                 )
+                if isinstance(creation_data, ProfessionalCreate):
+                    preview = {
+                        "professional_name": creation_data.name,
+                        "services": get_service_previews(
+                            self.service_service,
+                            self.business_id,
+                            creation_data.service_ids,
+                        ),
+                        "notice": "Os serviços selecionados serão vinculados ao confirmar."
+                        if creation_data.service_ids
+                        else "O profissional será criado sem serviços vinculados.",
+                    }
             elif (
                 call.name.startswith("update_") and not arguments.data.model_fields_set
             ):
@@ -320,11 +378,19 @@ class AssistantTools:
                 },
                 call.id,
             )
-        except (InvalidBookingError, ServiceNotFoundError, ProfessionalNotFoundError):
+        except InvalidBookingError:
             return ToolResult(
                 call.name,
                 {
                     "error": "Horário, serviço ou profissional indisponível. Consulte novamente a disponibilidade e peça outra opção."
+                },
+                call.id,
+            )
+        except (ServiceNotFoundError, ProfessionalNotFoundError):
+            return ToolResult(
+                call.name,
+                {
+                    "error": "Profissional ou serviço não encontrado na empresa autenticada. Consulte as listagens e confira os IDs."
                 },
                 call.id,
             )

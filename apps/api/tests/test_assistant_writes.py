@@ -60,7 +60,11 @@ def prepare(
             {"record_id": str(uuid4()), "data": {"price": "55.00"}},
             "service_service",
         ),
-        ("create_professional", {"name": "Ana"}, "professional_service"),
+        (
+            "create_professional",
+            {"name": "Ana", "service_ids": []},
+            "professional_service",
+        ),
         (
             "update_professional",
             {"record_id": str(uuid4()), "data": {"is_active": False}},
@@ -261,7 +265,7 @@ def test_sdk_exposes_write_schemas_and_returns_pending(
     sdk_client.models.generate_content.return_value = sdk_reply(
         types.Part(
             function_call=types.FunctionCall(
-                name="create_professional", args={"name": "Ana"}
+                name="create_professional", args={"name": "Ana", "service_ids": []}
             )
         )
     )

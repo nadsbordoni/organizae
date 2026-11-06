@@ -261,6 +261,7 @@ def test_service_orchestrates_multiple_tools_and_final_text(
         assert names == {
             "get_business_info",
             "list_professionals",
+            "get_professional_services",
             "list_services",
             "list_clients",
             "get_client",

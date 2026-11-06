@@ -325,7 +325,7 @@ def test_request_id_cannot_be_replayed_into_another_conversation(
     monkeypatch.setattr(settings, "ASSISTANT_WRITES_ENABLED", True)
     first = client.post(ROOT, headers=headers(USER_A), json={}).json()["id"]
     second = client.post(ROOT, headers=headers(USER_A), json={}).json()["id"]
-    request_tool(provider, "create_professional", {"name": "Ana"})
+    request_tool(provider, "create_professional", {"name": "Ana", "service_ids": []})
     body = {
         "message": "Cadastre Ana",
         "request_id": str(uuid4()),
