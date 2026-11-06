@@ -264,6 +264,8 @@ def test_service_orchestrates_multiple_tools_and_final_text(
             "list_services",
             "list_clients",
             "get_client",
+            "list_appointments",
+            "check_availability",
         }
     assert "business_id" not in str(tools.declarations())
     tools.professional_service.list.assert_called_once_with(

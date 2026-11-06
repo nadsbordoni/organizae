@@ -1,14 +1,22 @@
 from uuid import UUID
 
+from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.modules.appointments.exceptions import (
+    AppointmentConflictError,
+    AppointmentError,
+)
 from app.modules.assistant.actions import (
     ActionDecision,
     PendingAction,
     action_repository,
     require_write_enabled,
 )
+from app.modules.assistant.appointment_schemas import AppointmentCreateArguments
 from app.modules.assistant.exceptions import (
+    AssistantAppointmentConflictError,
+    AssistantAppointmentValidationError,
     AssistantBusinessNotFoundError,
     AssistantInvalidResponseError,
     AssistantToolDatabaseError,
@@ -21,6 +29,7 @@ from app.modules.assistant.prompts.system import SYSTEM_PROMPT, TOOLS_PROMPT
 from app.modules.assistant.providers.base import AssistantProvider, ContextMessage
 from app.modules.assistant.schemas import ChatRequest, ChatResponse
 from app.modules.assistant.tools import AssistantTools
+from app.modules.assistant.tools.appointments import resolve_booking
 from app.modules.assistant.usage import monitor_usage
 from app.modules.businesses.exceptions import BusinessNotFoundError
 from app.modules.clients.exceptions import ClientError
@@ -171,7 +180,16 @@ class AssistantService:
         try:
             self._execute_action(action, tools)
             succeeded = True
-        except (ServiceError, ProfessionalError, ClientError, BusinessNotFoundError) as exc:
+        except AppointmentConflictError as exc:
+            raise AssistantAppointmentConflictError() from exc
+        except (AppointmentError, ValidationError) as exc:
+            raise AssistantAppointmentValidationError() from exc
+        except (
+            ServiceError,
+            ProfessionalError,
+            ClientError,
+            BusinessNotFoundError,
+        ) as exc:
             raise AssistantWriteBusinessError() from exc
         except SQLAlchemyError as exc:
             raise AssistantToolDatabaseError() from exc
@@ -183,7 +201,16 @@ class AssistantService:
 
     def _execute_action(self, action: PendingAction, tools: AssistantTools) -> None:
         arguments = action.arguments
-        if action.operation == "create_service":
+        if action.operation == "create_appointment":
+            assert tools.client_service is not None
+            assert tools.appointment_service is not None
+            booking = resolve_booking(
+                AppointmentCreateArguments.model_validate(arguments),
+                tools.client_service,
+                business_id=tools.business_id,
+            )
+            tools.appointment_service.book_panel(booking, business_id=tools.business_id)
+        elif action.operation == "create_service":
             tools.service_service.create(
                 ServiceCreate.model_validate(
                     {**arguments, "business_id": tools.business_id}

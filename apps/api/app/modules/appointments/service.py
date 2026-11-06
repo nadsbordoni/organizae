@@ -72,6 +72,7 @@ class AppointmentService:
         self, hours_data: BusinessHoursUpdate, *, business_id: UUID
     ) -> list[BusinessHour]:
         with self._transaction():
+            self._lock_business(business_id)
             hours = self.repository.replace_hours(
                 hours_data.hours, business_id=business_id
             )
@@ -113,16 +114,39 @@ class AppointmentService:
         business_id: UUID,
         now: datetime | None = None,
     ) -> Appointment:
-        now = now or datetime.now(UTC)
-        self._ensure_business(business_id)
-        service = self._get_bookable_service(
-            business_id, booking.service_id, booking.professional_id
+        return self._book(
+            booking, business_id=business_id, source=AppointmentSource.ONLINE, now=now
         )
-        starts_at = booking.starts_at.astimezone(self.tz)
-        if starts_at > now + BOOKING_WINDOW:
-            raise InvalidBookingError("Time is outside the booking window")
 
+    def book_panel(
+        self,
+        booking: OnlineBookingRequest,
+        *,
+        business_id: UUID,
+        now: datetime | None = None,
+    ) -> Appointment:
+        return self._book(
+            booking, business_id=business_id, source=AppointmentSource.PANEL, now=now
+        )
+
+    def _book(
+        self,
+        booking: OnlineBookingRequest,
+        *,
+        business_id: UUID,
+        source: AppointmentSource,
+        now: datetime | None,
+    ) -> Appointment:
         with self._transaction():
+            self._lock_business(business_id)
+            # Re-read rules and availability after waiting for concurrent writers.
+            now = now or datetime.now(UTC)
+            service = self._get_bookable_service(
+                business_id, booking.service_id, booking.professional_id
+            )
+            starts_at = booking.starts_at.astimezone(self.tz)
+            if starts_at > now + BOOKING_WINDOW:
+                raise InvalidBookingError("Time is outside the booking window")
             free = self._free_slots(
                 business_id, booking.professional_id, service, starts_at.date(), now
             )
@@ -149,7 +173,7 @@ class AppointmentService:
                     starts_at=starts_at,
                     ends_at=starts_at + timedelta(minutes=service.duration_minutes),
                     status=AppointmentStatus.PENDING,
-                    source=AppointmentSource.ONLINE,
+                    source=source,
                 )
             )
             self.session.commit()
@@ -157,18 +181,46 @@ class AppointmentService:
         return appointment
 
     def list_appointments(
-        self, *, business_id: UUID, starts_at: datetime, ends_at: datetime
+        self,
+        *,
+        business_id: UUID,
+        starts_at: datetime,
+        ends_at: datetime,
+        professional_id: UUID | None = None,
+        service_id: UUID | None = None,
+        status: AppointmentStatus | None = None,
+        customer_phone: str | None = None,
+        offset: int = 0,
+        limit: int | None = None,
     ) -> list[Appointment]:
         if ends_at <= starts_at or ends_at - starts_at > MAX_LISTING_RANGE:
             raise InvalidBookingError("Range must be positive and at most 31 days")
+        if offset < 0 or (limit is not None and not 1 <= limit <= 100):
+            raise InvalidBookingError("Invalid appointment pagination")
         return self.repository.list(
-            business_id=business_id, starts_at=starts_at, ends_at=ends_at
+            business_id=business_id,
+            starts_at=starts_at,
+            ends_at=ends_at,
+            professional_id=professional_id,
+            service_id=service_id,
+            status=status,
+            customer_phone=customer_phone,
+            offset=offset,
+            limit=limit,
         )
 
     def create_block(
         self, block: BlockCreateRequest, *, business_id: UUID
     ) -> Appointment:
         with self._transaction():
+            self._lock_business(business_id)
+            if self.repository.has_overlap(
+                business_id=business_id,
+                professional_id=block.professional_id,
+                starts_at=block.starts_at,
+                ends_at=block.ends_at,
+            ):
+                raise AppointmentConflictError("Block overlaps an existing appointment")
             appointment = self.repository.create(
                 Appointment(
                     business_id=business_id,
@@ -192,6 +244,7 @@ class AppointmentService:
         business_id: UUID,
     ) -> Appointment:
         with self._transaction():
+            self._lock_business(business_id)
             appointment = self.repository.get_by_id(
                 appointment_id, business_id=business_id
             )
@@ -238,6 +291,10 @@ class AppointmentService:
 
     def _ensure_business(self, business_id: UUID) -> None:
         if self.business_repository.get_by_id(business_id) is None:
+            raise BusinessNotFoundError("Business not found")
+
+    def _lock_business(self, business_id: UUID) -> None:
+        if self.repository.lock_business(business_id) is None:
             raise BusinessNotFoundError("Business not found")
 
     def _get_bookable_service(

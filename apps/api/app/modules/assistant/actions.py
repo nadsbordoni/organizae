@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field, create_model
 
 from app.core.config import settings
+from app.modules.assistant.appointment_schemas import AppointmentCreateArguments
 from app.modules.assistant.exceptions import (
     AssistantActionStateError,
     AssistantRequestConflictError,
@@ -49,6 +50,7 @@ class ClientUpdateArguments(BaseModel):
 
 
 WRITE_SCHEMAS = {
+    "create_appointment": AppointmentCreateArguments,
     "create_client": ClientCreate,
     "update_client": ClientUpdateArguments,
     "create_service": creation_arguments(ServiceCreate),

@@ -5,22 +5,37 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from app.modules.appointments.exceptions import InvalidBookingError
+from app.modules.appointments.service import AppointmentService
 from app.modules.assistant.actions import (
     WRITE_SCHEMAS,
     PendingAction,
     action_repository,
     require_write_enabled,
 )
+from app.modules.assistant.appointment_schemas import (
+    AppointmentCreateArguments,
+    AppointmentListArguments,
+    AvailabilityArguments,
+)
 from app.modules.assistant.exceptions import AssistantToolCallError
 from app.modules.assistant.providers.base import ToolCall, ToolResult
+from app.modules.assistant.tools.appointments import (
+    check_availability,
+    list_appointments,
+    prepare_appointment,
+)
 from app.modules.assistant.tools.businesses import get_business_info
 from app.modules.assistant.tools.clients import get_client, list_clients
 from app.modules.assistant.tools.professionals import list_professionals
 from app.modules.assistant.tools.services import list_services
 from app.modules.businesses.service import BusinessService
+from app.modules.clients.exceptions import ClientNotFoundError
 from app.modules.clients.service import ClientService
+from app.modules.professionals.exceptions import ProfessionalNotFoundError
 from app.modules.professionals.schemas import ProfessionalCreate
 from app.modules.professionals.service import ProfessionalService
+from app.modules.services.exceptions import ServiceNotFoundError
 from app.modules.services.schemas import ServiceCreate
 from app.modules.services.service import ServiceService
 
@@ -49,6 +64,14 @@ class ClientArguments(BaseModel):
 
 # Only these names can be declared and dispatched; no dynamic function lookup.
 TOOL_SCHEMAS: dict[str, tuple[type[BaseModel], str]] = {
+    "list_appointments": (
+        AppointmentListArguments,
+        "Consulta agenda por período de até 31 dias; filtros opcionais e paginação.",
+    ),
+    "check_availability": (
+        AvailabilityArguments,
+        "Consulta horários reais de serviço/profissional em uma data; não reserva.",
+    ),
     "list_clients": (
         ClientListArguments,
         "Lista ou busca clientes por nome, e-mail ou telefone.",
@@ -95,7 +118,9 @@ class AssistantTools:
         *,
         user_id: UUID,
         client_service: ClientService | None = None,
+        appointment_service: AppointmentService | None = None,
     ) -> None:
+        self.appointment_service = appointment_service
         self.client_service = client_service
         self.business_id = business_id
         self.user_id = user_id
@@ -158,6 +183,22 @@ class AssistantTools:
             result = handler(
                 self.client_service, self.business_id, **arguments.model_dump()
             )
+        elif call.name in ("list_appointments", "check_availability"):
+            if self.appointment_service is None:
+                raise AssistantToolCallError()
+            try:
+                if isinstance(arguments, AppointmentListArguments):
+                    result = list_appointments(
+                        self.appointment_service, self.business_id, arguments
+                    )
+                else:
+                    result = check_availability(
+                        self.appointment_service, self.business_id, arguments
+                    )
+            except InvalidBookingError:
+                result = {
+                    "error": "Serviço ou profissional indisponível na empresa autenticada. Confira os IDs e o período."
+                }
         else:
             result = list_services(
                 self.service_service,
@@ -213,9 +254,35 @@ class AssistantTools:
 
     def prepare_write(self, call: ToolCall) -> ToolResult:
         require_write_enabled()
+        preview = None
         try:
             arguments = WRITE_SCHEMAS[call.name].model_validate(call.arguments)
-            if call.name.startswith("create_") and call.name != "create_client":
+            if call.name == "create_appointment":
+                if self.appointment_service is None or self.client_service is None:
+                    raise AssistantToolCallError()
+                assert isinstance(arguments, AppointmentCreateArguments)
+                booking = prepare_appointment(
+                    arguments,
+                    self.appointment_service,
+                    self.client_service,
+                    business_id=self.business_id,
+                )
+                service = self.service_service.get_by_id(
+                    booking.service_id, business_id=self.business_id
+                )
+                professional = self.professional_service.get_by_id(
+                    booking.professional_id, business_id=self.business_id
+                )
+                preview = {
+                    "customer_name": booking.customer_name,
+                    "service_name": service.name,
+                    "professional_name": professional.name,
+                    "starts_at": booking.starts_at.astimezone(
+                        self.appointment_service.tz
+                    ).isoformat(),
+                    "notice": "A confirmação revalida as regras e pode recusar um horário ocupado.",
+                }
+            elif call.name.startswith("create_") and call.name != "create_client":
                 schema = (
                     ServiceCreate
                     if call.name == "create_service"
@@ -245,6 +312,22 @@ class AssistantTools:
                 },
                 call.id,
             )
+        except ClientNotFoundError:
+            return ToolResult(
+                call.name,
+                {
+                    "error": "Cliente não encontrado nesta empresa. Busque o cadastro e esclareça ambiguidades antes de prosseguir."
+                },
+                call.id,
+            )
+        except (InvalidBookingError, ServiceNotFoundError, ProfessionalNotFoundError):
+            return ToolResult(
+                call.name,
+                {
+                    "error": "Horário, serviço ou profissional indisponível. Consulte novamente a disponibilidade e peça outra opção."
+                },
+                call.id,
+            )
         action = action_repository.add(
             PendingAction(
                 business_id=self.business_id,
@@ -261,6 +344,7 @@ class AssistantTools:
                 "pending_action": action.model_dump(
                     mode="json", exclude={"business_id", "user_id"}
                 )
+                | ({"preview": preview} if preview is not None else {})
             },
             call.id,
         )

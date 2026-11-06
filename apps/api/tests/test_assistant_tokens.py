@@ -413,7 +413,11 @@ def test_compact_schemas_preserve_validation_and_available_tools(tools) -> None:
         "required": ["title"],
     }
     with patch.multiple(settings, APP_ENV="development", ASSISTANT_WRITES_ENABLED=True):
-        assert len(tools.declarations()) == 11
+        from app.modules.assistant.actions import WRITE_SCHEMAS
+
+        assert {item["name"] for item in tools.declarations()} == set(
+            TOOL_SCHEMAS
+        ) | set(WRITE_SCHEMAS)
 
 
 def test_prompt_and_schema_comparison_against_equivalent_static_baseline(tools) -> None:

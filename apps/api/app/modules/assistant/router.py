@@ -1,5 +1,6 @@
 from typing import Annotated
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import JSONResponse
@@ -7,9 +8,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.session import get_db
+from app.modules.appointments.service import AppointmentService
 from app.modules.assistant.actions import ActionDecision
 from app.modules.assistant.exceptions import (
     AssistantActionStateError,
+    AssistantAppointmentConflictError,
     AssistantBusinessNotFoundError,
     AssistantContextLimitError,
     AssistantConversationNotFoundError,
@@ -65,6 +68,9 @@ def get_assistant_tools(
         ServiceService(session),
         user_id=current_user.id,
         client_service=ClientService(session),
+        appointment_service=AppointmentService(
+            session, ZoneInfo(settings.BUSINESS_TIMEZONE)
+        ),
     )
 
 
@@ -90,6 +96,7 @@ async def assistant_error_handler(
     request: Request, exc: AssistantError
 ) -> JSONResponse:
     status_codes = {
+        AssistantAppointmentConflictError: 409,
         AssistantConversationNotFoundError: 404,
         AssistantContextLimitError: 422,
         AssistantBusinessNotFoundError: 404,
