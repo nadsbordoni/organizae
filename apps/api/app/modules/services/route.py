@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.modules.auth.dependencies import get_current_business_id
 from app.modules.services.exceptions import (
+    InvalidServiceCategoryError,
     InvalidServicePaginationError,
     ServiceConflictError,
     ServiceError,
@@ -37,6 +38,7 @@ async def service_error_handler(request: Request, exc: ServiceError) -> JSONResp
         ServiceNotFoundError: status.HTTP_404_NOT_FOUND,
         ServiceConflictError: status.HTTP_409_CONFLICT,
         InvalidServicePaginationError: status.HTTP_422_UNPROCESSABLE_CONTENT,
+        InvalidServiceCategoryError: status.HTTP_422_UNPROCESSABLE_CONTENT,
     }
     status_code = next(
         (
