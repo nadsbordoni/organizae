@@ -51,6 +51,10 @@ def check_availability(
         day=arguments.day,
     )
     return {
+        "date": arguments.day.isoformat(),
+        "service_id": str(arguments.service_id),
+        "professional_id": str(arguments.professional_id),
+        "total_slots": len(slots),
         "slots": [slot.isoformat() for slot in slots[: arguments.limit]],
         "timezone": str(service.tz),
         "limit": arguments.limit,

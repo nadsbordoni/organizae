@@ -251,6 +251,10 @@ def test_availability_is_actual_bounded_and_not_a_reservation(client, database):
     ]
     assert result["has_more"] is True
     assert result["timezone"] == "UTC"
+    assert result["date"] == starts_at.date().isoformat()
+    assert result["service_id"] == str(service_a)
+    assert result["professional_id"] == str(professional_a)
+    assert result["total_slots"] > len(result["slots"])
     assert appointment_count(database) == 1
 
 

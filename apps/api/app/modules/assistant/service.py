@@ -1,8 +1,11 @@
+from datetime import datetime
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.core.config import settings
 from app.modules.appointments.exceptions import (
     AppointmentConflictError,
     AppointmentError,
@@ -135,9 +138,16 @@ class AssistantService:
         tools = self.tools
         assert tools is not None
         tools.business_service.get_by_id(tools.business_id)
+        current_time = datetime.now(ZoneInfo(settings.BUSINESS_TIMEZONE))
+        temporal_context = (
+            f"Data e hora atuais: {current_time.isoformat()}. "
+            f"Fuso da empresa: {settings.BUSINESS_TIMEZONE}. "
+            "Interprete hoje/amanhã a partir desta data, mesmo se o histórico "
+            "mencionar outra data."
+        )
         with self.provider.conversation(
             message,
-            system_prompt=f"{SYSTEM_PROMPT}\n\n{TOOLS_PROMPT}",
+            system_prompt=f"{SYSTEM_PROMPT}\n\n{TOOLS_PROMPT}\n\n{temporal_context}",
             declarations=tools.declarations(),
             **({"history": context} if context is not None else {}),
         ) as conversation:
