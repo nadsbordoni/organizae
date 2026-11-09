@@ -115,6 +115,8 @@ def service() -> AppointmentService:
         id=service_id, business_id=business_id, duration_minutes=30
     )
     appointment_service.repository.count_future_by_phone.return_value = 0
+    appointment_service.repository.lock_business.return_value = business_id
+    appointment_service.repository.has_overlap.return_value = False
     appointment_service.repository.create.side_effect = lambda appointment: appointment
     return appointment_service
 
@@ -194,6 +196,7 @@ def test_book_online_rejects_service_not_offered(service: AppointmentService) ->
 
 def test_book_online_rejects_unknown_business(service: AppointmentService) -> None:
     service.business_repository.get_by_id.return_value = None
+    service.repository.lock_business.return_value = None
     with pytest.raises(BusinessNotFoundError):
         service.book_online(booking_at(at(9)), business_id=business_id, now=now)
 

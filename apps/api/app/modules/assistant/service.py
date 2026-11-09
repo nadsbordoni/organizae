@@ -1,14 +1,27 @@
+from datetime import datetime
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
+from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.core.config import settings
+from app.modules.appointments.exceptions import (
+    AppointmentConflictError,
+    AppointmentError,
+)
 from app.modules.assistant.actions import (
     ActionDecision,
     PendingAction,
+    ProfessionalCreateArguments,
+    ProfessionalServicesUpdateArguments,
     action_repository,
     require_write_enabled,
 )
+from app.modules.assistant.appointment_schemas import AppointmentCreateArguments
 from app.modules.assistant.exceptions import (
+    AssistantAppointmentConflictError,
+    AssistantAppointmentValidationError,
     AssistantBusinessNotFoundError,
     AssistantInvalidResponseError,
     AssistantToolDatabaseError,
@@ -21,6 +34,7 @@ from app.modules.assistant.prompts.system import SYSTEM_PROMPT, TOOLS_PROMPT
 from app.modules.assistant.providers.base import AssistantProvider, ContextMessage
 from app.modules.assistant.schemas import ChatRequest, ChatResponse
 from app.modules.assistant.tools import AssistantTools
+from app.modules.assistant.tools.appointments import resolve_booking
 from app.modules.assistant.usage import monitor_usage
 from app.modules.businesses.exceptions import BusinessNotFoundError
 from app.modules.clients.exceptions import ClientError
@@ -124,9 +138,16 @@ class AssistantService:
         tools = self.tools
         assert tools is not None
         tools.business_service.get_by_id(tools.business_id)
+        current_time = datetime.now(ZoneInfo(settings.BUSINESS_TIMEZONE))
+        temporal_context = (
+            f"Data e hora atuais: {current_time.isoformat()}. "
+            f"Fuso da empresa: {settings.BUSINESS_TIMEZONE}. "
+            "Interprete hoje/amanhã a partir desta data, mesmo se o histórico "
+            "mencionar outra data."
+        )
         with self.provider.conversation(
             message,
-            system_prompt=f"{SYSTEM_PROMPT}\n\n{TOOLS_PROMPT}",
+            system_prompt=f"{SYSTEM_PROMPT}\n\n{TOOLS_PROMPT}\n\n{temporal_context}",
             declarations=tools.declarations(),
             **({"history": context} if context is not None else {}),
         ) as conversation:
@@ -171,7 +192,20 @@ class AssistantService:
         try:
             self._execute_action(action, tools)
             succeeded = True
-        except (ServiceError, ProfessionalError, ClientError, BusinessNotFoundError) as exc:
+        except AppointmentConflictError as exc:
+            raise AssistantAppointmentConflictError() from exc
+        except ValidationError as exc:
+            if action.operation == "create_appointment":
+                raise AssistantAppointmentValidationError() from exc
+            raise AssistantWriteBusinessError() from exc
+        except AppointmentError as exc:
+            raise AssistantAppointmentValidationError() from exc
+        except (
+            ServiceError,
+            ProfessionalError,
+            ClientError,
+            BusinessNotFoundError,
+        ) as exc:
             raise AssistantWriteBusinessError() from exc
         except SQLAlchemyError as exc:
             raise AssistantToolDatabaseError() from exc
@@ -183,16 +217,26 @@ class AssistantService:
 
     def _execute_action(self, action: PendingAction, tools: AssistantTools) -> None:
         arguments = action.arguments
-        if action.operation == "create_service":
+        if action.operation == "create_appointment":
+            assert tools.client_service is not None
+            assert tools.appointment_service is not None
+            booking = resolve_booking(
+                AppointmentCreateArguments.model_validate(arguments),
+                tools.client_service,
+                business_id=tools.business_id,
+            )
+            tools.appointment_service.book_panel(booking, business_id=tools.business_id)
+        elif action.operation == "create_service":
             tools.service_service.create(
                 ServiceCreate.model_validate(
                     {**arguments, "business_id": tools.business_id}
                 )
             )
         elif action.operation == "create_professional":
+            creation = ProfessionalCreateArguments.model_validate(arguments)
             tools.professional_service.create(
                 ProfessionalCreate.model_validate(
-                    {**arguments, "business_id": tools.business_id}
+                    {**creation.model_dump(), "business_id": tools.business_id}
                 )
             )
         elif action.operation == "update_service":
@@ -205,6 +249,13 @@ class AssistantService:
             tools.professional_service.update(
                 UUID(arguments["record_id"]),
                 ProfessionalUpdate.model_validate(arguments["data"]),
+                business_id=tools.business_id,
+            )
+        elif action.operation == "replace_professional_services":
+            replacement = ProfessionalServicesUpdateArguments.model_validate(arguments)
+            tools.professional_service.replace_services(
+                replacement.record_id,
+                replacement.data,
                 business_id=tools.business_id,
             )
         elif action.operation == "create_client":

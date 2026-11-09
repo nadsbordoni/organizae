@@ -5,16 +5,22 @@ from threading import Lock
 from typing import Literal
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, create_model
+from pydantic import UUID4, BaseModel, ConfigDict, Field, create_model
 
 from app.core.config import settings
+from app.modules.assistant.appointment_schemas import AppointmentCreateArguments
 from app.modules.assistant.exceptions import (
     AssistantActionStateError,
     AssistantRequestConflictError,
     AssistantWriteDisabledError,
 )
 from app.modules.clients.schemas import ClientCreate, ClientUpdate
-from app.modules.professionals.schemas import ProfessionalCreate, ProfessionalUpdate
+from app.modules.professionals.schemas import (
+    ProfessionalCreateRequest,
+    ProfessionalServicesUpdate,
+    ProfessionalUpdate,
+    ServiceIds,
+)
 from app.modules.services.schemas import ServiceCreate, ServiceUpdate
 
 
@@ -36,10 +42,24 @@ class ServiceUpdateArguments(BaseModel):
     data: ServiceUpdate
 
 
+class ProfessionalCreateArguments(ProfessionalCreateRequest):
+    # The assistant must distinguish an unanswered selection from an empty one.
+    service_ids: ServiceIds = Field(
+        description="IDs dos serviços escolhidos; [] apenas para criar sem vínculos."
+    )
+
+
 class ProfessionalUpdateArguments(BaseModel):
     model_config = ConfigDict(extra="forbid")
     record_id: UUID
     data: ProfessionalUpdate
+
+
+class ProfessionalServicesUpdateArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    record_id: UUID4
+    data: ProfessionalServicesUpdate
 
 
 class ClientUpdateArguments(BaseModel):
@@ -49,12 +69,14 @@ class ClientUpdateArguments(BaseModel):
 
 
 WRITE_SCHEMAS = {
+    "create_appointment": AppointmentCreateArguments,
     "create_client": ClientCreate,
     "update_client": ClientUpdateArguments,
     "create_service": creation_arguments(ServiceCreate),
     "update_service": ServiceUpdateArguments,
-    "create_professional": creation_arguments(ProfessionalCreate),
+    "create_professional": ProfessionalCreateArguments,
     "update_professional": ProfessionalUpdateArguments,
+    "replace_professional_services": ProfessionalServicesUpdateArguments,
 }
 
 

@@ -10,6 +10,7 @@ from app.modules.appointments.models import (
     BusinessHour,
 )
 from app.modules.appointments.schemas import BusinessHourItem
+from app.modules.businesses.models import Business
 from app.modules.professionals.models import Professional
 from app.modules.services.associations import professional_services
 from app.modules.services.models import Service
@@ -18,6 +19,35 @@ from app.modules.services.models import Service
 class AppointmentRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
+
+    def lock_business(self, business_id: UUID) -> UUID | None:
+        # Every agenda writer locks the same row, including business-wide blocks.
+        return self.session.scalar(
+            select(Business.id).where(Business.id == business_id).with_for_update()
+        )
+
+    def has_overlap(
+        self,
+        *,
+        business_id: UUID,
+        professional_id: UUID | None,
+        starts_at: datetime,
+        ends_at: datetime,
+    ) -> bool:
+        statement = select(Appointment.id).where(
+            Appointment.business_id == business_id,
+            Appointment.status != AppointmentStatus.CANCELLED,
+            Appointment.starts_at < ends_at,
+            Appointment.ends_at > starts_at,
+        )
+        if professional_id is not None:
+            statement = statement.where(
+                or_(
+                    Appointment.professional_id == professional_id,
+                    Appointment.professional_id.is_(None),
+                )
+            )
+        return self.session.scalar(statement.limit(1)) is not None
 
     def list_hours(self, *, business_id: UUID) -> list[BusinessHour]:
         statement = (
@@ -34,8 +64,7 @@ class AppointmentRepository:
             delete(BusinessHour).where(BusinessHour.business_id == business_id)
         )
         self.session.add_all(
-            BusinessHour(business_id=business_id, **hour.model_dump())
-            for hour in hours
+            BusinessHour(business_id=business_id, **hour.model_dump()) for hour in hours
         )
         self.session.flush()
         return self.list_hours(business_id=business_id)
@@ -135,7 +164,17 @@ class AppointmentRepository:
         return self.session.scalar(statement)
 
     def list(
-        self, *, business_id: UUID, starts_at: datetime, ends_at: datetime
+        self,
+        *,
+        business_id: UUID,
+        starts_at: datetime,
+        ends_at: datetime,
+        professional_id: UUID | None = None,
+        service_id: UUID | None = None,
+        status: AppointmentStatus | None = None,
+        customer_phone: str | None = None,
+        offset: int = 0,
+        limit: int | None = None,
     ) -> list[Appointment]:
         statement = (
             select(Appointment)
@@ -144,6 +183,17 @@ class AppointmentRepository:
                 Appointment.starts_at < ends_at,
                 Appointment.ends_at > starts_at,
             )
-            .order_by(Appointment.starts_at)
+            .order_by(Appointment.starts_at, Appointment.id)
+            .offset(offset)
         )
+        for field_name, value in (
+            ("professional_id", professional_id),
+            ("service_id", service_id),
+            ("status", status),
+            ("customer_phone", customer_phone),
+        ):
+            if value is not None:
+                statement = statement.where(getattr(Appointment, field_name) == value)
+        if limit is not None:
+            statement = statement.limit(limit)
         return list(self.session.scalars(statement).all())

@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 from copy import deepcopy
+from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import MagicMock, Mock, patch
 from uuid import uuid4
@@ -227,6 +228,20 @@ def mock_conversation(replies: list[ProviderReply]) -> tuple[Mock, Mock]:
     return provider, conversation
 
 
+def test_relative_dates_receive_current_business_time(tools: AssistantTools) -> None:
+    provider, _ = mock_conversation([ProviderReply(text="Consulta realizada")])
+    with (
+        patch.object(settings, "BUSINESS_TIMEZONE", "America/Fortaleza"),
+        patch("app.modules.assistant.service.datetime") as clock,
+    ):
+        clock.now.side_effect = lambda tz: datetime(2026, 11, 10, 1, tzinfo=UTC).astimezone(tz)
+        AssistantService(provider, tools).chat(ChatRequest(message="Horários hoje?"))
+    prompt = provider.conversation.call_args.kwargs["system_prompt"]
+    assert "2026-11-09T22:00:00-03:00" in prompt
+    assert "America/Fortaleza" in prompt
+    assert "mesmo se o histórico" in prompt
+
+
 def test_service_orchestrates_multiple_tools_and_final_text(
     tools: AssistantTools,
 ) -> None:
@@ -261,9 +276,12 @@ def test_service_orchestrates_multiple_tools_and_final_text(
         assert names == {
             "get_business_info",
             "list_professionals",
+            "get_professional_services",
             "list_services",
             "list_clients",
             "get_client",
+            "list_appointments",
+            "check_availability",
         }
     assert "business_id" not in str(tools.declarations())
     tools.professional_service.list.assert_called_once_with(
