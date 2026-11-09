@@ -127,4 +127,5 @@ def test_response_reads_attributes_and_serializes_uuid_and_decimal(
         "id": str(service_id),
         "description": None,
         "is_active": True,
+        "category_id": None,
     }

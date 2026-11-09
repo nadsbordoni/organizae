@@ -19,6 +19,9 @@ from app.modules.businesses.router import (
 from app.modules.businesses.router import (
     router as businesses_router,
 )
+from app.modules.categories.exceptions import CategoryError
+from app.modules.categories.route import category_error_handler
+from app.modules.categories.route import router as categories_router
 from app.modules.clients.exceptions import ClientError
 from app.modules.clients.route import client_error_handler
 from app.modules.clients.route import router as clients_router
@@ -47,6 +50,8 @@ app.include_router(auth_router, prefix="/api/v1")
 app.include_router(appointments_router, prefix="/api/v1")
 app.include_router(online_booking_router, prefix="/api/v1")
 app.include_router(clients_router, prefix="/api/v1")
+app.include_router(categories_router, prefix="/api/v1")
+app.add_exception_handler(CategoryError, category_error_handler)
 app.add_exception_handler(ClientError, client_error_handler)
 app.add_exception_handler(AppointmentError, appointment_error_handler)
 app.add_exception_handler(AssistantError, assistant_error_handler)

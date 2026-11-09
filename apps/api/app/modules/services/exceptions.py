@@ -12,3 +12,7 @@ class ServiceConflictError(ServiceError):
 
 class InvalidServicePaginationError(ServiceError):
     pass
+
+
+class InvalidServiceCategoryError(ServiceError):
+    pass
