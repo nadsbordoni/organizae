@@ -1,0 +1,25 @@
+---
+import EmptyState from '@/components/EmptyState.astro';
+import PageContainer from '@/components/PageContainer.astro';
+import SiteLayout from '@/layouts/SiteLayout.astro';
+import { baseTheme } from '@/themes/base';
+
+/** Endereço que não existe ou página ainda não publicada: as duas respostas são iguais de propósito. */
+
+// `pages/[slug].astro` reescreve para cá a cada acesso, e reescrita não alcança página pré-gerada.
+export const prerender = false;
+---
+
+<SiteLayout
+  theme={baseTheme}
+  seo={{ title: 'Página não encontrada', description: 'Esta página não existe ou ainda não foi publicada.' }}
+  noindex
+>
+  <PageContainer as="main" id="conteudo">
+    <EmptyState
+      icon="search"
+      title="Página não encontrada"
+      text="Confira se o endereço está certo. Se a página é nova, ela pode ainda não ter sido publicada."
+    />
+  </PageContainer>
+</SiteLayout>

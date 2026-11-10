@@ -1,24 +1,23 @@
 ---
 import LinkPage from '@/components/LinkPage.astro';
-import { sites } from '@/config';
-import type { SiteConfig } from '@/types/site';
+import { getSite } from '@/config';
+import { fetchPublicPage, toSiteConfig } from '@/lib/public-page';
 
 /**
- * Página de links `/{slug}`. Um HTML por cliente no build, para cada página ter título
- * e imagem de preview próprios no WhatsApp/Instagram.
+ * Página de links `/{slug}`. Gerada a cada acesso: a página publicada no painel aparece na hora,
+ * sem novo build. Continua com título e imagem de preview próprios no WhatsApp/Instagram.
+ * Primeiro os estúdios de `src/config/sites/`; se o slug não estiver lá, a página publicada na API.
  */
-export function getStaticPaths() {
-  return sites.map((site) => ({
-    params: { slug: site.slug },
-    props: { site },
-  }));
-}
+export const prerender = false;
 
-interface Props {
-  site: SiteConfig;
-}
+const slug = Astro.params.slug ?? '';
+const configured = getSite(slug);
+const published = configured ? null : await fetchPublicPage(slug);
+const site = configured ?? (published ? toSiteConfig(published) : undefined);
 
-const { site } = Astro.props;
+if (!site) {
+  return Astro.rewrite('/404');
+}
 ---
 
 <LinkPage site={site} />
