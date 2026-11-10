@@ -10,9 +10,11 @@ interface Props {
   name?: string;
   placeholder?: string;
   /** Ignorado quando `rows > 1` ou com `options`. */
-  type?: 'text' | 'email' | 'password' | 'tel';
-  /** Presente, vira `<select>` com estas opções. */
-  options?: string[];
+  type?: 'text' | 'email' | 'password' | 'tel' | 'date';
+  /** Presente, vira `<select>` com estas opções. Texto puro quando o valor enviado é o próprio rótulo. */
+  options?: Array<string | { value: string; label: string }>;
+  /** Valor inicial; no `<select>`, a opção que vem marcada. */
+  value?: string;
   /** NÃO é detalhe: sem `current-password`, o gerenciador de senhas do iPhone não oferece preencher. */
   autocomplete?: string;
   /** Acima de 1, vira `<textarea>`. */
@@ -43,6 +45,7 @@ const {
   options,
   autocomplete,
   rows = 1,
+  value,
   maxlength,
   pattern,
   title,
@@ -57,6 +60,7 @@ const {
 const hintId = hint ? `${id}-hint` : undefined;
 const describedById = [hintId, describedBy].filter(Boolean).join(' ') || undefined;
 const hasEnd = Astro.slots.has('end');
+const choices = options?.map((option) => (typeof option === 'string' ? { value: option, label: option } : option));
 ---
 
 <div class="field">
@@ -67,7 +71,7 @@ const hasEnd = Astro.slots.has('end');
 
   <div class="field__box" data-end={hasEnd ? '' : undefined}>
     {
-      options ? (
+      choices ? (
         <select
           class="field__control"
           id={id}
@@ -77,7 +81,11 @@ const hasEnd = Astro.slots.has('end');
           aria-describedby={describedById}
           {...rest}
         >
-          {options.map((option) => <option>{option}</option>)}
+          {choices.map((option) => (
+            <option value={option.value} selected={option.value === value}>
+              {option.label}
+            </option>
+          ))}
         </select>
       ) : rows > 1 ? (
         <textarea
@@ -91,13 +99,14 @@ const hasEnd = Astro.slots.has('end');
           required={required}
           aria-describedby={describedById}
           {...rest}
-        />
+        >{value}</textarea>
       ) : (
         <input
           class="field__control"
           type={type}
           id={id}
           name={name ?? id}
+          value={value}
           maxlength={maxlength}
           pattern={pattern}
           title={title}

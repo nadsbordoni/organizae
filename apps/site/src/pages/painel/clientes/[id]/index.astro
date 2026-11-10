@@ -1,0 +1,310 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import Callout from '@/components/Callout.astro';
+import EmptyState from '@/components/EmptyState.astro';
+import Initials from '@/components/painel/Initials.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import PanelSection from '@/components/painel/PanelSection.astro';
+import PanelTable from '@/components/painel/PanelTable.astro';
+import StatCard from '@/components/painel/StatCard.astro';
+import StatusBadge from '@/components/painel/StatusBadge.astro';
+import { getSite } from '@/config';
+import { formatPrice, nowInBusinessTime } from '@/lib/agenda';
+import { CLIENT_STATUS, summarize } from '@/lib/clients';
+import { forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
+import { whatsappUrl } from '@/lib/links';
+import {
+  STATUS_BADGE,
+  birthdayLabel,
+  catalogTotal,
+  compactPrice,
+  dayMonthLabel,
+  formatPhone,
+  monthLabel,
+  numericDate,
+  serviceNames,
+  tenantNotConfigured,
+} from '@/lib/painel';
+
+/**
+ * Ficha do cliente (quadro 06): `GET /clients/{id}` e `GET /clients/{id}/appointments`.
+ * Sem compras nem profissional, que o protótipo mostra: o sistema não registra vendas e o exemplo não tem equipe.
+ */
+export const prerender = false;
+
+const HISTORY_PREVIEW = 5;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const dados = forTenant(user.tenantSlug);
+const client = await dados.client(Astro.params.id ?? '');
+if (!client) return new Response(null, { status: 404 });
+
+const agenda = site.agenda;
+const hoje = nowInBusinessTime(agenda?.timezone ?? 'America/Sao_Paulo').date;
+const history = await dados.clientAppointments(client.id);
+const summary = summarize(client, history, hoje, agenda);
+
+const showAll = Astro.url.searchParams.get('historico') === 'completo';
+const rows = showAll ? history : history.slice(0, HISTORY_PREVIEW);
+const hidden = history.length - rows.length;
+// PROTÓTIPO: a edição volta para cá com `?salvo`, sem gravar nada.
+const saved = Astro.url.searchParams.has('salvo');
+const business = site.profile.name;
+---
+
+<PanelLayout site={site} user={user} current="clientes" title={client.name}>
+  <PanelHeading eyebrow="Clientes · Perfil" title={client.name} intro={`Um olhar completo sobre a relação com ${business}.`}>
+    <ActionButton label="Editar cadastro" variant="secondary" href={`/painel/clientes/${client.id}/editar`} full={false} />
+    {/* PROTÓTIPO: sem ação até o agendamento pelo painel existir. */}
+    <ActionButton label="Novo agendamento" full={false} />
+  </PanelHeading>
+
+  {
+    saved && (
+      <div class="notice">
+        <Callout tone="success" icon="check-circle" title="Cadastro salvo">
+          Os dados de contato de {client.name} foram atualizados.
+        </Callout>
+      </div>
+    )
+  }
+
+  <div class="layout">
+    <aside class="card" aria-labelledby="titulo-cliente">
+      <Initials name={client.name} large />
+      <div class="card__who">
+        <h2 class="card__name" id="titulo-cliente">{client.name}</h2>
+        <StatusBadge {...CLIENT_STATUS[summary.status]} />
+      </div>
+
+      <p class="card__contact">
+        <a href={`tel:+${client.phone}`}>{formatPhone(client.phone)}</a>
+        {client.email && <a href={`mailto:${client.email}`}>{client.email}</a>}
+      </p>
+
+      <ul class="card__facts">
+        <li>Cliente desde {monthLabel(client.created_at.slice(0, 10))}</li>
+        {client.birth_date && <li>Aniversário em {birthdayLabel(client.birth_date)}</li>}
+        {client.referral && <li>Conheceu por {client.referral}</li>}
+        <li>{client.whatsapp_opt_in ? 'Aceita mensagens de retorno' : 'Não autorizou mensagens de retorno'}</li>
+      </ul>
+
+      <div class="card__notes">
+        <h3>Preferências</h3>
+        <p>{client.notes ?? 'Nenhuma observação ainda.'}</p>
+      </div>
+
+      <ActionButton
+        label="Conversar no WhatsApp"
+        variant="secondary"
+        icon="whatsapp"
+        href={whatsappUrl(client.phone)}
+        newTab
+      />
+    </aside>
+
+    <div class="main">
+      <div class="stats">
+        <StatCard
+          label="Total gasto"
+          value={summary.spentCents === undefined ? '—' : compactPrice(formatPrice(summary.spentCents))}
+          note="Soma dos atendimentos concluídos"
+          tone="pink"
+        />
+        <StatCard
+          label="Atendimentos"
+          value={String(summary.visits)}
+          note={summary.firstVisit ? `Concluídos desde ${monthLabel(summary.firstVisit)}` : 'Nenhum concluído ainda'}
+          tone="yellow"
+        />
+        <StatCard
+          label="Última visita"
+          value={summary.lastVisit ? dayMonthLabel(summary.lastVisit) : '—'}
+          note={
+            summary.lastVisit
+              ? `${summary.lastVisit.slice(0, 4)} · há ${summary.daysAway} ${summary.daysAway === 1 ? 'dia' : 'dias'}`
+              : 'Ainda sem visitas'
+          }
+          tone="blue"
+        />
+      </div>
+
+      <PanelSection title="Histórico de atendimentos" subtitle="Mais recentes primeiro · valores do catálogo" id="titulo-historico">
+        {
+          history.length ? (
+            <>
+              <PanelTable label={`Atendimentos de ${client.name}`}>
+                <thead>
+                  <tr>
+                    <th scope="col">Data</th>
+                    <th scope="col">Atendimento</th>
+                    <th scope="col" data-wide>
+                      Valor
+                    </th>
+                    <th scope="col">Situação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => {
+                    const price = row.status === 'done' ? catalogTotal([row], agenda) : undefined;
+                    return (
+                      <tr>
+                        <td class="date">{numericDate(row.date)}</td>
+                        <td>{serviceNames(row, agenda)}</td>
+                        <td data-wide>{price ? compactPrice(price) : '—'}</td>
+                        <td>{STATUS_BADGE[row.status].label}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </PanelTable>
+              <p class="foot">
+                Exibindo {rows.length} de {history.length} {history.length === 1 ? 'registro' : 'registros'}
+                {hidden > 0 && ` · mais ${hidden} no histórico completo`}
+              </p>
+              {hidden > 0 && (
+                <ActionButton
+                  label="Ver histórico completo"
+                  variant="secondary"
+                  href={`/painel/clientes/${client.id}?historico=completo`}
+                  full={false}
+                />
+              )}
+            </>
+          ) : (
+            <EmptyState
+              level={3}
+              icon="calendar"
+              title="Nenhum atendimento ainda"
+              text="O histórico começa no primeiro atendimento concluído."
+            />
+          )
+        }
+      </PanelSection>
+    </div>
+  </div>
+</PanelLayout>
+
+<style>
+  .notice {
+    margin-top: 24px;
+  }
+
+  /* Ficha estreita à esquerda, números e histórico à direita, como no protótipo. */
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) minmax(0, 3fr);
+    align-items: start;
+    gap: 24px;
+    margin-top: 32px;
+  }
+
+  .card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 18px;
+    padding: 24px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .card__who {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .card__name {
+    font-size: 1.375rem;
+    font-weight: 600;
+  }
+
+  .card__contact {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.9375rem;
+  }
+
+  .card__contact a {
+    color: var(--site-color-text);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+  }
+
+  .card__contact a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .card__contact a:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  .card__facts {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    list-style: none;
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .card__notes h3 {
+    font-size: 1.0625rem;
+    font-weight: 600;
+  }
+
+  .card__notes p {
+    margin-top: 8px;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+
+  .main {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .date {
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .foot {
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .main :global(.action) {
+    align-self: flex-start;
+  }
+
+  @media (max-width: 1099px) {
+    .layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 719px) {
+    .stats {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>
