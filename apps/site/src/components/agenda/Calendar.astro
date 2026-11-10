@@ -2,21 +2,13 @@
 import { weekdayInitials } from '@/lib/agenda';
 
 /**
- * Calendário do mês.
- *
- * As CÉLULAS não são geradas aqui: quais dias existem, quais já passaram e
- * quais têm horário livre dependem do serviço escolhido e da hora atual no fuso
- * do negócio — coisas que um site estático não sabe no build. O componente
- * entrega a moldura e o script de `lib/booking-ui.ts` preenche a grade.
- *
- * Por isso o estilo das células usa `:global()`: elas nascem no navegador, sem
- * o atributo de escopo que o Astro aplica no build. O CONTRATO entre os dois
- * lados são os nomes de classe abaixo — mudar `calendar__day` aqui sem mudar lá
- * apaga o estilo do calendário inteiro.
+ * Moldura do calendário do mês. As células nascem no navegador (`lib/booking-ui.ts`), por
+ * dependerem do serviço e da hora no fuso do negócio; por isso o CSS usa `:global()`.
+ * CONTRATO: mudar `calendar__day` aqui sem mudar lá apaga o estilo do calendário inteiro.
  */
 
 interface Props {
-  /** Rótulo acessível da grade. Ex: 'Escolha o dia do atendimento'. */
+  /** Rótulo acessível da grade. */
   label: string;
 }
 
@@ -42,8 +34,7 @@ const initials = weekdayInitials();
     </button>
   </div>
 
-  {/* Iniciais repetem (S de segunda e de sábado, Q de quarta e de quinta), então
-      são decorativas: cada célula carrega a data por extenso no `aria-label`. */}
+  {/* Decorativas porque se repetem (S, Q): cada célula leva a data por extenso no `aria-label`. */}
   <div class="calendar__weekdays" aria-hidden="true">
     {initials.map((initial) => <span>{initial}</span>)}
   </div>
@@ -123,17 +114,13 @@ const initials = weekdayInitials();
     color: var(--site-color-text-muted);
   }
 
-  /* --- Células criadas pelo script ------------------------------------- */
-
   .calendar__grid :global(.calendar__day) {
     display: flex;
     align-items: center;
     justify-content: center;
 
-    /* Quadrada e do tamanho da coluna: sete colunas em 320px dão ~42px, que é
-       o maior alvo possível sem apertar as laterais da página. Fica abaixo dos
-       48px recomendados porque um calendário de mês não cabe de outro jeito —
-       o espaçamento de 2px entre células compensa o toque errado. */
+    /* ~42px em 320px: abaixo dos 48px recomendados porque o mês não cabe de outro
+       jeito; o espaçamento de 2px entre células compensa o toque errado. */
     aspect-ratio: 1;
     width: 100%;
     border: 1.5px solid transparent;
@@ -152,17 +139,12 @@ const initials = weekdayInitials();
       color 0.16s ease;
   }
 
-  /* Espaço antes do dia 1: mantém a semana alinhada sem virar alvo de toque. */
   .calendar__grid :global(.calendar__blank) {
     aspect-ratio: 1;
   }
 
-  /* O `:not([aria-pressed='true'])` não é zelo: sem ele, passar o mouse por cima
-     do dia JÁ ESCOLHIDO repintava o fundo de rosa-claro enquanto a cor do texto
-     continuava branca — 1,2:1, o número desaparecia. O hover ganhava por
-     especificidade (0,5,0 contra 0,4,0 do selecionado), então trocar a ordem das
-     regras não resolveria. Estados que disputam a mesma propriedade precisam ser
-     mutuamente exclusivos no SELETOR. */
+  /* NÃO tire o `:not([aria-pressed='true'])`: o hover vence o selecionado por especificidade
+     e deixava o número do dia escolhido a 1,2:1. Trocar a ordem das regras não resolve. */
   .calendar__grid :global(.calendar__day:hover:not(:disabled, [aria-pressed='true'])) {
     background: var(--site-color-brand-soft);
   }
@@ -172,17 +154,14 @@ const initials = weekdayInitials();
     outline-offset: 1px;
   }
 
-  /* Dia sem horário: só o número, apagado. Sem tarja e sem vermelho — a maior
-     parte do mês costuma estar indisponível, e marcar tudo criaria uma tela de
-     avisos em vez de um calendário. */
+  /* Sem tarja nem vermelho: a maior parte do mês costuma estar indisponível. */
   .calendar__grid :global(.calendar__day:disabled) {
     color: var(--site-color-text-muted);
     opacity: 0.35;
     cursor: not-allowed;
   }
 
-  /* Dia com horário livre: o ponto abaixo do número é o que diferencia
-     "disponível" de "escolhido" sem depender de cor. */
+  /* O ponto diferencia "disponível" de "escolhido" sem depender de cor. */
   .calendar__grid :global(.calendar__day[data-free])::after {
     content: '';
     position: absolute;
@@ -210,7 +189,6 @@ const initials = weekdayInitials();
     opacity: 0.9;
   }
 
-  /* Hoje, quando não é o dia escolhido: contorno em vez de preenchimento. */
   .calendar__grid :global(.calendar__day[data-today]:not([aria-pressed='true'])) {
     border-color: var(--site-color-brand);
   }

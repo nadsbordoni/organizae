@@ -4,22 +4,14 @@ import { formatDuration } from '@/lib/agenda';
 import type { Service } from '@/types/agenda';
 
 /**
- * Um serviço escolhido, na lista de revisão.
- *
- * TODOS os serviços do catálogo são renderizados no build e ficam `hidden`; o
- * script só mostra os escolhidos. Sai mais barato do que parece — são algumas
- * linhas de HTML — e evita criar elemento em runtime, o que manteria o estilo
- * desta peça fora do escopo do componente.
- *
- * Remover daqui é sempre seguro: se o conjunto maior cabia no horário, o menor
- * também cabe. Por isso o botão não precisa revalidar nada — só refaz as somas.
+ * Serviço escolhido, na revisão. Todos saem do build `hidden` e o script mostra os escolhidos,
+ * para o estilo ficar no escopo. Remover não revalida: se o conjunto maior cabia, o menor cabe.
  */
 
 interface Props {
   service: Service;
-  /** De onde o serviço veio. 'Blindagem' sozinho é vago na conferência. */
+  /** 'Blindagem' sozinho é vago na conferência. */
   categoryName?: string;
-  /** Mostra o botão de tirar. Falso na tela de conclusão, onde já foi enviado. */
   removable?: boolean;
 }
 
@@ -60,8 +52,7 @@ const meta = [formatDuration(service.durationMinutes), service.price].filter(Boo
     list-style: none;
   }
 
-  /* Fio entre itens, e não em volta de cada um: a lista inteira já mora num
-     cartão, e uma borda por linha viraria cartão dentro de cartão. */
+  /* Fio entre itens, não borda em cada um: a lista já mora num cartão. */
   .line + .line {
     border-top: 1px solid var(--site-color-border);
   }
@@ -108,9 +99,7 @@ const meta = [formatDuration(service.durationMinutes), service.price].filter(Boo
     justify-content: center;
     flex-shrink: 0;
 
-    /* 44px é o mínimo que ainda cabe ao lado do texto numa tela de 320px. O
-       ícone é menor que o alvo, o que é o certo — o alvo é que precisa ser
-       grande, não o desenho. */
+    /* 44px é o mínimo que ainda cabe ao lado do texto numa tela de 320px. */
     width: 44px;
     height: 44px;
     border-radius: 50%;

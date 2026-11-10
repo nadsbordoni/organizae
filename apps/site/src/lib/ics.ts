@@ -1,17 +1,9 @@
 import type { ClockTime, IsoDate } from '@/types/agenda';
 
 /**
- * Arquivo .ics do agendamento, gerado no navegador.
- *
- * Sem servidor, é o único jeito de a cliente levar o horário para a agenda do
- * celular — e resolve sozinho o lembrete do dia, que de outra forma exigiria
- * notificação push e uma base de dados.
- *
- * HORA FLUTUANTE de propósito: `DTSTART:20260914T140000`, sem `Z` e sem `TZID`.
- * Pelo RFC 5545 isso significa "14:00 no fuso de quem abrir o arquivo", que é o
- * comportamento certo quando cliente e negócio estão na mesma cidade — o caso
- * real. A alternativa (converter para UTC) exigiria a regra de horário de verão
- * do fuso dentro do próprio arquivo, e erra por uma hora se for feita na mão.
+ * .ics gerado no navegador. HORA FLUTUANTE de propósito (`DTSTART:20260914T140000`, sem `Z` nem `TZID`):
+ * pelo RFC 5545 vale o fuso de quem abre, o certo com cliente e negócio na mesma cidade. Converter
+ * para UTC exigiria a regra de horário de verão dentro do arquivo, e erra por uma hora se feita à mão.
  */
 
 export interface CalendarEvent {
@@ -42,8 +34,7 @@ export function buildIcs(event: CalendarEvent): string {
     `SUMMARY:${escapeText(event.title)}`,
     ...(event.description ? [`DESCRIPTION:${escapeText(event.description)}`] : []),
     ...(event.location ? [`LOCATION:${escapeText(event.location)}`] : []),
-    // Lembrete 2h antes: o suficiente para se organizar e sair de casa, sem
-    // avisar tão cedo que a pessoa esqueça de novo.
+    // Lembrete 2h antes: dá tempo de se organizar, sem avisar tão cedo que a pessoa esqueça de novo.
     'BEGIN:VALARM',
     'ACTION:DISPLAY',
     'DESCRIPTION:Lembrete do seu horário',
@@ -53,8 +44,7 @@ export function buildIcs(event: CalendarEvent): string {
     'END:VCALENDAR',
   ];
 
-  // CRLF em TODA linha, inclusive a última: alguns aplicativos recusam o arquivo
-  // com \n, ou sem o fecho.
+  // CRLF em TODA linha, inclusive a última: alguns aplicativos recusam \n ou arquivo sem o fecho.
   return `${lines.flatMap(fold).join('\r\n')}\r\n`;
 }
 
@@ -63,7 +53,7 @@ function stamp(date: IsoDate, time: ClockTime): string {
   return `${date.replace(/-/g, '')}T${time.replace(':', '')}00`;
 }
 
-/** Soma minutos e devolve o par (data, hora) já virando o dia se precisar. */
+/** Já vira o dia quando a soma passa da meia-noite. */
 function addMinutes(date: IsoDate, time: ClockTime, minutes: number): [IsoDate, ClockTime] {
   const [hour, minute] = time.split(':').map(Number);
   const at = new Date(`${date}T00:00:00Z`);
@@ -86,11 +76,7 @@ function escapeText(value: string): string {
     .replace(/\r\n|\r|\n/g, '\\n');
 }
 
-/**
- * Dobra a linha em 75 octetos, como o formato exige. A continuação começa com
- * um espaço. Conta em BYTES, não em caracteres: "ç" ocupa dois, e cortar no
- * meio dele produziria um arquivo corrompido.
- */
+/** Dobra em 75 OCTETOS, como o formato exige. Conta bytes: cortar "ç" no meio corrompe o arquivo. */
 function fold(line: string): string[] {
   const bytes = new TextEncoder().encode(line);
   if (bytes.length <= 75) return [line];

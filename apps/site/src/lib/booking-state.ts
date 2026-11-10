@@ -2,25 +2,9 @@ import { hasSlots, isIsoDate, slotsFor, totalDuration } from './agenda';
 import type { Agenda, ClockTime, IsoDate, Service } from '@/types/agenda';
 
 /**
- * O estado do agendamento mora na URL.
- *
- * Cada passo é uma página de verdade (`/agendar`, `/agendar/data`,
- * `/agendar/revisao`, `/agendar/enviado`) e o que já foi escolhido viaja na
- * query: `?servicos=blindagem,design&data=2026-09-15&hora=14:00`.
- *
- * POR QUE NA URL, e não em memória ou `sessionStorage`:
- *   - o botão voltar do navegador funciona sozinho, sem `pushState` nenhum;
- *   - recarregar a página não perde a escolha;
- *   - dá para mandar o link de um horário para alguém;
- *   - o estado é inspecionável, o que torna um bug reproduzível.
- *
- * O preço é que a URL é EDITÁVEL: qualquer coisa pode chegar aqui. Por isso
- * nada é confiado — `readSelection()` valida tudo contra o catálogo e contra o
- * motor de disponibilidade, e devolve só o que sobrevive.
- *
- * A observação escrita pela cliente NÃO entra na URL: é texto pessoal, ficaria
- * na barra de endereço e no histórico do navegador. Ela viaja em
- * `sessionStorage`, que morre quando a aba fecha.
+ * Estado do agendamento na URL (`?servicos=a,b&data=2026-09-15&hora=14:00`), para voltar, recarregar
+ * e compartilhar funcionarem. A URL é EDITÁVEL: `readSelection()` valida tudo. A observação da
+ * cliente NÃO vai na URL (ficaria no histórico): vai em `sessionStorage`.
  */
 
 const PARAM = {
@@ -37,35 +21,23 @@ export interface Selection {
   time?: ClockTime;
 }
 
-/** Minutos do atendimento inteiro — é o que o motor usa para achar vaga. */
 export function selectionMinutes(selection: Selection): number {
   return totalDuration(selection.services);
 }
 
-/**
- * Lê a escolha da query, descartando o que não faz mais sentido.
- *
- * Um serviço que saiu do catálogo, uma data que já passou, um horário que
- * deixou de caber depois que outro serviço entrou — tudo isso some aqui, em vez
- * de virar um agendamento impossível três telas adiante.
- */
+/** Descarta o que não vale mais: serviço fora do catálogo, data passada, horário que deixou de caber. */
 export function readSelection(
   agenda: Agenda,
   search: string,
   now: { date: IsoDate; minutes: number },
-  /**
-   * Falso só na conclusão: o pedido já saiu, e o horário pode ter deixado de ser
-   * oferecido no caminho (a antecedência mínima vence enquanto o WhatsApp abre).
-   * Revalidar ali devolvia a cliente ao início sem o resumo.
-   */
+  /** Falso só na conclusão: o pedido já saiu e o horário pode ter vencido a antecedência no caminho. */
   { checkAvailability = true }: { checkAvailability?: boolean } = {},
 ): Selection {
   const params = new URLSearchParams(search);
   const catalog = agenda.categories.flatMap((category) => category.services);
 
   const wanted = new Set((params.get(PARAM.services) ?? '').split(',').filter(Boolean));
-  // A ordem é a do catálogo, não a da URL: assim a lista de revisão sai sempre
-  // igual, independentemente da ordem em que as caixas foram marcadas.
+  // Ordem do catálogo, não da URL: a revisão sai igual em qualquer ordem de marcação.
   const services = catalog.filter(
     (service) => wanted.has(service.id) && !service.hidden && !service.soon,
   );
@@ -83,8 +55,7 @@ export function readSelection(
   const time = params.get(PARAM.time) ?? undefined;
   if (!time) return selection;
 
-  // O horário precisa estar entre os OFERECIDOS, não só ter formato válido: é o
-  // que impede marcar em cima do almoço editando a barra de endereço.
+  // Precisa estar entre os OFERECIDOS, não só ter formato válido: impede marcar em cima do almoço pela URL.
   const valid = checkAvailability
     ? slotsFor({ agenda, service, date, now }).includes(time)
     : /^([01]\d|2[0-3]):[0-5]\d$/.test(time);
@@ -93,7 +64,6 @@ export function readSelection(
   return selection;
 }
 
-/** Monta o endereço de um passo carregando a escolha atual. */
 export function stepHref(base: string, step: '' | 'data' | 'revisao' | 'enviado', selection: Selection): string {
   const params = new URLSearchParams();
 
@@ -112,8 +82,7 @@ export function readNotes(): string {
   try {
     return sessionStorage.getItem(NOTES_KEY) ?? '';
   } catch {
-    // Safari em navegação privada antiga lança ao tocar em sessionStorage. A
-    // observação é opcional; perder ela não pode derrubar o fluxo.
+    // Safari antigo em navegação privada lança aqui; a observação é opcional e NÃO pode derrubar o fluxo.
     return '';
   }
 }

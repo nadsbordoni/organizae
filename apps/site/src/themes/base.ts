@@ -1,50 +1,49 @@
 import type { ThemeTokens, ThemeOverrides } from '@/types/theme';
 
-/**
- * Tema base — neutro e acessível. Todo tema herda daqui via `defineTheme()`,
- * então um tema novo só precisa declarar o que muda.
- */
+/** Identidade do Organizaê, medida no protótipo de alta fidelidade. Todo tema herda daqui via `defineTheme()`. */
 export const baseTheme: ThemeTokens = {
   color: {
-    brand: '#1f2937',
-    brandDeep: '#111827',
-    brandSoft: '#f3f4f6',
-    onBrand: '#ffffff',
-    surface: '#ffffff',
-    text: '#111827',
-    textMuted: '#4b5563',
-    border: '#e5e7eb',
+    brand: '#1f1f1f',
+    brandDeep: '#000000',
+    brandSoft: '#f3eee5',
+    onBrand: '#fffdf9',
+    surface: '#fffdf9',
+    text: '#1f1f1f',
+    textMuted: '#726f68',
+    border: '#e5dfd5',
+    borderStrong: '#ddd5c9',
+    eyebrow: '#8b6920',
   },
   background: {
-    page: '#f9fafb',
-    pageSolid: '#f9fafb',
+    page: '#faf6ee',
+    pageSolid: '#faf6ee',
     texture: 'none',
   },
   font: {
-    // Fallback do sistema: 0 KB. Cada marca traz a sua no próprio tema,
-    // declarando a própria @font-face.
-    display: "Georgia, 'Times New Roman', serif",
-    body: "'Jost Variable', system-ui, 'Segoe UI', sans-serif",
+    // A fonte variável traz o eixo de tamanho óptico: título grande afina sozinho, como no Figma.
+    display: "'DM Sans Variable', system-ui, 'Segoe UI', sans-serif",
+    body: "'DM Sans Variable', system-ui, 'Segoe UI', sans-serif",
+    displayWeight: '400',
+    displayTracking: '-0.03em',
   },
   radius: {
-    button: '16px',
+    button: '12px',
     card: '20px',
-    avatar: '50%',
-    field: '14px',
+    avatar: '18px',
+    field: '12px',
   },
   shadow: {
-    resting: '0 1px 2px rgba(17, 24, 39, 0.06)',
-    raised: '0 6px 18px rgba(17, 24, 39, 0.12)',
+    resting: '0 1px 2px rgba(31, 31, 31, 0.04)',
+    raised: '0 10px 28px rgba(31, 31, 31, 0.08)',
   },
   button: {
     background: 'var(--site-color-surface)',
     color: 'var(--site-color-text)',
-    borderColor: 'var(--site-color-border)',
-    // 48px é o mínimo confortável de área de toque. Não reduza.
-    minHeight: '56px',
-    // Moldura desligada: 1.5px é a mesma borda invisível que o botão comum já
-    // tinha, e o fio externo não existe.
-    ringGap: '1.5px',
+    borderColor: 'var(--site-color-border-strong)',
+    // NÃO reduza: 48px é o mínimo confortável de área de toque.
+    minHeight: '52px',
+    // Moldura desligada: 1px é a borda invisível que o botão comum já tem.
+    ringGap: '1px',
     ringGapColor: 'transparent',
     ringWidth: '0px',
     ringColor: 'transparent',
@@ -53,35 +52,48 @@ export const baseTheme: ThemeTokens = {
     pageInline: '20px',
     stack: '12px',
     // Coluna estreita no desktop mantém a sensação de página mobile.
-    maxWidth: '520px',
+    maxWidth: '560px',
   },
   ornament: {
+    // Tamanho zero: no protótipo os itens abaixo do nome não têm separador.
     separator: 'circle(50%)',
-    separatorSize: '4px',
+    separatorSize: '0px',
+  },
+  accent: {
+    yellow: '#ffd54f',
+    yellowSoft: '#f6d868',
+    yellowDeep: '#8b6920',
+    pink: '#ff80c8',
+    pinkSoft: '#f5b8d9',
+    pinkDeep: '#a43b76',
+    blue: '#7ec8ff',
+    blueSoft: '#b6caeb',
+    blueDeep: '#456899',
+    green: '#9bab64',
+    greenDeep: '#536626',
   },
   panel: {
-    background: '#f7f7f8',
-    sidebar: '#111827',
-    onSidebar: '#f3f4f6',
-    onSidebarMuted: '#d1d5db',
-    sidebarAccent: '#ffffff',
-    info: '#93c5fd',
-    infoSoft: '#e0eefe',
-    positive: '#86d7a8',
-    positiveSoft: '#e3f6ea',
-    attention: '#fcd34d',
-    attentionSoft: '#fef3c7',
-    danger: '#f9a19a',
-    dangerSoft: '#fde7e4',
+    background: '#faf6ee',
+    sidebar: '#1f1f1f',
+    onSidebar: '#fffdf9',
+    onSidebarMuted: '#aaa8a2',
+    sidebarAccent: '#f6d868',
+    sidebarActive: '#30302e',
+    now: '#e35959',
+    info: '#7ec8ff',
+    infoSoft: '#dde8f6',
+    positive: '#9bab64',
+    positiveSoft: '#e7ebd8',
+    attention: '#f6d868',
+    attentionSoft: '#fbefc4',
+    danger: '#ff80c8',
+    dangerSoft: '#fbe0ee',
   },
 };
 
 /**
- * Cria um tema completo a partir de sobrescritas parciais.
- *
- * Escrito grupo a grupo em vez de num laço genérico: assim não há nenhum
- * cast, e adicionar um grupo novo em `ThemeTokens` acusa erro aqui — que é
- * onde queremos ser lembrados de dar um valor padrão a ele.
+ * Grupo a grupo, sem laço genérico: não há cast, e um grupo novo em `ThemeTokens`
+ * acusa erro aqui, que é onde ele precisa de um valor padrão.
  */
 export function defineTheme(overrides: ThemeOverrides): ThemeTokens {
   return {
@@ -93,6 +105,7 @@ export function defineTheme(overrides: ThemeOverrides): ThemeTokens {
     button: { ...baseTheme.button, ...overrides.button },
     space: { ...baseTheme.space, ...overrides.space },
     ornament: { ...baseTheme.ornament, ...overrides.ornament },
+    accent: { ...baseTheme.accent, ...overrides.accent },
     panel: { ...baseTheme.panel, ...overrides.panel },
   };
 }

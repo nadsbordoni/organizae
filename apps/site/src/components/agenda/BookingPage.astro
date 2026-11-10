@@ -8,24 +8,17 @@ import type { BookingContext } from '@/lib/booking-ui';
 import type { SiteConfig } from '@/types/site';
 
 /**
- * Casca dos passos do agendamento.
- *
- * Cada passo é uma PÁGINA de verdade, com endereço próprio — o botão navega em
- * vez de trocar o que está visível. Isso dá o botão voltar do navegador de
- * graça, deixa recarregar sem perder o que foi escolhido, e faz cada página
- * carregar só o seu próprio HTML.
- *
- * O que já foi escolhido viaja na query (`?servicos=...&data=...&hora=...`).
- * Ver `lib/booking-state.ts`.
+ * Casca dos passos do agendamento. Cada passo é uma página própria, para o voltar do
+ * navegador e o recarregar funcionarem; a escolha viaja na query (`lib/booking-state.ts`).
  */
 
 interface Props {
   site: SiteConfig;
-  /** Passo atual, 1 a 3. A conclusão não numera: já saiu do caminho. */
+  /** A conclusão não recebe passo: já saiu do caminho. */
   step?: 1 | 2 | 3;
   title: string;
   intro?: string;
-  /** Destino do botão voltar, sem query: o script dos passos 2 e 3 acrescenta a escolha. */
+  /** Sem query: o script dos passos 2 e 3 acrescenta a escolha. */
   backHref: string;
   backLabel: string;
 }
@@ -38,17 +31,13 @@ const seo = {
   ...site.seo,
   title: `${title} • ${site.profile.name}`,
   description: `Escolha o serviço, o dia e o horário no ${site.profile.name}.`,
-  // Fora dos buscadores: quem chega aqui vem da página de links, e um resultado
-  // de busca caindo no meio do fluxo perderia o contexto do negócio.
+  // Fora dos buscadores: cair no meio do fluxo por uma busca perde o contexto do negócio.
   noindex: true,
 };
 
 const agenda = site.agenda!;
 
-/**
- * Só o que o navegador precisa. Serviço escondido não sai daqui, então não há
- * como a URL pedir um: `readSelection()` valida contra ESTE catálogo.
- */
+// Serviço escondido fica de fora: `readSelection()` valida a URL contra ESTE catálogo.
 const context: BookingContext = {
   agenda: {
     ...agenda,
@@ -63,8 +52,7 @@ const context: BookingContext = {
     name: site.profile.name,
     base: `/${site.slug}/${BOOKING_PATH}`,
     homeHref: `/${site.slug}`,
-    // Endereço para o arquivo de calendário, tirado do bloco de localização — a
-    // mesma informação que já está na página de links, sem redigitar.
+    // Para o arquivo de calendário; vem do bloco de localização, sem redigitar.
     address: site.blocks.find((block) => block.type === 'location')?.address.join(', '),
   },
 };
@@ -98,13 +86,12 @@ const context: BookingContext = {
       <slot />
     </section>
 
-    <Footer note={site.footerNote} siteName={site.profile.name} />
+    <Footer note={site.footerNote} />
   </PageContainer>
 </SiteLayout>
 
-{/* Catálogo e expediente que os passos leem. Como `application/json`, o
-    navegador não executa. O `<` escapado impede que um texto com `</script>`
-    feche a tag — NÃO tire quando o catálogo vier do banco. */}
+{/* O `<` escapado impede que um texto com `</script>` feche a tag.
+    NÃO tire quando o catálogo vier do banco. */}
 <script
   type="application/json"
   id="dados-agendamento"
@@ -134,8 +121,7 @@ const context: BookingContext = {
     color: var(--site-color-text-muted);
   }
 
-  /* A barra é o próprio indicador: cheia no que passou e no atual, apagada no
-     que falta. Mais legível que bolinha numerada numa tela de 320px. */
+  /* Barra em vez de bolinha numerada: mais legível numa tela de 320px. */
   .steps__dot {
     width: 100%;
     height: 4px;
@@ -153,8 +139,7 @@ const context: BookingContext = {
     color: var(--site-color-brand-deep);
   }
 
-  /* O que ainda não chegou fica mais leve, mas legível: 0.7 sobre o fundo da
-     página ainda passa de 4.5:1. */
+  /* 0.7 sobre o fundo da página ainda passa de 4.5:1. */
   .steps__item[data-state='futuro'] .steps__name {
     opacity: 0.7;
   }
@@ -173,8 +158,7 @@ const context: BookingContext = {
     color: var(--site-color-text);
   }
 
-  /* O título e a introdução são um bloco só; o `gap` de 18px do painel
-     separaria demais. */
+  /* Título e introdução são um bloco só; o `gap` de 18px do painel separaria demais. */
   .panel__intro {
     margin-top: -12px;
     font-size: 0.9375rem;

@@ -1,0 +1,137 @@
+---
+/**
+ * Receitas e despesas por mês em SVG puro, com curvas Catmull-Rom como no protótipo.
+ * Quem não vê o gráfico ouve a tabela escondida logo abaixo, com os mesmos números.
+ */
+interface Props {
+  months: string[];
+  series: Array<{ receitas: number; despesas: number }>;
+  label: string;
+}
+
+const { months, series, label } = Astro.props;
+
+const W = 880;
+const H = 300;
+const left = 48;
+const right = W - 10;
+const top = 12;
+const bottom = 262;
+
+const peak = Math.max(...series.flatMap((m) => [m.receitas, m.despesas]));
+const max = Math.max(10_000, Math.ceil(peak / 10_000) * 10_000);
+const ticks = Array.from({ length: max / 10_000 + 1 }, (_, i) => i * 10_000);
+
+const x = (i: number) => left + (i * (right - left)) / (series.length - 1);
+const y = (value: number) => bottom - (value / max) * (bottom - top);
+
+function smooth(values: number[]): string {
+  const p = values.map((v, i) => [x(i), y(v)] as const);
+  let d = `M${p[0]![0]},${p[0]![1]}`;
+  for (let i = 0; i < p.length - 1; i++) {
+    const p0 = p[i - 1] ?? p[i]!;
+    const p1 = p[i]!;
+    const p2 = p[i + 1]!;
+    const p3 = p[i + 2] ?? p2;
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+    const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    d += ` C${c1[0]},${c1[1]} ${c2[0]},${c2[1]} ${p2[0]},${p2[1]}`;
+  }
+  return d;
+}
+
+const receitas = smooth(series.map((m) => m.receitas));
+const despesas = smooth(series.map((m) => m.despesas));
+const area = `${receitas} L${right},${bottom} L${left},${bottom} Z`;
+
+const short = (value: number) => (value === 0 ? '0' : `${value / 1000}k`);
+const money = (value: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
+---
+
+<figure class="chart">
+  <svg viewBox={`0 0 ${W} ${H}`} aria-hidden="true" focusable="false">
+    {
+      ticks.map((t) => (
+        <text class="chart__tick" x={left - 14} y={y(t) + 4} text-anchor="end">
+          {short(t)}
+        </text>
+      ))
+    }
+    <line class="chart__base" x1={left} x2={right} y1={bottom} y2={bottom} />
+    <path class="chart__area" d={area} />
+    <path class="chart__receitas" d={receitas} />
+    <path class="chart__despesas" d={despesas} />
+    {
+      months.map((m, i) => (
+        <text class="chart__month" x={x(i)} y={H - 6} text-anchor={i === 0 ? 'start' : i === months.length - 1 ? 'end' : 'middle'}>
+          {m}
+        </text>
+      ))
+    }
+  </svg>
+
+  <table class="sr-only">
+    <caption>{label}</caption>
+    <thead>
+      <tr>
+        <th scope="col">Mês</th>
+        <th scope="col">Receitas</th>
+        <th scope="col">Despesas</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        series.map((m, i) => (
+          <tr>
+            <th scope="row">{months[i]}</th>
+            <td>{money(m.receitas)}</td>
+            <td>{money(m.despesas)}</td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</figure>
+
+<style>
+  .chart {
+    margin: 0;
+  }
+
+  .chart svg {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+
+  .chart__tick,
+  .chart__month {
+    fill: var(--site-color-text-muted);
+    font-size: 15px;
+  }
+
+  .chart__base {
+    stroke: var(--site-color-border);
+  }
+
+  /* Cores medidas no protótipo. */
+  .chart__area {
+    fill: color-mix(in srgb, var(--site-accent-pink-soft) 22%, var(--site-color-surface));
+  }
+
+  .chart__receitas {
+    fill: none;
+    stroke: color-mix(in srgb, var(--site-accent-pink) 60%, var(--site-accent-pink-deep));
+    stroke-width: 3;
+    stroke-linecap: round;
+  }
+
+  .chart__despesas {
+    fill: none;
+    stroke: color-mix(in srgb, var(--site-accent-blue) 40%, var(--site-accent-blue-deep));
+    stroke-width: 2.5;
+    stroke-dasharray: 7 7;
+    stroke-linecap: round;
+  }
+</style>

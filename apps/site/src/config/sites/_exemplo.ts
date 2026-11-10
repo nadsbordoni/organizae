@@ -1,21 +1,13 @@
-import { indigoTheme } from '@/themes/indigo';
+import { baseTheme } from '@/themes/base';
 import type { SiteConfig } from '@/types/site';
 
 /**
- * TEMPLATE para um novo empreendedor.
- *
- * Como criar uma página nova, sem escrever componente nenhum:
- *   1. Copie este arquivo para `src/config/sites/nome-do-cliente.ts`
- *   2. Troque `slug`, `profile`, `blocks` e as imagens em /public
- *   3. Escolha um tema pronto ou crie um em `src/themes/`
- *   4. Registre em `src/config/index.ts`
- * Pronto — a rota `/nome-do-cliente` passa a existir.
- *
- * Esta demo fica fora dos buscadores por causa de `seo.noindex`.
+ * TEMPLATE e DEMONSTRAÇÃO: copie para `src/config/sites/nome-do-cliente.ts`, troque os
+ * dados e as imagens em /public e registre em `src/config/index.ts`.
  */
 export const exemplo: SiteConfig = {
   slug: 'exemplo',
-  theme: indigoTheme,
+  theme: baseTheme,
 
   profile: {
     name: 'Joana',
@@ -33,9 +25,15 @@ export const exemplo: SiteConfig = {
   blocks: [
     {
       type: 'booking',
-      title: 'Agendar horário',
-      subtitle: 'Escolha serviço, dia e hora',
+      title: 'Agendar um horário',
       emphasis: 'primary',
+    },
+    {
+      type: 'link',
+      title: 'Nossos produtos',
+      subtitle: 'Cuidados para continuar em casa',
+      icon: 'bag',
+      href: '/exemplo/produtos',
     },
     {
       type: 'whatsapp',
@@ -58,12 +56,52 @@ export const exemplo: SiteConfig = {
     },
   ],
 
+  // Sem foto, cada produto mostra a etiqueta com a inicial.
+  collections: [
+    {
+      slug: 'produtos',
+      eyebrow: 'Cuide-se em casa',
+      title: 'Favoritos da Joana',
+      intro: 'Uma seleção para suas unhas durarem mais entre uma visita e outra.',
+      items: [
+        {
+          name: 'Óleo de cutícula',
+          badge: 'Mais vendido',
+          description: 'Hidrata e fortalece',
+          price: 'R$ 29',
+          href: 'https://wa.me/5511988887777',
+          ctaLabel: 'Pedir',
+        },
+        {
+          name: 'Base fortalecedora',
+          badge: 'Novidade',
+          description: 'Unhas mais resistentes',
+          price: 'R$ 35',
+          href: 'https://wa.me/5511988887777',
+          ctaLabel: 'Pedir',
+        },
+        {
+          name: 'Kit manutenção',
+          description: 'Lixa, palito e óleo',
+          price: 'R$ 59',
+          href: 'https://wa.me/5511988887777',
+          ctaLabel: 'Pedir',
+        },
+        {
+          name: 'Creme para mãos',
+          badge: 'Novidade',
+          description: 'Maciez sem pesar',
+          price: 'R$ 42',
+          href: 'https://wa.me/5511988887777',
+          ctaLabel: 'Pedir',
+        },
+      ],
+    },
+  ],
+
   /**
-   * Agenda de demonstração — é aqui que se vê o recurso de PAUSA funcionando.
-   *
-   * Com almoço das 12:00 às 13:00, o fluxo não oferece nada nesse intervalo, e
-   * também não oferece começo que invada a pausa: o alongamento de 2h some da
-   * lista a partir das 10:30, porque não caberia antes do meio-dia.
+   * DEMONSTRAÇÃO da pausa: com almoço das 12:00 às 13:00, o alongamento de 2h some
+   * da lista a partir das 10:30, porque não caberia antes do meio-dia.
    */
   agenda: {
     timezone: 'America/Sao_Paulo',
@@ -74,11 +112,9 @@ export const exemplo: SiteConfig = {
       wed: { opens: '09:00', closes: '18:00', breaks: [{ from: '12:00', to: '13:00', label: 'Almoço' }] },
       thu: { opens: '09:00', closes: '18:00', breaks: [{ from: '12:00', to: '13:00', label: 'Almoço' }] },
       fri: { opens: '09:00', closes: '18:00', breaks: [{ from: '12:00', to: '13:00', label: 'Almoço' }] },
-      // Sábado sem pausa e mais curto — mostra que cada dia é independente.
       sat: { opens: '09:00', closes: '13:00' },
     },
 
-    // Feriado: o dia some do calendário sem mexer no expediente da semana.
     exceptions: [{ date: '2026-12-25', hours: null, reason: 'Natal' }],
 
     minNoticeHours: 6,

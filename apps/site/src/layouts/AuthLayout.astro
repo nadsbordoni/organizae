@@ -1,0 +1,145 @@
+---
+import SiteLayout from './SiteLayout.astro';
+import OrganizaeLogo from '@/components/OrganizaeLogo.astro';
+import { baseTheme } from '@/themes/base';
+
+/**
+ * Telas de acesso da empresa (entrar, criar conta, recuperar senha). Tema fixo do Organizaê:
+ * a pessoa ainda não entrou, então não há negócio cujo tema aplicar.
+ */
+
+interface Props {
+  title: string;
+}
+
+const { title } = Astro.props;
+const seo = { title: `${title} • Organizaê`, description: 'Acesso ao painel do Organizaê.', noindex: true };
+---
+
+<SiteLayout theme={baseTheme} seo={seo} noindex>
+  <div class="auth">
+    <main class="auth__main" id="conteudo">
+      <OrganizaeLogo />
+      <div class="auth__body">
+        <slot />
+      </div>
+      <p class="auth__legal">Ao continuar, você concorda com nossos Termos e Política de Privacidade.</p>
+    </main>
+
+    <aside class="auth__art" aria-hidden="true">
+      <span class="auth__ring auth__ring--outer"></span>
+      <span class="auth__ring auth__ring--inner"></span>
+      <img class="auth__mascot" src="/marca/mascote-acenando.webp" alt="" width="480" height="720" />
+      <span class="auth__caption">
+        <strong>Organize sem complicar</strong>
+        <span>Agenda, clientes e financeiro em um só lugar.</span>
+      </span>
+    </aside>
+  </div>
+</SiteLayout>
+
+<style>
+  .auth {
+    display: grid;
+    grid-template-columns: minmax(0, 41fr) minmax(0, 59fr);
+    min-height: 100svh;
+    background: var(--site-color-surface);
+  }
+
+  .auth__main {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    padding: 48px clamp(24px, 6vw, 86px) 24px;
+  }
+
+  .auth__body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: 100%;
+    max-width: 560px;
+  }
+
+  .auth__legal {
+    font-size: 0.6875rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .auth__art {
+    position: relative;
+    display: grid;
+    place-items: center;
+    margin: 16px 16px 16px 0;
+    border-radius: 32px;
+    background: var(--site-color-brand);
+    overflow: hidden;
+  }
+
+  .auth__ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 253, 249, 0.12);
+    aspect-ratio: 1;
+  }
+
+  .auth__ring--outer {
+    width: min(820px, 80%);
+  }
+
+  .auth__ring--inner {
+    width: min(620px, 60%);
+  }
+
+  /* Sem o quadro creme do protótipo: o halo claro segura o visor, as orelhas e a mão, que são pretos.
+     Altura em `svh` porque porcentagem não resolve: a altura do painel vem da linha da grade. */
+  .auth__mascot {
+    position: relative;
+    height: min(520px, 58svh);
+    width: auto;
+    filter: drop-shadow(0 0 48px rgba(255, 253, 249, 0.22));
+  }
+
+  .auth__caption {
+    position: absolute;
+    left: 40px;
+    bottom: 56px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: min(440px, calc(100% - 80px));
+    padding: 22px 24px;
+    border-radius: 16px;
+    background: var(--site-color-surface);
+  }
+
+  .auth__caption strong {
+    font-size: 1.0625rem;
+    font-weight: 600;
+  }
+
+  .auth__caption span {
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  @media (max-width: 899px) {
+    .auth {
+      grid-template-columns: 1fr;
+    }
+
+    .auth__art {
+      display: none;
+    }
+
+    .auth__main {
+      padding: 28px 20px 20px;
+    }
+
+    .auth__body {
+      justify-content: flex-start;
+      padding-top: 8vh;
+    }
+  }
+</style>

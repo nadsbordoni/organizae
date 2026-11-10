@@ -1,15 +1,8 @@
 import type { IconName, SocialNetwork } from '@/types/blocks';
 
-/**
- * Quem edita a configuração escreve o mínimo (um telefone, um handle) e estas
- * funções montam URL, rótulo e ícone — evitando URL digitada à mão, que é a
- * causa mais comum de link quebrado.
- */
+/** A configuração traz só telefone ou handle; URL, rótulo e ícone saem daqui, NUNCA digitados à mão. */
 
-/**
- * Monta a URL do WhatsApp com a mensagem já preenchida.
- * `wa.me` funciona tanto no app quanto no WhatsApp Web.
- */
+/** `wa.me` funciona tanto no app quanto no WhatsApp Web. */
 export function whatsappUrl(phone: string, message?: string): string {
   const digits = phone.replace(/\D/g, '');
   const base = `https://wa.me/${digits}`;
@@ -18,11 +11,8 @@ export function whatsappUrl(phone: string, message?: string): string {
 }
 
 /**
- * Tira da mensagem o que impede o envio.
- *
- * Emoji: testado em 2026-09-10 com 💕, o WhatsApp não preencheu a mensagem.
- * Surrogate isolado (texto colado cortado no meio de um emoji): faz o
- * `encodeURIComponent` lançar, e o botão de enviar para de responder.
+ * Tira o que impede o envio. Emoji: o WhatsApp não preenche a mensagem (testado em 2026-09-10).
+ * Surrogate isolado (emoji cortado ao colar): faz `encodeURIComponent` lançar e trava o botão.
  */
 function plainText(text: string): string {
   return text
@@ -34,7 +24,6 @@ function plainText(text: string): string {
 interface SocialMeta {
   label: string;
   icon: IconName;
-  /** Como o handle aparece na tela / em leitores de tela. */
   display: (handle: string) => string;
   url: (handle: string) => string;
 }
@@ -72,7 +61,6 @@ const SOCIAL: Record<SocialNetwork, SocialMeta> = {
   },
 };
 
-/** Resolve rede + handle em URL, ícone e rótulo acessível. */
 export function resolveSocial(
   network: SocialNetwork,
   handle: string,
@@ -83,7 +71,7 @@ export function resolveSocial(
     href: override ?? meta.url(handle),
     icon: meta.icon,
     label: meta.label,
-    /** Ex: 'Instagram: @joanamanicure' — o que o leitor de tela anuncia. */
+    /** Ex: 'Instagram: @joanamanicure'. */
     accessibleLabel: `${meta.label}: ${meta.display(handle)}`,
   };
 }
@@ -92,17 +80,13 @@ function strip(handle: string): string {
   return handle.replace(/^@/, '').trim();
 }
 
-/** `true` se o link sai do site — usado para decidir `target` e `rel`. */
 export function isExternal(href: string): boolean {
   return /^(https?:)?\/\//.test(href) || href.startsWith('mailto:') || href.startsWith('tel:');
 }
 
 /**
- * `target` e `rel` de um link — a ÚNICA fonte desses atributos.
- *
- * `sponsored` entra só quando o link é declarado de afiliado. Marcar link
- * comum como pago mente para o buscador; deixar link pago sem a marca
- * esconde dele uma relação comercial que existe.
+ * A ÚNICA fonte de `target` e `rel`. `sponsored` SÓ em link declarado de afiliado: marcar link comum
+ * como pago mente para o buscador; omitir esconde dele uma relação comercial que existe.
  */
 export function linkAttrs({
   href,
@@ -120,13 +104,7 @@ export function linkAttrs({
   return { target: '_blank', rel: rel.join(' ') };
 }
 
-/**
- * URL do mapa do Google para embutir em iframe.
- *
- * Usa o modo `output=embed`, que funciona sem chave de API — a Embed API
- * oficial exigiria uma chave e faturamento configurado, o que seria uma
- * barreira para cada novo cliente da plataforma.
- */
+/** `output=embed` dispensa chave de API; a Embed API oficial exigiria chave e faturamento por cliente. */
 export function mapEmbedUrl(query: string): string {
   const params = new URLSearchParams({
     q: query,

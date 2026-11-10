@@ -1,10 +1,7 @@
-/**
- * Formato dos dados que o painel recebe. Hoje vem de `lib/dados-exemplo.ts`;
- * quando a API existir, ela devolve este formato (ou o front converte).
- */
+/** Dados do painel. Hoje vêm de `lib/dados-exemplo.ts`; a API vai devolver este formato. */
 import type { AppointmentStatus } from '@/lib/dashboard-status';
 
-/** Quem está logada. O negócio vem da sessão, nunca de parâmetro de URL. */
+/** O negócio vem da sessão, NUNCA de parâmetro de URL. */
 export interface AuthenticatedUser {
   userId: number;
   tenantSlug: string;

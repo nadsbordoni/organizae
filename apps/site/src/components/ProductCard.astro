@@ -1,0 +1,217 @@
+---
+import { linkAttrs } from '@/lib/links';
+import type { CollectionItem } from '@/types/site';
+
+/**
+ * Cartão de produto da vitrine. Com link, o cartão INTEIRO é o alvo de toque; o "botão" do
+ * rodapé é só desenho, porque um botão separado seria um alvo menor do que a própria peça.
+ */
+
+interface Props {
+  item: CollectionItem;
+  /** Guarda o lugar do selo para o nome cair na mesma altura; a vitrine liga quando ALGUM item tem selo. */
+  reserveBadge?: boolean;
+}
+
+const { item, reserveBadge = false }: Props = Astro.props;
+const { name, badge, description, price, image, href, ctaLabel = 'Ver produto', affiliate } = item;
+
+const Tag = href ? 'a' : 'div';
+const linkProps = href ? { href, ...linkAttrs({ href, affiliate }) } : {};
+const initial = name.trim().charAt(0).toLocaleUpperCase('pt-BR');
+---
+
+<li class="product">
+  <Tag class="product__card" {...linkProps}>
+    <div class="product__photo">
+      {
+        image ? (
+          <img src={image.src} alt={image.alt} loading="lazy" decoding="async" />
+        ) : (
+          <span class="product__tag" aria-hidden="true">
+            <span>{initial}</span>
+          </span>
+        )
+      }
+    </div>
+
+    {
+      badge ? (
+        <p class="product__badge">{badge}</p>
+      ) : (
+        reserveBadge && (
+          /* Selo invisível, com a mesma caixa do de verdade: mede igual em qualquer fonte. */
+          <p class="product__badge product__badge--empty" aria-hidden="true">&nbsp;</p>
+        )
+      )
+    }
+    <h2 class="product__name">{name}</h2>
+    {description && <p class="product__description">{description}</p>}
+
+    {
+      (price || href) && (
+        <div class="product__foot">
+          {price && <span class="product__price">{price}</span>}
+          {href && <span class="product__cta">{ctaLabel}</span>}
+        </div>
+      )
+    }
+  </Tag>
+</li>
+
+<style>
+  .product {
+    list-style: none;
+  }
+
+  .product__card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 20px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+
+    color: var(--site-color-text);
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: box-shadow 0.16s ease;
+  }
+
+  a.product__card:hover {
+    box-shadow: var(--site-shadow-raised);
+  }
+
+  a.product__card:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 3px;
+  }
+
+  .product__photo {
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1;
+    border-radius: 16px;
+    background: var(--site-color-surface);
+    overflow: hidden;
+    transition: background-color 0.16s ease;
+  }
+
+  a.product__card:hover .product__photo {
+    background: var(--site-color-brand-soft);
+  }
+
+  .product__photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .product__tag {
+    position: relative;
+    width: 49%;
+    aspect-ratio: 113 / 142;
+  }
+
+  /* Arco em cima, cantos curtos embaixo: medidas da etiqueta do protótipo. */
+  .product__tag::before,
+  .product__tag span {
+    position: absolute;
+    inset: 0;
+    border-radius: 50% 50% 20% 20% / 40% 40% 15% 15%;
+    transform: rotate(-8deg);
+  }
+
+  .product__tag::before {
+    content: '';
+    background: color-mix(in srgb, var(--site-accent-pink-soft) 80%, var(--site-color-surface));
+    translate: 13% 10%;
+  }
+
+  .product__tag span {
+    display: grid;
+    place-items: center;
+    background: var(--site-color-brand);
+    color: var(--site-color-on-brand);
+    font-size: 1.75rem;
+    font-weight: 700;
+  }
+
+  .product__badge {
+    align-self: flex-start;
+    margin-top: 20px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: var(--site-color-brand-soft);
+    font-size: 0.6875rem;
+    font-weight: 600;
+  }
+
+  .product__badge--empty {
+    visibility: hidden;
+  }
+
+  .product__name {
+    margin-top: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  /* Vitrine sem nenhum selo: o nome fica à mesma distância da foto que o selo ficaria. */
+  .product__photo + .product__name {
+    margin-top: 20px;
+  }
+
+  .product__description {
+    margin-top: 8px;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--site-color-text-muted);
+  }
+
+  .product__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    /* Alinha o preço na base entre cartões com descrições de tamanhos diferentes. */
+    margin-top: auto;
+    padding-top: 16px;
+  }
+
+  .product__price {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .product__cta {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: var(--site-radius-button);
+    border: 1px solid var(--site-color-border-strong);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 430px) {
+    .product__card {
+      padding: 12px;
+    }
+
+    .product__foot {
+      flex-wrap: wrap;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .product__card,
+    .product__photo {
+      transition: none;
+    }
+  }
+</style>

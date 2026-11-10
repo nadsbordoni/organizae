@@ -3,36 +3,24 @@ import Icon from './Icon.astro';
 import type { IconName } from '@/types/blocks';
 
 /**
- * Botão de AÇÃO — o que confirma, avança e volta.
- *
- * Irmão do `LinkButton`, e separado dele de propósito: `LinkButton` é sempre um
- * `<a>` que leva a outro lugar, com seta indicando destino. Este aqui é quase
- * sempre um `<button>` que faz algo NESTA tela, e precisa dos estados que um
- * link não tem — `disabled`, `type="submit"`, largura total.
- *
- * `href` transforma em `<a>` para os casos de fronteira: "Falar no WhatsApp" e
- * "Adicionar ao calendário" são navegação, mas ficam lado a lado com botões de
- * ação e precisam da mesma silhueta.
+ * Botão de AÇÃO (confirma, avança, volta), separado do `LinkButton` de propósito: precisa de
+ * `disabled`, `type="submit"` e largura total. Com `href` vira `<a>`, para navegação que fica
+ * ao lado de ações e precisa da mesma silhueta ("Falar no WhatsApp", "Adicionar ao calendário").
  */
 
 interface Props {
   label: string;
-  /**
-   * `primary` é a ação principal da tela — só uma por tela.
-   * `secondary` é a alternativa com o mesmo peso estrutural (cartão + fio).
-   * `ghost` é a saída discreta: "voltar para o início", "agora não".
-   */
+  /** `primary`: só UMA por tela; `secondary`: alternativa de mesmo peso; `ghost`: saída discreta. */
   variant?: 'primary' | 'secondary' | 'ghost';
   icon?: IconName;
-  /** Presente, vira `<a>`. Ausente, vira `<button>`. */
+  /** `end` é a seta de "seguir" do protótipo: "Entrar →". */
+  iconPosition?: 'start' | 'end';
   href?: string;
   type?: 'button' | 'submit';
   disabled?: boolean;
-  /** Ocupa a largura da coluna. Padrão `true` — é o formato de fluxo no celular. */
+  /** Ocupa a largura da coluna. */
   full?: boolean;
-  /** Nome do arquivo ao baixar. Usado por "Adicionar ao calendário". */
   download?: string;
-  /** Rótulo para leitor de tela quando o texto visível não basta. */
   ariaLabel?: string;
   /** Ganchos do script do fluxo: `data-next`, `data-submit`, etc. */
   [key: `data-${string}`]: string | undefined;
@@ -42,6 +30,7 @@ const {
   label,
   variant = 'primary',
   icon,
+  iconPosition = 'start',
   href,
   type = 'button',
   disabled = false,
@@ -53,8 +42,8 @@ const {
 
 const Tag = href ? 'a' : 'button';
 
-// `aria-disabled` em vez de `disabled` no `<a>`: âncora não conhece o atributo,
-// e um link "desligado" precisa continuar sendo anunciado como tal.
+// `aria-disabled` no `<a>`: âncora não conhece `disabled`, e o link desligado
+// precisa continuar sendo anunciado como tal.
 const stateProps = href
   ? { href, download, ...(disabled ? { 'aria-disabled': true, tabindex: -1 } : {}) }
   : { type, disabled };
@@ -68,8 +57,9 @@ const stateProps = href
   {...stateProps}
   {...rest}
 >
-  {icon && <Icon name={icon} size={20} />}
+  {icon && iconPosition === 'start' && <Icon name={icon} size={18} />}
   <span class="action__label">{label}</span>
+  {icon && iconPosition === 'end' && <Icon name={icon} size={18} />}
 </Tag>
 
 <style>
@@ -79,18 +69,19 @@ const stateProps = href
     justify-content: center;
     gap: 10px;
 
-    min-height: var(--site-button-min-height);
+    /* 48px é o mínimo de área de toque. NÃO reduza. */
+    min-height: 48px;
     padding: 12px 22px;
     border-radius: var(--site-radius-button);
-    border: 1.5px solid transparent;
+    border: 1px solid transparent;
 
-    /* Mesmo arranjo do `LinkButton`: o fio da moldura é a primeira sombra e mora
-       numa variável, para os estados trocarem só o relevo. */
+    /* O fio da moldura mora numa variável para os estados trocarem só o relevo (como no `LinkButton`). */
     --action-ring: 0 0 0 0 transparent;
 
     font-family: inherit;
-    font-size: 1.0625rem;
-    font-weight: 500;
+    font-size: 1rem;
+    /* A 600 o rótulo parecia fraco no botão. */
+    font-weight: 650;
     line-height: 1.3;
     text-align: center;
     text-decoration: none;
@@ -114,8 +105,7 @@ const stateProps = href
     background: var(--site-color-brand);
     color: var(--site-color-on-brand);
 
-    /* A moldura da marca fica na ação PRINCIPAL, e só nela: é o que diferencia
-       "confirmar" de "voltar" sem depender de tamanho nem de cor. */
+    /* Moldura da marca SÓ na ação principal: diferencia "confirmar" de "voltar" sem depender de cor. */
     border-width: var(--site-button-ring-gap);
     border-color: var(--site-button-ring-gap-color);
     --action-ring: 0 0 0 var(--site-button-ring-width) var(--site-button-ring-color);
@@ -124,8 +114,8 @@ const stateProps = href
 
   .action[data-variant='secondary'] {
     background: var(--site-color-surface);
-    color: var(--site-color-brand);
-    border-color: var(--site-color-border);
+    color: var(--site-color-text);
+    border-color: var(--site-color-border-strong);
     box-shadow: var(--site-shadow-resting);
   }
 
@@ -141,12 +131,8 @@ const stateProps = href
     box-shadow: var(--action-ring), var(--site-shadow-raised);
   }
 
-  /* O `[aria-disabled='true']` nos dois `:not()` abaixo é o que impede o bug que
-     a tela do passo 1 tinha: com nada escolhido, o botão é um LINK desligado, e
-     link não conhece `disabled` — usa `aria-disabled`. Sem essa exclusão, passar
-     o mouse pintava o fundo de vinho escuro enquanto a cor do texto continuava a
-     do estado desligado: 1,07:1, o rótulo desaparecia. O hover ganhava por
-     especificidade (0,5,0 contra 0,3,0), então a ordem das regras não salvava. */
+  /* NÃO tire o `[aria-disabled='true']` dos `:not()`: link desligado não conhece `disabled`,
+     e este hover (0,5,0) venceria o estado desligado, deixando o rótulo a 1,07:1. */
   .action[data-variant='primary']:hover:not(:disabled, [aria-disabled='true']) {
     background: var(--site-color-brand-deep);
   }
@@ -168,9 +154,7 @@ const stateProps = href
     outline-offset: 3px;
   }
 
-  /* Desabilitado continua LEGÍVEL: some o relevo e a cor de convite, mas o
-     texto segue com contraste. Um botão apagado demais some da tela e a pessoa
-     não entende que falta escolher algo. */
+  /* Desabilitado continua LEGÍVEL: apagado demais, a pessoa não entende que falta escolher algo. */
   .action:disabled,
   .action[aria-disabled='true'] {
     cursor: not-allowed;
@@ -196,10 +180,8 @@ const stateProps = href
       transition: none;
     }
 
-    /* Seletor repetido igual ao das regras de hover e active acima. Escrito como
-       `.action:hover` simples, este `transform: none` PERDIA por especificidade
-       (0,2,0 contra 0,4,0) e o botão continuava subindo para quem pediu menos
-       movimento. Regra que sobrescreve estado precisa repetir o seletor do estado. */
+    /* Repete o seletor do hover/active: um `.action:hover` simples PERDE por especificidade
+       (0,2,0 contra 0,4,0) e o botão continuaria subindo. */
     .action:hover:not(:disabled, [aria-disabled='true']),
     .action:active:not(:disabled, [aria-disabled='true']) {
       transform: none;

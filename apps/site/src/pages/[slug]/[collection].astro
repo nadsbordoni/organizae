@@ -1,8 +1,10 @@
 ---
 import SiteLayout from '@/layouts/SiteLayout.astro';
 import PageContainer from '@/components/PageContainer.astro';
-import PageHeading from '@/components/PageHeading.astro';
-import Polaroid from '@/components/Polaroid.astro';
+import BusinessMark from '@/components/BusinessMark.astro';
+import Heading from '@/components/Heading.astro';
+import IconButton from '@/components/IconButton.astro';
+import ProductCard from '@/components/ProductCard.astro';
 import Disclosure from '@/components/Disclosure.astro';
 import Footer from '@/components/Footer.astro';
 import { assertDisclosure } from '@/lib/disclosure';
@@ -11,17 +13,13 @@ import { sites } from '@/config';
 import type { Collection, SiteConfig } from '@/types/site';
 
 /**
- * Página de coleção: `/{slug}/{coleção}`. Cliente sem `collections` não gera
- * rota aqui — suportar o recurso custa zero para quem não usa.
- *
- * Sem cabeçalho de perfil de propósito: o link "voltar" já nomeia o negócio, e
- * dois títulos grandes seguidos competiriam. A identidade vem do tema.
+ * Página de coleção `/{slug}/{coleção}`. Sem cabeçalho de perfil de propósito: a barra
+ * do topo já nomeia o negócio, e dois títulos grandes seguidos competiriam.
  */
 export function getStaticPaths() {
   return sites.flatMap((site) =>
     (site.collections ?? []).map((collection) => {
-      // `/{slug}/agendar` é rota estática e venceria esta silenciosamente — a
-      // coleção sumiria do ar sem nenhum aviso. Melhor não compilar.
+      // `/{slug}/agendar` é rota estática e tiraria esta coleção do ar em silêncio: melhor não compilar.
       if (collection.slug === BOOKING_PATH) {
         throw new Error(
           `Site "${site.slug}": a coleção "${BOOKING_PATH}" colide com a rota de ` +
@@ -51,54 +49,75 @@ const seo = {
 };
 
 assertDisclosure(collection.items, collection.disclosure, `coleção "${collection.slug}" de ${site.slug}`);
+
+const hasBadges = collection.items.some((item) => item.badge);
 ---
 
 <SiteLayout theme={site.theme} seo={seo} noindex={site.seo?.noindex}>
-  <PageContainer as="main" id="conteudo">
-    <PageHeading
-      title={collection.title}
-      intro={collection.intro}
-      backHref={`/${site.slug}`}
-      backLabel={`Voltar para ${site.profile.name}`}
-    />
+  <PageContainer as="main" id="conteudo" wide>
+    <nav class="bar" aria-label="Navegação">
+      <IconButton href={`/${site.slug}`} label={`Voltar para ${site.profile.name}`} icon="chevron-left" />
+      <p class="bar__who">
+        <strong>{site.profile.name}</strong>
+        <span>Produtos selecionados</span>
+      </p>
+      <BusinessMark profile={site.profile} size={42} />
+    </nav>
+
+    <Heading eyebrow={collection.eyebrow} title={collection.title} intro={collection.intro} />
 
     <ul class="collection__items">
-      {collection.items.map((item) => <Polaroid item={item} />)}
+      {collection.items.map((item) => <ProductCard item={item} reserveBadge={hasBadges} />)}
     </ul>
 
     {collection.disclosure && <Disclosure text={collection.disclosure} />}
 
-    <Footer note={site.footerNote} siteName={site.profile.name} />
+    <Footer note={site.footerNote} />
   </PageContainer>
 </SiteLayout>
 
 <style>
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 64px;
+  }
+
+  .bar__who {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .bar__who strong {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .bar__who span {
+    font-size: 0.75rem;
+    color: var(--site-color-text-muted);
+  }
+
   .collection__items {
-    /* Grade que se adapta sozinha: 2 colunas em tela média, 3 no tablet.
-       O `minmax` evita polaroid espremida em tela pequena. */
+    /* O mínimo da coluna nunca passa de metade da linha: duas colunas no celular. */
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(min(220px, calc(50% - 8px)), 1fr));
+    gap: 16px;
     list-style: none;
-    margin: 0;
+    margin: 32px 0 0;
     padding: 0;
   }
 
-  /**
-   * ÚNICO breakpoint da coleção. A polaroid não tem media query própria: ela
-   * herda `--polaroid-escala` e `--polaroid-inclinacao` daqui.
-   *
-   * Em duas colunas a legenda ganha ~135px e qualquer descrição acima de ~40
-   * caracteres bate no teto de 3 linhas. Em coluna única cabe folgada.
-   * A inclinação encolhe porque num card largo os 2,2° originais jogam 8px
-   * para fora da caixa e parecem defeito.
-   */
   @media (max-width: 430px) {
+    .bar {
+      margin-bottom: 36px;
+    }
+
     .collection__items {
-      grid-template-columns: 1fr;
-      gap: 14px;
-      --polaroid-escala: 1.13;
-      --polaroid-inclinacao: 0.36;
+      gap: 12px;
     }
   }
 </style>

@@ -2,19 +2,13 @@
 import type { IconName } from '@/types/blocks';
 
 /**
- * Ícones inline.
- *
- * SVG direto no HTML em vez de uma biblioteca de ícones: só o traço usado
- * chega ao navegador, sem requisição extra e sem JavaScript. Herdam a cor
- * via `currentColor`, então funcionam em qualquer tema sem configuração.
- *
- * Para adicionar um ícone: inclua o nome em `IconName` (types/blocks.ts)
- * e o traço aqui. O TypeScript cobra os dois lados.
+ * Ícones SVG inline: sem requisição extra nem JS, e herdam a cor via `currentColor`.
+ * Para adicionar, inclua o nome em `IconName` (types/blocks.ts) e o traço aqui; o TS cobra os dois lados.
  */
 
 interface Props {
   name: IconName;
-  /** Tamanho em px. Padrão 24. */
+  /** Em px. */
   size?: number;
   class?: string;
 }
@@ -73,19 +67,58 @@ const ICONS: Record<IconName, IconDef> = {
     ],
   },
   'chevron-left': {
-    // Traço um pouco mais grosso: sozinho num botão redondo, precisa de peso.
     paths: ['M14.5 5 8 12l6.5 7'],
   },
   'chevron-right': {
-    // Espelho do anterior, mesmo peso de traço.
     paths: ['M9.5 5 16 12l-6.5 7'],
+  },
+  users: {
+    paths: [
+      'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z',
+      'M2.5 20a6.5 6.5 0 0 1 13 0',
+      'M16 4.3a3.5 3.5 0 0 1 0 6.4',
+      'M18.5 14.2a6.5 6.5 0 0 1 3 5.8',
+    ],
+  },
+  briefcase: {
+    paths: [
+      'M5.5 7.5h13A1.5 1.5 0 0 1 20 9v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18V9a1.5 1.5 0 0 1 1.5-1.5Z',
+      'M9 7.5V6a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 6v1.5',
+      'M4 12.5h16',
+    ],
+  },
+  wallet: {
+    paths: [
+      'M17 4.5H6A2 2 0 0 0 4 6.5V18a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 18V9a1.5 1.5 0 0 0-1.5-1.5H4',
+      'M16.5 13.5h.01',
+    ],
+  },
+  chart: {
+    paths: ['M5 20v-6', 'M12 20V5', 'M19 20v-10'],
+  },
+  settings: {
+    paths: [
+      'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
+      'M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8',
+    ],
+  },
+  search: {
+    paths: ['M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Z', 'm20 20-3.5-3.5'],
+  },
+  bell: {
+    paths: ['M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15L6 16Z', 'M10 20.5a2 2 0 0 0 4 0'],
+  },
+  download: {
+    paths: ['M12 4v11', 'm7 10.5 5 5 5-5', 'M5 20h14'],
+  },
+  plus: {
+    paths: ['M12 5v14M5 12h14'],
   },
   clock: {
     paths: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z', 'M12 7.2V12l3.2 1.9'],
   },
   hourglass: {
-    // Duração do atendimento. Ampulheta e não relógio: relógio já é a hora de
-    // início, e as duas informações aparecem lado a lado no resumo.
+    // Duração. Ampulheta e não relógio: o relógio já é a hora de início, ao lado no resumo.
     paths: [
       'M7 3h10M7 21h10',
       'M7.5 3v3.2c0 1.9 1.4 3.4 3 4.4 1.1.7 1.1 2.1 0 2.8-1.6 1-3 2.5-3 4.4V21',
@@ -115,9 +148,6 @@ const ICONS: Record<IconName, IconDef> = {
   },
   home: {
     paths: ['M3.5 10.5 12 3.5l8.5 7', 'M5.5 9v10.5h13V9', 'M10 19.5v-5h4v5'],
-  },
-  trend: {
-    paths: ['M4 4.5v15h15.5', 'm7.5 14.5 3.5-4 3 2.5 4.5-5.5'],
   },
   logout: {
     paths: ['M14.5 4.5h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-3', 'M10 16.5 5.5 12 10 7.5', 'M5.5 12H15'],

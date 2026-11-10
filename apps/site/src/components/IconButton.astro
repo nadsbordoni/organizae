@@ -3,24 +3,14 @@ import Icon from './Icon.astro';
 import type { IconName } from '@/types/blocks';
 
 /**
- * Botão redondo com ícone.
- *
- * Usado nas redes sociais, no "voltar" das páginas internas e no "voltar" do
- * fluxo de agendamento. Existe como componente para que todos compartilhem
- * exatamente a mesma peça: se o raio, a sombra ou o estado de toque mudarem,
- * mudam em todos de uma vez.
- *
- * Sem `href` vira `<button>`: no agendamento, "voltar" é uma ação na própria
- * tela, e um `<a href="#">` mentiria sobre isso para o leitor de tela.
- *
- * Como não há texto visível, `label` é obrigatório — é o que leitores de
- * tela anunciam, e o que aparece no tooltip do desktop.
+ * Botão redondo com ícone (redes sociais, "voltar"). Sem `href` vira `<button>`: no agendamento,
+ * "voltar" é ação na própria tela, e um `<a href="#">` mentiria sobre isso ao leitor de tela.
+ * `label` é OBRIGATÓRIO: sem texto visível, é o que o leitor de tela anuncia.
  */
 
 interface Props {
-  /** Ausente, o componente vira `<button type="button">`. */
   href?: string;
-  /** Descrição da ação. Ex: 'Voltar para o início'. */
+  /** Ex.: 'Voltar para o início'. */
   label: string;
   icon: IconName;
   /** Abre em nova aba. Use para links que saem do site. */
@@ -47,7 +37,7 @@ const tagProps = href
     align-items: center;
     justify-content: center;
 
-    /* 48px é o mínimo de área de toque confortável. */
+    /* 48px é o mínimo de área de toque. NÃO reduza. */
     width: 48px;
     height: 48px;
     border-radius: 50%;
@@ -56,7 +46,7 @@ const tagProps = href
     font: inherit;
     cursor: pointer;
 
-    border: 1.5px solid var(--site-color-border);
+    border: 1px solid var(--site-color-border-strong);
     background: var(--site-color-surface);
     color: var(--site-color-brand);
     box-shadow: var(--site-shadow-resting);

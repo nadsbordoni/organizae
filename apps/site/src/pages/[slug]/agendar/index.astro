@@ -12,11 +12,8 @@ import type { SiteConfig } from '@/types/site';
 import type { Agenda } from '@/types/agenda';
 
 /**
- * Passo 1 de 3: escolher os serviços.
- *
- * Não existe tela de categoria porque o atendimento pode misturar categorias —
- * blindagem mais design de sobrancelha é pedido comum, e navegar por categoria
- * impediria os dois no mesmo pedido. As categorias são seções dobráveis aqui.
+ * Passo 1 de 3: serviços. Sem tela de categoria porque o pedido pode misturar categorias
+ * (blindagem mais sobrancelha é comum); aqui elas são seções dobráveis.
  */
 export const getStaticPaths = bookingPaths;
 
@@ -37,8 +34,7 @@ const categories = agenda.categories
 
 const isSoon = (services: Array<{ soon?: boolean }>) => services.every((service) => service.soon);
 
-// A primeira categoria que tem o que escolher começa aberta. Não é `0` fixo:
-// se a primeira for toda "em breve", ela não abre, e a tela abriria fechada.
+// Não é `0` fixo: se a primeira for toda "em breve", ela não abre e a tela abriria fechada.
 const primeiraAberta = categories.findIndex((category) => !isSoon(category.services));
 
 const base = `/${site.slug}/${BOOKING_PATH}`;
@@ -73,7 +69,6 @@ const whatsappHref = whatsappUrl(
         categories.map((category, index) => {
           const soon = isSoon(category.services);
 
-          // O cabeçalho é o mesmo nos dois casos; o que muda é ele abrir ou não.
           const head = (
             <>
               <span class="cat__text">
@@ -88,11 +83,8 @@ const whatsappHref = whatsappUrl(
             </>
           );
 
-          // Categoria em que TUDO é "em breve" não tem o que escolher. Como
-          // sanfona ela abriria para mostrar um cartão desabilitado e uma caixa
-          // que não marca — então aqui ela é uma linha inerte, que só anuncia.
-          // Nada dentro dela recebe foco: não há controle desligado para a
-          // pessoa tropeçar com Tab nem para o leitor de tela anunciar.
+          // TUDO "em breve" vira linha inerte, que só anuncia: nenhum controle desligado
+          // para a pessoa tropeçar com Tab nem para o leitor de tela anunciar.
           if (soon) {
             return (
               <div class="cat" data-soon>
@@ -101,9 +93,7 @@ const whatsappHref = whatsappUrl(
             );
           }
 
-          // `<details name>` faz sanfona: abrir uma fecha a outra, e a tela
-          // continua curta como uma lista de categorias. O que já foi marcado
-          // não se perde — o selo de contagem mostra quanto tem dentro.
+          // `<details name>` faz sanfona; fechada, a categoria mostra no selo quanto já foi marcado.
           return (
             <details class="cat" open={index === primeiraAberta} name="categoria">
               <summary class="cat__summary">{head}</summary>
@@ -233,8 +223,6 @@ const whatsappHref = whatsappUrl(
     color: var(--site-color-brand-deep);
   }
 
-  /* Contagem preenchida pelo script: a categoria fechada continua dizendo o que
-     tem dentro, que é o que permite fechar uma e abrir outra sem perder a conta. */
   .cat__count {
     background: var(--site-color-brand);
     color: var(--site-color-on-brand);
@@ -268,8 +256,7 @@ const whatsappHref = whatsappUrl(
     transform: rotate(-135deg) translate(-2px, -2px);
   }
 
-  /* Categoria que só anuncia: sem cursor de clique, sem seta de abrir, e o nome
-     na cor secundária — nada nela promete interação. */
+  /* Categoria que só anuncia: nada nela promete interação. */
   .cat[data-soon] .cat__summary {
     cursor: default;
   }
@@ -282,7 +269,6 @@ const whatsappHref = whatsappUrl(
     color: var(--site-color-text-muted);
   }
 
-  /* `<fieldset>` chega com borda, padding e margin próprios do navegador. */
   .cat__panel {
     border: none;
     margin: 0;

@@ -1,11 +1,8 @@
 import { defineTheme } from './base';
 
 /**
- * Tema Índigo — exemplo de segunda identidade visual.
- *
- * Existe para provar (e documentar) que trocar a aparência de uma página
- * inteira é trocar valores num objeto: nenhum componente muda, nenhum CSS
- * é duplicado. Um tema verde/bege/marrom seria igualmente ~20 linhas.
+ * Exemplo de segunda identidade: trocar a aparência é trocar valores num objeto,
+ * sem mudar componente nem duplicar CSS.
  */
 export const indigoTheme = defineTheme({
   color: {

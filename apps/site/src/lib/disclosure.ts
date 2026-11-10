@@ -1,7 +1,4 @@
-/**
- * Link com `affiliate: true` obriga a página a ter `disclosure`. Quem esquece
- * descobre no BUILD, não em produção.
- */
+/** Link com `affiliate: true` obriga a página a ter `disclosure`. Quem esquece descobre no BUILD. */
 
 /** Considera só item visível. */
 export function hasAffiliate(

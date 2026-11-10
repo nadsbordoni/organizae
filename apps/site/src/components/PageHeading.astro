@@ -2,14 +2,9 @@
 import IconButton from './IconButton.astro';
 
 /**
- * Cabeçalho de página interna: voltar + título + introdução.
- *
- * Compartilhado entre Achadinhos e Agendamento para que as duas não divirjam —
- * eram o mesmo desenho copiado, e copiado é o que desalinha na primeira vez que
- * alguém mexe em uma só.
- *
- * Sem cabeçalho de perfil de propósito: o botão voltar já nomeia o negócio, e
- * dois títulos grandes seguidos competiriam. A identidade vem do tema.
+ * Cabeçalho de página interna (voltar + título + introdução), compartilhado entre Achadinhos e
+ * Agendamento. SEM cabeçalho de perfil de propósito: o voltar já nomeia o negócio, e dois títulos
+ * grandes seguidos competiriam.
  */
 
 interface Props {
@@ -36,8 +31,6 @@ const { title, intro, backHref, backLabel, ...rest } = Astro.props;
 
 <style>
   .heading {
-    /* O botão de voltar é redondo e alto; o título precisa de um respiro
-       maior acima do que teria depois de um link de texto. */
     margin-bottom: 24px;
   }
 
@@ -47,7 +40,6 @@ const { title, intro, backHref, backLabel, ...rest } = Astro.props;
   }
 
   .heading__title {
-    /* A fonte de títulos da marca, a mesma do nome do negócio. */
     font-family: var(--site-font-display);
     font-weight: 600;
     font-size: clamp(1.875rem, 8vw, 2.5rem);

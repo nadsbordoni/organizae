@@ -10,11 +10,8 @@ import type { SiteConfig } from '@/types/site';
 import type { Agenda } from '@/types/agenda';
 
 /**
- * Passo 3 de 3: conferir e enviar.
- *
- * TODAS as linhas de serviço são renderizadas e ficam `hidden`; o script mostra
- * só as que vieram na query. É o preço de uma página estática que não sabe, no
- * build, o que a pessoa escolheu — e são poucas linhas de HTML.
+ * Passo 3 de 3: conferir e enviar. TODAS as linhas de serviço saem `hidden`, porque o build
+ * não sabe a escolha; o script mostra as que vieram na query.
  */
 export const getStaticPaths = bookingPaths;
 
@@ -168,8 +165,7 @@ const privacyNote =
     color: var(--site-color-text);
   }
 
-  /* Sem valor legível em algum serviço, a linha de valor some — ver
-     `totalPrice()` em lib/agenda.ts. */
+  /* Sem valor legível em algum serviço, a linha de valor some; ver `totalPrice()` em lib/agenda.ts. */
   .totals__row:has(strong:empty) {
     display: none;
   }
@@ -226,7 +222,7 @@ const privacyNote =
   .privacy {
     font-size: 0.8125rem;
     line-height: 1.5;
-    /* Não baixe: 0.8 sobre o fundo da página ainda passa de 4.5:1. */
+    /* NÃO baixe: 0.8 sobre o fundo da página ainda passa de 4.5:1. */
     opacity: 0.8;
     color: var(--site-color-text-muted);
   }

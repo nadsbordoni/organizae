@@ -1,0 +1,373 @@
+---
+import AppointmentDetails from './AppointmentDetails.astro';
+import { endTime, serviceNames } from '@/lib/painel';
+import { toClock, toMinutes } from '@/lib/agenda';
+import type { Agenda, DayHours, IsoDate } from '@/types/agenda';
+import type { AppointmentRow } from '@/types/painel';
+
+/**
+ * Grade da semana do protótipo (quadro 05), com as pausas do expediente como bloqueio.
+ * Só no computador; no celular a Agenda mostra a faixa dos 7 dias e o dia escolhido.
+ */
+interface Day {
+  date: IsoDate;
+  /** 'SEG 9'. */
+  head: string;
+  /** Nome por extenso, para o leitor de tela. */
+  label: string;
+  today: boolean;
+  /** `null`: fechado neste dia (feriado, folga). */
+  hours: DayHours | null;
+  reason?: string;
+  rows: AppointmentRow[];
+}
+
+interface Props {
+  days: Day[];
+  agenda?: Agenda;
+  /** Minutos desde a meia-noite, para a linha vermelha em hoje. */
+  now: number;
+  label: string;
+}
+
+const { days, agenda, now, label } = Astro.props;
+
+// 88px por hora: a altura do protótipo.
+const HOUR = 88;
+const PAD = 24;
+
+const minutes = days.flatMap((d) => [
+  ...(d.hours ? [toMinutes(d.hours.opens), toMinutes(d.hours.closes)] : []),
+  ...d.rows.flatMap((r) => [toMinutes(r.start_time), toMinutes(r.start_time) + r.duration_min]),
+]);
+const first = Math.floor(Math.min(...minutes, 9 * 60) / 60);
+const last = Math.ceil(Math.max(...minutes, 18 * 60) / 60);
+const hours = Array.from({ length: last - first }, (_, i) => first + i);
+
+// Metade de cada lado da virada do horário: marcações coladas ficam sempre com o mesmo vão.
+const GAP = 8;
+
+const top = (m: number) => ((m - first * 60) / 60) * HOUR + PAD;
+const place = (from: number, to: number) => {
+  const h = Math.max(((to - from) / 60) * HOUR - GAP, 32);
+  // Nome e horário SEMPRE aparecem. Com 10px de respiro e linhas de 1.25, três linhas pedem
+  // 72px e duas 54px: sem espaço sai o serviço; menor ainda, nome e horário dividem uma linha.
+  const fit = h < 54 ? 'line' : h < 72 ? 'two' : undefined;
+  return { style: `top: ${top(from) + GAP / 2}px; height: ${h}px`, fit };
+};
+
+// Cor pela ordem no catálogo; o azul fica para bloqueio, como na legenda.
+const order = (agenda?.categories ?? []).flatMap((c) => c.services.map((s) => s.id));
+const toneOf = (row: AppointmentRow): 'pink' | 'yellow' | 'green' => {
+  const [id] = JSON.parse(row.service_ids) as string[];
+  const index = Math.max(order.indexOf(id ?? ''), 0);
+  return (['pink', 'yellow', 'green'] as const)[index % 3]!;
+};
+
+const nowVisible = now >= first * 60 && now <= last * 60;
+const timezone = agenda?.timezone ?? 'America/Sao_Paulo';
+---
+
+<div
+  class="wg"
+  role="region"
+  aria-label={label}
+  data-week-grid
+  data-tz={timezone}
+  data-first={first}
+  data-last={last}
+  data-hour={HOUR}
+  data-pad={PAD}
+  style={`--n: ${days.length}; --body: ${(last - first) * HOUR + PAD * 2}px; --hour: ${HOUR}px; --pad: ${PAD}px`}
+>
+  <div class="wg__head" aria-hidden="true">
+    <span class="wg__corner">Horário</span>
+    {days.map((d) => <span class="wg__day" data-today={d.today ? '' : undefined}>{d.head}</span>)}
+  </div>
+
+  <div class="wg__body">
+    <div class="wg__hours" aria-hidden="true">
+      {hours.map((h) => <span style={`top: ${top(h * 60) - 9}px`}>{toClock(h * 60)}</span>)}
+    </div>
+
+    {
+      days.map((d) => (
+        <section class="wg__col" aria-label={d.label} data-closed={d.hours ? undefined : ''}>
+          {!d.hours && <p class="wg__closed">Fechado{d.reason ? ` · ${d.reason}` : ''}</p>}
+
+          <ol>
+            {(d.hours?.breaks ?? []).map((b) => {
+              const at = place(toMinutes(b.from), toMinutes(b.to));
+              return (
+                <li class="wg__event" data-fit={at.fit} style={`--tone: var(--site-accent-blue-deep); ${at.style}`}>
+                  <div class="wg__text">
+                    <strong>{b.label ?? 'Bloqueio'}</strong>
+                    <small>
+                      {b.from} — {b.to}
+                    </small>
+                  </div>
+                </li>
+              );
+            })}
+            {d.rows.map((r) => {
+              const start = toMinutes(r.start_time);
+              const at = place(start, start + r.duration_min);
+              return (
+                <li
+                  class="wg__event"
+                  data-pending={r.status === 'pending' ? '' : undefined}
+                  data-fit={at.fit}
+                  style={`--tone: var(--site-accent-${toneOf(r)}-deep); ${at.style}`}
+                >
+                  <button class="wg__text wg__open" type="button" popovertarget={`det-semana-${r.id}`}>
+                    <strong>{r.client_name}</strong>
+                    <small>
+                      {r.start_time} — {endTime(r)}
+                      {r.status === 'pending' && ' · A confirmar'}
+                    </small>
+                    <span>{serviceNames(r, agenda)}</span>
+                  </button>
+                  <AppointmentDetails id={`det-semana-${r.id}`} row={r} agenda={agenda} />
+                </li>
+              );
+            })}
+          </ol>
+
+          {d.today && (
+            <span class="wg__now" data-now hidden={!nowVisible} style={`top: ${top(now)}px`} aria-hidden="true" />
+          )}
+        </section>
+      ))
+    }
+  </div>
+</div>
+
+<script>
+  // Linha de agora no fuso do negócio, não no do aparelho; a virada do dia pede recarregar a página.
+  for (const grid of document.querySelectorAll<HTMLElement>('[data-week-grid]')) {
+    const line = grid.querySelector<HTMLElement>('[data-now]');
+    if (!line) continue;
+
+    const first = Number(grid.dataset.first) * 60;
+    const last = Number(grid.dataset.last) * 60;
+    const hour = Number(grid.dataset.hour);
+    const pad = Number(grid.dataset.pad);
+    const clock = new Intl.DateTimeFormat('en-US', {
+      timeZone: grid.dataset.tz,
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    });
+
+    const tick = () => {
+      const parts = clock.formatToParts(new Date());
+      const get = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0);
+      const minutes = get('hour') * 60 + get('minute');
+      const inside = minutes >= first && minutes <= last;
+      line.hidden = !inside;
+      if (inside) line.style.top = `${((minutes - first) / 60) * hour + pad}px`;
+    };
+
+    tick();
+    setInterval(tick, 60_000);
+  }
+</script>
+
+<style>
+  .wg {
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+    overflow: hidden;
+  }
+
+  .wg__head,
+  .wg__body {
+    display: grid;
+    grid-template-columns: 80px repeat(var(--n), minmax(0, 1fr));
+  }
+
+  .wg__head {
+    border-bottom: 1px solid var(--site-color-border);
+  }
+
+  .wg__corner,
+  .wg__day {
+    padding: 17px 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    text-align: center;
+  }
+
+  .wg__corner {
+    padding-left: 14px;
+    padding-right: 4px;
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-align: left;
+    color: var(--site-color-eyebrow);
+  }
+
+  .wg__day {
+    border-left: 1px solid var(--site-color-border);
+  }
+
+  .wg__day[data-today] {
+    border-color: var(--site-accent-yellow-soft);
+    background: var(--site-accent-yellow-soft);
+  }
+
+  .wg__body {
+    height: var(--body);
+  }
+
+  .wg__hours {
+    position: relative;
+  }
+
+  .wg__hours span {
+    position: absolute;
+    right: 10px;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--site-color-text-muted);
+  }
+
+  /* Uma linha fina por hora, na altura do rótulo. */
+  .wg__col {
+    position: relative;
+    border-left: 1px solid var(--site-color-border);
+    background-image: repeating-linear-gradient(
+      to bottom,
+      var(--site-color-border) 0 1px,
+      transparent 1px var(--hour)
+    );
+    background-position: 0 var(--pad);
+    background-repeat: no-repeat;
+    background-size: 100% calc(100% - var(--pad) * 2 + 1px);
+  }
+
+  .wg__col ol {
+    list-style: none;
+  }
+
+  /* Dia fechado: listrado e apagado, para não parecer um dia livre. */
+  .wg__col[data-closed] {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      transparent 0 10px,
+      color-mix(in srgb, var(--site-color-border) 55%, transparent) 10px 11px
+    );
+    background-position: 0 0;
+    background-size: auto;
+    background-repeat: repeat;
+  }
+
+  .wg__closed {
+    padding: 28px 12px;
+    text-align: center;
+    font-size: 0.875rem;
+    color: var(--site-color-text-muted);
+  }
+
+  /* Borda de um lado só com canto arredondado: o traço curva nas pontas, como um parêntese. */
+  .wg__event {
+    position: absolute;
+    left: 8px;
+    right: 6px;
+    border-left: 2px solid var(--tone);
+    border-radius: 4px;
+    /* NÃO passe de 6%: o texto amarelo cairia abaixo de 4.5:1. */
+    background: color-mix(in srgb, var(--tone) 6%, var(--site-color-surface));
+    color: var(--tone);
+    line-height: 1.25;
+    overflow: hidden;
+  }
+
+  .wg__text {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    padding: 10px;
+    overflow: hidden;
+  }
+
+  .wg__open {
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .wg__open:hover {
+    background: color-mix(in srgb, var(--tone) 6%, transparent);
+  }
+
+  .wg__open:focus-visible {
+    outline: 3px solid var(--tone);
+    outline-offset: -3px;
+  }
+
+  .wg__event[data-pending] {
+    border-left-style: dashed;
+  }
+
+  .wg__event[data-fit='line'] .wg__text {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+    padding-block: 6px;
+    white-space: nowrap;
+  }
+
+  .wg__event[data-fit='line'] strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Escondido só da tela: o leitor de tela continua ouvindo tudo. */
+  .wg__event[data-fit] span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .wg__event strong {
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+
+  .wg__event span {
+    font-size: 0.875rem;
+  }
+
+  .wg__event small {
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .wg__now {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1.5px;
+    background: var(--site-panel-now);
+  }
+
+  .wg__now::before {
+    content: '';
+    position: absolute;
+    left: -4px;
+    top: -3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: inherit;
+  }
+</style>

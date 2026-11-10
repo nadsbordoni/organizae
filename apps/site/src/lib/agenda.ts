@@ -1,14 +1,7 @@
 /**
- * Motor de disponibilidade — o cálculo de quais horários cabem num dia.
- *
- * REGRA DE OURO: nada aqui constrói `Date` para fazer conta de HORÁRIO. Um dia é
- * a string 'YYYY-MM-DD' e uma hora é o número de minutos desde a meia-noite,
- * sempre na hora de PAREDE do negócio. `Date` aparece só em conta de calendário
- * (que dia da semana cai, quantos dias entre duas datas) e sempre em UTC, onde
- * não existe horário de verão para deslocar o resultado.
- *
- * É isso que faz "14:00" continuar sendo 14:00 na virada do horário de verão, e
- * o mesmo código valer no build e no navegador de quem acessa de outro fuso.
+ * Motor de disponibilidade. REGRA: NÃO usar `Date` em conta de HORÁRIO; dia é 'YYYY-MM-DD' e hora é
+ * minutos desde a meia-noite, na hora de PAREDE do negócio. `Date` só em conta de calendário e
+ * sempre em UTC, onde não há horário de verão para deslocar o resultado.
  */
 
 import type {
@@ -40,7 +33,6 @@ const WEEKDAY_NAME: Record<Weekday, { full: string; short: string; initial: stri
   sat: { full: 'Sábado', short: 'Sáb', initial: 'S' },
 };
 
-/** Minúsculos, como manda o português: "6 de outubro". */
 const MONTH_NAME = [
   'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
   'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
@@ -52,8 +44,6 @@ const MS_IN_DAY = 86_400_000;
 /** Faixa de minutos dentro de um dia: `[início, fim)`. */
 export type Window = [number, number];
 
-/* --- Horas e durações ------------------------------------------------------ */
-
 export function toMinutes(time: ClockTime): number {
   const [hours, minutes] = time.split(':').map(Number);
   return hours * 60 + minutes;
@@ -63,7 +53,7 @@ export function toClock(minutes: number): ClockTime {
   return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
 }
 
-/** Duração como ela aparece na tela: '30min', '1h', '1h30'. */
+/** Ex: '30min', '1h', '1h30'. */
 export function formatDuration(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
@@ -71,16 +61,9 @@ export function formatDuration(minutes: number): string {
   return rest ? `${hours}h${pad(rest)}` : `${hours}h`;
 }
 
-/* --- Preços ---------------------------------------------------------------- */
-
 /**
- * 'R$ 1.234,56' → 123456 centavos. `undefined` quando não dá para ler.
- *
- * O preço é texto livre na configuração de propósito — "a partir de R$ 40" e
- * "sob consulta" são respostas legítimas de um salão. Somar só é possível
- * quando TODOS os escolhidos têm um número limpo; nos outros casos a tela mostra
- * os valores um a um, sem total. Inventar um total a partir de texto que não se
- * entende é pior do que não mostrar total nenhum.
+ * 'R$ 1.234,56' → 123456 centavos; `undefined` quando não dá para ler. Preço é texto livre de
+ * propósito ("a partir de R$ 40", "sob consulta"): sem número limpo, NÃO se inventa total.
  */
 export function parsePrice(text: string | undefined): number | undefined {
   if (!text) return undefined;
@@ -110,21 +93,13 @@ export function totalPrice(services: ReadonlyArray<Pick<Service, 'price'>>): str
   return formatPrice(total);
 }
 
-/** Soma das durações — é ela que o motor usa para achar horário livre. */
 export function totalDuration(
   services: ReadonlyArray<Pick<Service, 'durationMinutes'>>,
 ): number {
   return services.reduce((sum, service) => sum + service.durationMinutes, 0);
 }
 
-/* --- Datas ---------------------------------------------------------------- */
-
-/**
- * Dias inteiros desde a época, em UTC.
- *
- * Toda conta com datas passa por aqui: comparar, ordenar e medir distância viram
- * aritmética de inteiros, sem fuso e sem horário de verão no meio.
- */
+/** Dias inteiros desde 1970-01-01 em UTC: conta de datas vira aritmética de inteiros, sem fuso. */
 export function dayNumber(date: IsoDate): number {
   const [year, month, day] = date.split('-').map(Number);
   return Date.UTC(year, month - 1, day) / MS_IN_DAY;
@@ -148,10 +123,7 @@ export function weekdayOf(date: IsoDate): Weekday {
   return WEEKDAYS[(((dayNumber(date) + 4) % 7) + 7) % 7];
 }
 
-/**
- * `true` só para uma data que existe no calendário. O formato sozinho deixa
- * passar '2026-02-31', que `Date` vira 3 de março em silêncio.
- */
+/** Só data que existe: o formato sozinho deixa passar '2026-02-31', que `Date` vira 3 de março. */
 export function isIsoDate(value: string): value is IsoDate {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && fromDayNumber(dayNumber(value)) === value;
 }
@@ -179,13 +151,7 @@ export function weekdayInitials(): string[] {
   return WEEKDAYS.map((day) => WEEKDAY_NAME[day].initial);
 }
 
-/**
- * "Hoje" e "agora" no fuso do NEGÓCIO, não no do aparelho de quem acessa.
- *
- * `Intl` é a única fonte de verdade sobre fuso que existe sem biblioteca — ele
- * já carrega a base de horário de verão do sistema. Consultamos uma vez só,
- * aqui, e o resto do módulo trabalha em hora de parede.
- */
+/** "Hoje" e "agora" no fuso do NEGÓCIO, não no do aparelho de quem acessa. */
 export function nowInBusinessTime(
   timezone: string,
   clock: Date = new Date(),
@@ -197,8 +163,7 @@ export function nowInBusinessTime(
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-    // `hourCycle` em vez de `hour12: false`: aquele produz '24' à meia-noite em
-    // alguns motores, e 24:00 estouraria a conta de minutos.
+    // NÃO trocar por `hour12: false`: em alguns motores dá '24' à meia-noite e estoura a conta.
     hourCycle: 'h23',
   }).formatToParts(clock);
 
@@ -211,28 +176,19 @@ export function nowInBusinessTime(
   };
 }
 
-/* --- Expediente ----------------------------------------------------------- */
-
 export interface DaySchedule {
   hours: DayHours | null;
-  /** Motivo do fechamento, quando vem de uma exceção. Ex: 'Feriado'. */
+  /** Só quando vem de uma exceção. Ex: 'Feriado'. */
   reason?: string;
 }
 
-/** O expediente de uma data, já com as exceções aplicadas. */
+/** Já com as exceções aplicadas. */
 export function scheduleFor(agenda: Agenda, date: IsoDate): DaySchedule {
   const exception = agenda.exceptions?.find((item) => item.date === date);
   if (exception) return { hours: exception.hours, reason: exception.reason };
   return { hours: agenda.hours[weekdayOf(date)] ?? null };
 }
 
-/**
- * Recorta `cut` das janelas recebidas.
- *
- * É a única operação de que o motor precisa: descontar o almoço e descontar um
- * atendimento já marcado são o MESMO cálculo. É por isso que ligar a agenda a um
- * servidor depois não muda nada aqui — muda só quantos cortes entram.
- */
 function subtract(windows: Window[], cut: Window): Window[] {
   const result: Window[] = [];
 
@@ -248,7 +204,6 @@ function subtract(windows: Window[], cut: Window): Window[] {
   return result;
 }
 
-/** Janelas em que o negócio está livre: expediente menos pausas e compromissos. */
 export function freeWindows(hours: DayHours, busy: readonly TimeRange[] = []): Window[] {
   let windows: Window[] = [[toMinutes(hours.opens), toMinutes(hours.closes)]];
 
@@ -262,32 +217,17 @@ export function freeWindows(hours: DayHours, busy: readonly TimeRange[] = []): W
   return windows.filter(([start, end]) => end > start);
 }
 
-/* --- Horários oferecidos -------------------------------------------------- */
-
 export interface SlotQuery {
   agenda: Agenda;
-  /** Só a duração importa — assim a função serve para simular, não só para exibir. */
   service: Pick<Service, 'durationMinutes'>;
   date: IsoDate;
-  /**
-   * Atendimentos já marcados no dia.
-   *
-   * ⚠️ HOJE CHEGA SEMPRE VAZIO: o fluxo público é pré-renderizado e ainda não
-   * consulta o banco. Ligar a reserva é passar a lista aqui, sem reescrever o
-   * cálculo.
-   */
+  /** HOJE CHEGA SEMPRE VAZIO: o fluxo público é pré-renderizado e ainda não consulta o banco. */
   busy?: readonly TimeRange[];
   /** "Agora" no fuso do negócio. Vem de `nowInBusinessTime()`. */
   now: { date: IsoDate; minutes: number };
 }
 
-/**
- * Horários em que o serviço CABE inteiro no dia.
- *
- * "Cabe inteiro" é a regra que faz a duração importar: com fechamento às 19:30,
- * um serviço de 2h para de ser oferecido às 17:30, e um de 30min segue até
- * 19:00. A cliente nunca vê um horário que o negócio não conseguiria cumprir.
- */
+/** Horários em que o serviço CABE inteiro: fechando às 19:30, um de 2h para às 17:30. */
 export function slotsFor({ agenda, service, date, busy, now }: SlotQuery): ClockTime[] {
   const daysAhead = dayNumber(date) - dayNumber(now.date);
   if (daysAhead < 0 || daysAhead > (agenda.horizonDays ?? AGENDA_DEFAULTS.horizonDays)) return [];
@@ -298,9 +238,8 @@ export function slotsFor({ agenda, service, date, busy, now }: SlotQuery): Clock
   const step = agenda.slotStepMinutes ?? AGENDA_DEFAULTS.slotStepMinutes;
   const opens = toMinutes(hours.opens);
 
-  // Antecedência mínima traduzida para "minutos do relógio DESTE dia". Descontar
-  // a distância em dias é o que faz a regra atravessar a meia-noite: às 22:00,
-  // com 12h de antecedência, o dia seguinte só abre às 10:00.
+  // Antecedência em minutos do relógio DESTE dia; descontar os dias faz a regra atravessar a
+  // meia-noite (às 22:00, com 12h, o dia seguinte só abre às 10:00).
   const earliest =
     now.minutes +
     (agenda.minNoticeHours ?? AGENDA_DEFAULTS.minNoticeHours) * 60 -
@@ -309,10 +248,8 @@ export function slotsFor({ agenda, service, date, busy, now }: SlotQuery): Clock
   const slots: ClockTime[] = [];
 
   for (const [start, end] of freeWindows(hours, busy)) {
-    // Alinha o começo à grade contada a partir da abertura: uma janela que sobra
-    // em 12:20 passa a oferecer 12:30. Custa alguns minutos de agenda e evita
-    // horário quebrado na tela — a grade é para a cliente ler, não para
-    // aproveitar cada minuto do dia.
+    // Alinha à grade contada da abertura (sobra em 12:20 oferece 12:30): perde alguns
+    // minutos de agenda, mas evita horário quebrado na tela.
     const first = opens + Math.ceil((start - opens) / step) * step;
 
     for (let time = first; time + service.durationMinutes <= end; time += step) {
@@ -323,15 +260,11 @@ export function slotsFor({ agenda, service, date, busy, now }: SlotQuery): Clock
   return slots;
 }
 
-/** Atalho de leitura para o calendário, que só precisa saber se sobrou algo. */
 export function hasSlots(query: SlotQuery): boolean {
   return slotsFor(query).length > 0;
 }
 
-/**
- * A primeira data com horário livre, dentro do horizonte. `undefined` quando não
- * há nenhuma — agenda cheia, ou serviço que não cabe em nenhum expediente.
- */
+/** `undefined` sem vaga no horizonte: agenda cheia, ou serviço que não cabe em nenhum expediente. */
 export function firstAvailableDate(query: Omit<SlotQuery, 'date'>): IsoDate | undefined {
   const horizon = query.agenda.horizonDays ?? AGENDA_DEFAULTS.horizonDays;
 
@@ -343,19 +276,9 @@ export function firstAvailableDate(query: Omit<SlotQuery, 'date'>): IsoDate | un
   return undefined;
 }
 
-/* --- Resumo da semana ----------------------------------------------------- */
-
 /**
- * O expediente da semana em faixas legíveis, para o bloco de horário: agrupa
- * dias CONSECUTIVOS de mesmo expediente e devolve
- * `[{ days: 'Ter a Sex', time: '08:00 às 19:30' }]`.
- *
- * Existe para que o horário ANUNCIADO na página venha da mesma fonte que gera os
- * horários AGENDÁVEIS. Escritos à mão nos dois lugares, um dia a página promete
- * um expediente e a agenda oferece outro.
- *
- * A semana começa no domingo, como o calendário brasileiro, e as faixas fechadas
- * vão para o fim: quem lê quer ver primeiro quando o negócio abre.
+ * `[{ days: 'Ter a Sex', time: '08:00 às 19:30' }]`, dias fechados no fim. Deriva da agenda para
+ * o horário ANUNCIADO na página NÃO divergir do AGENDÁVEL.
  */
 export function weeklySummary(agenda: Agenda): Array<{ days: string; time: string }> {
   const groups: Array<{ days: Weekday[]; time: string }> = [];
@@ -376,20 +299,10 @@ export function weeklySummary(agenda: Agenda): Array<{ days: string; time: strin
 
 const CLOSED = 'Fechado';
 
-/** Espaço inquebrável. Ver `describeDay()`. */
+/** Espaço inquebrável, em escape de propósito: a quebra cai no " e ", NUNCA dentro de "08:00 às 12:00". */
 const NBSP = '\u00a0';
 
-/**
- * O expediente de um dia em texto — com as pausas, porque anunciar
- * "08:00 às 19:30" tendo almoço no meio faz a cliente tentar marcar às 12:30 e
- * não encontrar nada, sem entender por quê.
- *
- * `NBSP` liga cada faixa de propósito: com duas faixas o texto passa da largura
- * da linha, e a quebra precisa cair no " e ", nunca no meio de "08:00 às 12:00".
- * É o que substitui o `white-space: nowrap` que o bloco de horário usava quando
- * só existia uma faixa por dia. Escrito como escape para ninguém "limpar" um
- * caractere invisível sem saber que ele fazia algo.
- */
+/** Com as pausas: anunciar "08:00 às 19:30" com almoço no meio faz a cliente procurar vaga que não há. */
 function describeDay(hours: DayHours | undefined): string {
   if (!hours) return CLOSED;
 
@@ -409,15 +322,7 @@ function describeDays(days: Weekday[]): string {
     : `${first.short} a ${last.short}`;
 }
 
-/* --- Validação da configuração -------------------------------------------- */
-
-/**
- * Para o build quando a agenda está mal configurada.
- *
- * Sem isto o erro só aparece no celular da cliente: passo de grade negativo
- * trava o navegador, '8h00' some com o dia e `closes` antes de `opens` fecha o
- * dia em silêncio.
- */
+/** Quebra o BUILD com agenda mal configurada; senão o erro só aparece no celular da cliente. */
 export function assertValidAgenda(agenda: Agenda, label: string): void {
   const problems: string[] = [];
   const clock = /^([01]\d|2[0-3]):[0-5]\d$/;

@@ -1,19 +1,14 @@
 /**
- * Contrato de tema.
- *
- * Um tema é só um objeto de tokens. Ele vira CSS custom properties (ver
- * `toCssVars.ts`) aplicadas no elemento raiz. Nenhum componente conhece cor de
- * cliente algum — todos leem `var(--site-*)`.
- *
- * Para criar um tema: parta de `base.ts` e sobrescreva o que quiser.
+ * Tema = objeto de tokens que vira CSS custom properties (`toCssVars.ts`) no elemento raiz.
+ * Nenhum componente conhece cor de cliente: todos leem `var(--site-*)`.
  */
 
 export interface ThemeTokens {
   color: {
     brand: string;
-    /** Mais escura — hover, pressed, texto de destaque. */
+    /** Mais escura: hover, pressed, texto de destaque. */
     brandDeep: string;
-    /** Mais clara — fundo suave, borda, estado sutil. */
+    /** Mais clara: fundo suave, borda, estado sutil. */
     brandSoft: string;
     /** Vai SOBRE `brand`. Precisa contrastar com ela. */
     onBrand: string;
@@ -22,7 +17,12 @@ export interface ThemeTokens {
     text: string;
     /** Texto secundário. Contraste mínimo de 4.5:1. */
     textMuted: string;
+    /** Contorno de cartão. */
     border: string;
+    /** Contorno de campo e de linha clicável, um tom acima de `border`. */
+    borderStrong: string;
+    /** Sobretítulo em caixa alta acima dos títulos. Contraste mínimo de 4.5:1. */
+    eyebrow: string;
   };
 
   background: {
@@ -31,29 +31,22 @@ export interface ThemeTokens {
     /** Sólida, para `theme-color` e fallback. */
     pageSolid: string;
     /**
-     * Camada de textura POR CIMA do gradiente — grão, papel, trama.
-     *
-     * Um `background-image` que se repete (tile). O tamanho vem do próprio
-     * arquivo: a camada é desenhada com `background-size: auto`, então um SVG
-     * com `width`/`height` e sem `viewBox` manda no tamanho do azulejo.
-     *
-     * `none` desliga. É o padrão: gradiente liso é o que a maioria das marcas
-     * quer, e textura é decisão de identidade, não de plataforma.
+     * Textura em tile POR CIMA do gradiente, com `background-size: auto`: um SVG com
+     * `width`/`height` e sem `viewBox` define o azulejo. `none` (padrão) desliga.
      */
     texture: string;
   };
 
   font: {
     /**
-     * Títulos: o nome do negócio e o título de cada página interna.
-     *
-     * Precisa cobrir esses textos, não só o wordmark. Num tema que usa fonte
-     * subsetada (fonte de marca de um cliente), o subset tem de
-     * incluir os títulos.
+     * Nome do negócio e título de cada página interna. Em fonte subsetada, o subset
+     * PRECISA incluir esses títulos, não só o wordmark.
      */
     display: string;
-    /** Todo o resto do texto. */
     body: string;
+    displayWeight: string;
+    /** `letter-spacing` dos títulos. Negativo aperta, como no protótipo. */
+    displayTracking: string;
   };
 
   radius: {
@@ -61,11 +54,8 @@ export interface ThemeTokens {
     card: string;
     avatar: string;
     /**
-     * Campo de formulário e peças pequenas selecionáveis.
-     *
-     * Separado de `card` porque num tema de canto muito redondo (o pill de 999px,
-     * por exemplo) uma caixa de texto com o mesmo raio vira uma
-     * cápsula e deixa de parecer campo.
+     * Campo de formulário e peças pequenas selecionáveis. Separado de `card` porque, com
+     * raio de pill (999px), uma caixa de texto vira cápsula e deixa de parecer campo.
      */
     field: string;
   };
@@ -76,12 +66,8 @@ export interface ThemeTokens {
   };
 
   /**
-   * Botão comum (sem `emphasis: 'primary'`).
-   *
-   * Os valores podem referenciar outros tokens — ex.
-   * `background: 'var(--site-color-brand-soft)'` — porque todos viram custom
-   * properties no mesmo elemento. É assim que se alterna entre cartão branco,
-   * preenchido suave e só contorno, sem enum e sem tocar no componente.
+   * Botão comum (sem `emphasis: 'primary'`). Aceita outros tokens, ex.
+   * `'var(--site-color-brand-soft)'`: todos viram custom properties no mesmo elemento.
    */
   button: {
     background: string;
@@ -92,16 +78,8 @@ export interface ThemeTokens {
     minHeight: string;
 
     /**
-     * Moldura do botão PRINCIPAL: preenchimento, respiro, e fio em volta.
-     *
-     * Serve a marcas cujo botão não é um retângulo cheio, e sim um cheio com um
-     * fio afastado dele — é o CTA de algumas artes de marca. O respiro é
-     * desenhado como borda (na cor de quem está atrás) e o fio como sombra
-     * externa, então nada muda de tamanho na tela.
-     *
-     * Padrão inerte: o respiro é a borda invisível que o botão já tinha, e o
-     * fio tem espessura zero. Tema que não declara nada continua com botão
-     * chapado.
+     * Moldura do botão PRINCIPAL: respiro desenhado como borda e fio como sombra externa,
+     * então nada muda de tamanho. Padrão inerte: respiro = borda invisível, fio zero.
      */
     ringGap: string;
     /** Cor do respiro. Normalmente o que está ATRÁS do botão. */
@@ -114,17 +92,12 @@ export interface ThemeTokens {
     pageInline: string;
     /** Espaço vertical entre blocos. */
     stack: string;
-    /** Largura máxima da coluna no desktop. */
     maxWidth: string;
   };
 
   /**
-   * Marca gráfica da identidade, onde a lista precisa de um separador.
-   *
-   * É uma FORMA, não um caractere: um `clip-path` desenhado sobre um quadrado
-   * na cor da marca. Glifo dependeria de a fonte do corpo ter aquele símbolo, e
-   * um coração ou uma estrela que faltasse cairia no emoji colorido do sistema
-   * — que estoura a paleta inteira.
+   * Separador de lista como FORMA (`clip-path` sobre um quadrado), NÃO caractere: glifo que
+   * faltasse na fonte cairia no emoji colorido do sistema e estouraria a paleta.
    */
   ornament: {
     /** `clip-path` da marca. `circle(50%)` dá o ponto de sempre. */
@@ -134,21 +107,40 @@ export interface ThemeTokens {
   };
 
   /**
-   * Painel da dona do negócio. O site público não usa.
-   *
-   * Cada cor de estado tem a forte (ícone, barra) e a suave (fundo do selo). O
-   * texto por cima das duas é `color.text`: confira o contraste ao trocar.
+   * Cores de apoio, para alerta e detalhe; a ação principal é sempre `brand`. Texto sobre a
+   * forte e a `Soft` é `color.text`. A `Deep` é para TEXTO colorido: contraste mínimo de 4.5:1.
+   */
+  accent: {
+    yellow: string;
+    yellowSoft: string;
+    yellowDeep: string;
+    pink: string;
+    pinkSoft: string;
+    pinkDeep: string;
+    blue: string;
+    blueSoft: string;
+    blueDeep: string;
+    green: string;
+    greenDeep: string;
+  };
+
+  /**
+   * Só o painel usa. Cada estado tem a forte (ícone, barra) e a suave (fundo do selo);
+   * o texto por cima das duas é `color.text`: confira o contraste ao trocar.
    */
   panel: {
     /** Fundo da área de conteúdo. */
     background: string;
-    /** Menu lateral. */
     sidebar: string;
     onSidebar: string;
     /** Texto secundário no menu. Contraste mínimo de 4.5:1. */
     onSidebarMuted: string;
-    /** Item ativo e botão de recolher. */
+    /** Ícone do item ativo. */
     sidebarAccent: string;
+    /** Fundo do item ativo e do cartão de ajuda. */
+    sidebarActive: string;
+    /** Linha da hora atual na grade da semana. */
+    now: string;
     /** Confirmado, faturamento. */
     info: string;
     infoSoft: string;
@@ -164,7 +156,7 @@ export interface ThemeTokens {
   };
 }
 
-/** Tema parcial. `defineTheme()` completa o resto a partir do base. */
+/** `defineTheme()` completa o resto a partir do base. */
 export type ThemeOverrides = {
   [K in keyof ThemeTokens]?: Partial<ThemeTokens[K]>;
 };

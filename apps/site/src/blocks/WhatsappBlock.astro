@@ -4,11 +4,8 @@ import { whatsappUrl } from '@/lib/links';
 import type { WhatsappBlock } from '@/types/blocks';
 
 /**
- * Bloco de WhatsApp.
- *
- * Existe como tipo próprio porque a URL é DERIVADA (telefone + mensagem
- * pré-preenchida). Quem edita a configuração escreve o telefone, não uma
- * URL `wa.me` montada à mão.
+ * Bloco de WhatsApp. Tipo próprio porque a URL é DERIVADA (telefone + mensagem):
+ * quem edita a configuração escreve o telefone, não uma URL `wa.me` montada à mão.
  */
 
 interface Props {

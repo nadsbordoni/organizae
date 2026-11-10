@@ -4,13 +4,8 @@ import { resolveSocial } from '@/lib/links';
 import type { SocialsBlock } from '@/types/blocks';
 
 /**
- * Linha de redes sociais.
- *
- * Estrutura própria (linha horizontal de alvos redondos) em vez de botões
- * empilhados. URL, ícone e rótulo acessível são derivados do handle —
+ * Linha de redes sociais. URL, ícone e rótulo acessível são derivados do handle:
  * a configuração só informa a rede e o @.
- *
- * O botão em si é o `IconButton`, o mesmo do "voltar" das páginas internas.
  */
 
 interface Props {
@@ -19,7 +14,6 @@ interface Props {
 
 const { block }: Props = Astro.props;
 const socials = block.items
-  // Rede escondida some da linha sem deixar buraco no espaçamento.
   .filter((item) => !item.hidden)
   .map((item) => resolveSocial(item.network, item.handle, item.href));
 ---
@@ -59,7 +53,6 @@ const socials = block.items
     color: var(--site-color-text-muted);
   }
 
-  /* Só afasta os ícones quando existe texto acima deles. */
   .socials-block__title + .socials,
   .socials-block__subtitle + .socials {
     margin-top: 10px;

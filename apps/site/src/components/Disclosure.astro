@@ -1,9 +1,7 @@
 ---
 /**
- * Aviso de publicidade, no fim da página que tem link de afiliado.
- *
- * Componente próprio para que home e coleção mostrem o MESMO aviso — em duas
- * cópias de CSS, uma delas envelhece sozinha.
+ * Aviso de publicidade no fim da página com link de afiliado. Componente próprio
+ * para home e coleção mostrarem o MESMO aviso.
  */
 
 interface Props {
@@ -16,16 +14,15 @@ const { text }: Props = Astro.props;
 <p class="disclosure">{text}</p>
 
 <style>
-  /* Discreto, mas legível: a lei pede que a publicidade seja identificada
-     "fácil e imediatamente" (CDC art. 36), e não que tenha destaque. Sem
-     caixa, sem fundo — só a palavra "Publicidade" abrindo a frase. */
+  /* Discreto, mas legível: o CDC (art. 36) pede publicidade identificável "fácil e
+     imediatamente", não com destaque. */
   .disclosure {
     margin: 20px 0 0;
     font-size: 0.75rem;
     line-height: 1.5;
     text-align: center;
     text-wrap: pretty;
+    /* SEM opacidade: o cinza do tema já está no limite de 4.5:1. */
     color: var(--site-color-text-muted);
-    opacity: 0.85;
   }
 </style>

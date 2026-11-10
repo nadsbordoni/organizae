@@ -4,11 +4,9 @@ import { linkAttrs } from '@/lib/links';
 import type { IconName } from '@/types/blocks';
 
 /**
- * Botão de link — o primitivo visual da página.
- *
- * Vários tipos de bloco (link, whatsapp, e futuros) renderizam através
- * daqui. Concentrar a aparência num único componente é o que faz "adicionar
- * um tipo de bloco" custar quase nada.
+ * Botão de link, o primitivo visual da página: vários tipos de bloco renderizam por aqui.
+ * Dois desenhos, como no protótipo: o principal é cheio e centrado; o comum tem o ícone num
+ * quadradinho cuja cor vem de `--tone-soft`, que a `BlockList` alterna.
  */
 
 interface Props {
@@ -22,7 +20,6 @@ interface Props {
   external?: boolean;
   /** Link que dá comissão. Acrescenta `sponsored` ao `rel`. */
   affiliate?: boolean;
-  /** Rótulo para leitores de tela quando o título visível não basta. */
   ariaLabel?: string;
 }
 
@@ -38,59 +35,62 @@ const {
   ariaLabel,
 } = Astro.props;
 
-// Miniatura ocupa mais espaço e desequilibra a centralização, então
-// nesse caso o texto vai para a esquerda.
-const layout = image ? 'start' : 'center';
+const primary = emphasis === 'primary';
 ---
 
 <a
   class="btn"
   href={href}
   data-emphasis={emphasis}
-  data-layout={layout}
   aria-label={ariaLabel}
   {...linkAttrs({ href, external, affiliate })}
 >
-  <span class="btn__lead">
-    {image && <img src={image.src} alt={image.alt} width="48" height="48" loading="lazy" decoding="async" />}
-    {!image && icon && <Icon name={icon} size={22} />}
-  </span>
+  {
+    !primary && (
+      <span class="btn__lead" aria-hidden="true">
+        {image ? (
+          <img src={image.src} alt={image.alt} width="40" height="40" loading="lazy" decoding="async" />
+        ) : (
+          icon && <Icon name={icon} size={18} />
+        )}
+      </span>
+    )
+  }
 
   <span class="btn__text">
-    <span class="btn__title">{title}</span>
+    <span class="btn__title">
+      {title}
+      {primary && icon && <Icon name={icon} size={18} />}
+    </span>
     {subtitle && <span class="btn__subtitle">{subtitle}</span>}
   </span>
 
-  <span class="btn__trail" aria-hidden="true">
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <path d="m6 3.5 5 4.5-5 4.5" />
-    </svg>
-  </span>
+  {
+    !primary && (
+      <span class="btn__trail" aria-hidden="true">
+        <Icon name="chevron-right" size={18} />
+      </span>
+    )
+  }
 </a>
 
 <style>
   .btn {
     display: grid;
-    /* Slots laterais de largura igual mantêm o texto no centro óptico. */
-    grid-template-columns: var(--lead-size) 1fr var(--lead-size);
     align-items: center;
-    gap: 12px;
-
-    --lead-size: 26px;
+    gap: 14px;
 
     min-height: var(--site-button-min-height);
-    padding: 12px 18px;
     border-radius: var(--site-radius-button);
-    border: 1.5px solid transparent;
+    border: 1px solid transparent;
 
-    /* O fio da moldura entra como PRIMEIRA sombra, e por isso mora numa
-       variável: `:hover` e `:active` trocam o relevo e apagariam o fio se cada
-       um redeclarasse a lista de sombras do zero. */
+    /* O fio da moldura é a PRIMEIRA sombra e mora numa variável: `:hover` e `:active`
+       apagariam o fio se redeclarassem a lista de sombras do zero. */
     --btn-ring: 0 0 0 0 transparent;
     box-shadow: var(--btn-ring), var(--site-shadow-resting);
 
     text-decoration: none;
-    /* Evita realce cinza de toque no iOS; temos estado :active próprio. */
+    /* Evita o realce cinza de toque no iOS; temos estado :active próprio. */
     -webkit-tap-highlight-color: transparent;
 
     transition:
@@ -99,23 +99,90 @@ const layout = image ? 'start' : 'center';
       background-color 0.16s ease;
   }
 
-  /* Aparência do botão comum: vem toda do tema, nada fixo aqui. */
   .btn[data-emphasis='default'] {
+    grid-template-columns: 40px 1fr 18px;
+    padding: 13px 16px 13px 13px;
     background: var(--site-button-background);
     color: var(--site-button-color);
     border-color: var(--site-button-border-color);
+    text-align: left;
+  }
+
+  .btn__lead {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--tone-soft, var(--site-accent-yellow-soft));
+    color: var(--site-color-text);
+    overflow: hidden;
+  }
+
+  .btn__lead:empty {
+    /* Esconde mas mantém a coluna: o texto não muda de lugar entre uma linha e outra. */
+    visibility: hidden;
+  }
+
+  .btn__lead img {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+  }
+
+  .btn__trail {
+    display: flex;
+    opacity: 0.7;
   }
 
   .btn[data-emphasis='primary'] {
+    grid-template-columns: 1fr;
+    padding: 12px 20px;
+    text-align: center;
     background: var(--site-color-brand);
     color: var(--site-color-on-brand);
 
-    /* Moldura da marca: cheio, respiro na cor de quem está atrás, fio em volta.
-       Sem tema que declare, o respiro é a borda invisível que o botão já tinha e
-       o fio tem espessura zero — ver `button.ringGap` em `types/theme.ts`. */
+    /* Sem tema que declare, o respiro é a borda invisível e o fio tem espessura zero
+       (ver `button.ringGap` em `types/theme.ts`). */
     border-width: var(--site-button-ring-gap);
     border-color: var(--site-button-ring-gap-color);
     --btn-ring: 0 0 0 var(--site-button-ring-width) var(--site-button-ring-color);
+  }
+
+  /* Mesmo rótulo do botão de ação (`ActionButton`). */
+  .btn[data-emphasis='primary'] .btn__title {
+    justify-content: center;
+    font-weight: 650;
+  }
+
+  .btn__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .btn__title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 1rem;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+
+  .btn__subtitle {
+    font-size: 0.8125rem;
+    line-height: 1.35;
+    color: var(--site-color-text-muted);
+    overflow-wrap: anywhere;
+  }
+
+  /* Sobre a cor da marca o cinza não passa de 4.5:1; a cor do texto a 0.8 de opacidade passa. */
+  .btn[data-emphasis='primary'] .btn__subtitle {
+    color: inherit;
+    opacity: 0.8;
   }
 
   .btn:hover {
@@ -135,87 +202,6 @@ const layout = image ? 'start' : 'center';
   .btn:focus-visible {
     outline: 3px solid var(--site-color-brand-deep);
     outline-offset: 3px;
-  }
-
-  .btn__lead,
-  .btn__trail {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .btn__lead:empty {
-    /* Slot vazio ainda ocupa espaço, para o texto não sair do centro. */
-    visibility: hidden;
-  }
-
-  .btn__lead img {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    object-fit: cover;
-    display: block;
-  }
-
-  .btn__trail {
-    /* Seta discreta: sinaliza "leva a algum lugar" sem competir com o título. */
-    opacity: 0.45;
-  }
-
-  .btn__text {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-
-  .btn__title {
-    font-weight: 500;
-    font-size: 1.0625rem;
-    line-height: 1.3;
-    /* Quebra palavras longas em vez de gerar scroll horizontal. */
-    overflow-wrap: anywhere;
-  }
-
-  .btn__subtitle {
-    font-size: 0.8125rem;
-    line-height: 1.35;
-    /* Não baixe mais: a 0.78 sobre `surface` o contraste é ~7.6:1; abaixo
-       disso o texto pequeno cai do mínimo de 4.5:1 exigido pelo WCAG AA. */
-    opacity: 0.78;
-    overflow-wrap: anywhere;
-  }
-
-  /* Sobre a cor da marca a margem é menor — 0.88 mantém ~5.3:1. */
-  .btn[data-emphasis='primary'] .btn__subtitle {
-    opacity: 0.88;
-  }
-
-  /* --- Variações de layout ------------------------------------------- */
-
-  .btn[data-layout='center'] .btn__text {
-    text-align: center;
-    align-items: center;
-  }
-
-  .btn[data-layout='start'] {
-    --lead-size: 48px;
-    text-align: left;
-    padding: 10px 14px;
-    border-radius: var(--site-radius-card);
-  }
-
-  /* --- Telas pequenas -------------------------------------------------- */
-
-  @media (max-width: 359px) {
-    .btn {
-      padding-inline: 14px;
-      gap: 10px;
-    }
-
-    .btn__title {
-      font-size: 1rem;
-    }
   }
 
   @media (prefers-reduced-motion: reduce) {

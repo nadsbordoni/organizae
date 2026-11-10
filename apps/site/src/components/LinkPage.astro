@@ -10,11 +10,8 @@ import { resolveBlocks } from '@/lib/blocks';
 import type { SiteConfig } from '@/types/site';
 
 /**
- * A página de links, completa, a partir de uma configuração.
- *
- * Este é o ponto onde "configuração vira página". As rotas
- * (`/[slug]` e `/`) só descobrem QUAL config usar e delegam para cá —
- * por isso nenhuma rota tem markup próprio para duplicar.
+ * Página de links completa a partir de uma configuração. As rotas (`/[slug]` e `/`) só
+ * escolhem QUAL config usar e delegam para cá, sem markup próprio para duplicar.
  */
 
 interface Props {
@@ -25,12 +22,8 @@ interface Props {
 
 const { site, canonical }: Props = Astro.props;
 
-/**
- * Sem `seo.description` própria, compomos uma a partir do perfil:
- * "Especialista em Molde F1 • Unhas • Cabelo • Sobrancelhas • Depilação".
- * Juntos, o diferencial e o catálogo descrevem bem o negócio numa linha —
- * é na TELA que eles precisam estar separados, não na meta tag.
- */
+// Sem `seo.description`, compõe uma do perfil: "Especialista em Molde F1 • Unhas • Cabelo".
+// Na meta tag diferencial e catálogo vão juntos; só na TELA ficam separados.
 const descricaoAutomatica = [site.profile.headline, site.profile.services?.join(' • ')]
   .filter(Boolean)
   .join(' • ');
@@ -43,16 +36,42 @@ const seo = {
 
 assertDisclosure(site.blocks, site.disclosure, `página principal de ${site.slug}`);
 
-// Preenche o que os blocos derivam do site — destino do agendamento, horário
-// vindo da agenda. Ver `lib/blocks.ts`.
+// Preenche o que os blocos derivam do site: destino do agendamento, horário da agenda.
 const blocks = resolveBlocks(site);
 ---
 
 <SiteLayout theme={site.theme} seo={seo} canonical={canonical} noindex={site.seo?.noindex}>
-  <PageContainer as="main" id="conteudo">
-    <ProfileHeader profile={site.profile} />
-    <BlockList blocks={blocks} />
-    {site.disclosure && <Disclosure text={site.disclosure} />}
-    <Footer note={site.footerNote} siteName={site.profile.name} />
-  </PageContainer>
+  <div class="backdrop">
+    <PageContainer as="main" id="conteudo">
+      <div class="card">
+        <ProfileHeader profile={site.profile} />
+        <BlockList blocks={blocks} />
+        {site.disclosure && <Disclosure text={site.disclosure} />}
+        <Footer note={site.footerNote} />
+      </div>
+    </PageContainer>
+  </div>
 </SiteLayout>
+
+<style>
+  .backdrop {
+    min-height: 100svh;
+    background:
+      radial-gradient(circle at 12% 6%, color-mix(in srgb, var(--site-accent-pink-soft) 55%, transparent) 0, transparent 34rem),
+      radial-gradient(circle at 88% 78%, color-mix(in srgb, var(--site-accent-blue-soft) 55%, transparent) 0, transparent 34rem);
+  }
+
+  .card {
+    padding: 48px 48px 40px;
+    border-radius: 32px;
+    background: var(--site-color-surface);
+    box-shadow: 0 24px 60px rgba(60, 45, 25, 0.08);
+  }
+
+  @media (max-width: 520px) {
+    .card {
+      padding: 32px 20px 28px;
+      border-radius: 24px;
+    }
+  }
+</style>

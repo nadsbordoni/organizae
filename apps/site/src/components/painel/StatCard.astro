@@ -1,0 +1,66 @@
+---
+/** Um número do resumo da Visão geral, com o semicírculo decorativo no canto. */
+interface Props {
+  label: string;
+  value: string;
+  note?: string;
+  tone: 'pink' | 'yellow' | 'blue' | 'green';
+}
+
+const { label, value, note, tone } = Astro.props;
+---
+
+<article class="stat" style={`--tone: var(--site-accent-${tone}-deep)`}>
+  <p class="stat__label">{label}</p>
+  <p class="stat__value">{value}</p>
+  {note && <p class="stat__note">{note}</p>}
+</article>
+
+<style>
+  .stat {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 24px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    overflow: hidden;
+  }
+
+  /* 12% da cor escura sobre o fundo: é o tom medido nos quatro cartões. */
+  .stat::after {
+    content: '';
+    position: absolute;
+    right: -30px;
+    bottom: -46px;
+    width: 116px;
+    height: 116px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--tone) 12%, var(--site-panel-background));
+  }
+
+  .stat__label {
+    font-size: 0.8125rem;
+    font-weight: 400;
+    color: var(--site-color-text-muted);
+  }
+
+  .stat__value {
+    margin-top: 14px;
+    font-family: var(--site-font-display);
+    font-size: 1.875rem;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    color: var(--tone);
+  }
+
+  .stat__note {
+    position: relative;
+    z-index: 1;
+    margin-top: 8px;
+    font-size: 0.875rem;
+    color: var(--site-color-text-muted);
+  }
+</style>

@@ -1,9 +1,8 @@
 import type { ThemeTokens } from '@/types/theme';
 
 /**
- * Tokens do tema → CSS custom properties, aplicadas no elemento raiz.
- * `color.brand` vira `--site-color-brand`. Trocar de tema não custa JavaScript
- * em runtime, só valores diferentes num atributo `style` gerado no build.
+ * `color.brand` vira `--site-color-brand`, no `style` do elemento raiz. Gerado no
+ * build: trocar de tema não custa JavaScript em runtime.
  */
 export function toCssVars(theme: ThemeTokens): string {
   const declarations: string[] = [];

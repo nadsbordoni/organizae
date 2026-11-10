@@ -1,20 +1,7 @@
 /**
- * Garante que o package-lock.json aponte para o registro público do npm.
- *
- * POR QUE ISSO EXISTE: quando o npm está configurado para um espelho privado
- * (comum em rede corporativa), `npm install` grava no lockfile a URL do
- * espelho, não a pública. Aí o build em CI externo falha com `ENOTFOUND`,
- * porque aquele host não existe fora daquela rede — e o erro não menciona
- * lockfile nenhum, o que torna o diagnóstico demorado.
- *
- * Rode depois de QUALQUER mudança de dependência: `npm run lockfile:publico`
- *
- * Com `--check` não escreve nada, só falha se achar URL fora do registro
- * público. É assim que o `npm run build` avisa antes do push — o próximo
- * `npm install` reintroduz o problema silenciosamente.
- *
- * Os `integrity` não mudam: é o mesmo tarball, servido de outro endereço. Se
- * algum não bater, o `npm ci` falha na verificação — alto e claro, não calado.
+ * Aponta o package-lock.json para o registro público: espelho privado grava a própria URL
+ * e o CI externo falha com `ENOTFOUND`. Rode após QUALQUER mudança de dependência;
+ * `--check` só valida (usado no build). Os `integrity` não mudam: é o mesmo tarball.
  */
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -33,16 +20,14 @@ for (const [caminho, pacote] of Object.entries(lock.packages ?? {})) {
   if (!resolved?.startsWith('https://') || !resolved.endsWith('.tgz')) continue;
   if (new URL(resolved).host === HOST_PUBLICO) continue;
 
-  // O nome vem do último segmento `node_modules/` da chave, e não da URL do
-  // espelho — cada espelho prefixa o caminho de um jeito diferente.
+  // Nome tirado da chave, não da URL: cada espelho prefixa o caminho de um jeito.
   const nome = caminho.split('node_modules/').pop();
   if (!nome || !version) {
     forasteiros.push({ caminho, resolved, corrigivel: false });
     continue;
   }
 
-  // Em pacote com escopo, o arquivo não repete o escopo:
-  // @astrojs/check -> @astrojs/check/-/check-0.9.10.tgz
+  // Com escopo, o arquivo não repete o escopo: @astrojs/check/-/check-0.9.10.tgz
   const arquivo = `${nome.split('/').pop()}-${version}.tgz`;
   forasteiros.push({ caminho, resolved, url: `${PUBLICO}/${nome}/-/${arquivo}` });
 }

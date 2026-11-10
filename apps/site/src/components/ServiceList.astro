@@ -1,10 +1,7 @@
 ---
 /**
- * `<ul>` de verdade (o leitor de tela anuncia "lista de 4 itens") que flui
- * visualmente como uma linha.
- *
- * NÃO parece clicável de propósito: sem chip, sem pílula com fundo. Numa página
- * em que quase tudo é botão, algo com cara de botão que não responde frustra.
+ * `<ul>` de verdade (o leitor de tela anuncia "lista de 4 itens") que flui como uma linha.
+ * NÃO parece clicável de propósito: numa página quase toda de botões, cara de botão que não responde frustra.
  */
 
 interface Props {
@@ -24,33 +21,28 @@ const { items }: Props = Astro.props;
     flex-wrap: wrap;
     justify-content: center;
     align-items: baseline;
-    gap: 2px 10px;
+    /* Mesmo vão dos dois lados do separador, para ele ficar no meio. */
+    gap: 4px 13px;
 
     list-style: none;
     margin: 0;
     padding: 0;
 
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
     line-height: 1.5;
-    color: var(--site-color-text-muted);
+    color: var(--site-color-text);
   }
 
   .services li {
     display: flex;
     align-items: baseline;
-    gap: 10px;
+    gap: 13px;
   }
 
-  /* Separador entre itens. É uma FORMA recortada de um quadrado, não um
-     caractere: um glifo dependeria de a fonte do corpo ter aquele símbolo, e o
-     que faltasse cairia no emoji colorido do sistema, fora da paleta. A forma
-     vem do tema (`ornament.separator`) — ponto por padrão, estrela de quatro
-     pontas em alguns temas.
-
-     `content: ''` garante a caixa em qualquer navegador; a segunda declaração
-     define texto alternativo vazio, para o leitor de tela não anunciar a marca a
-     cada serviço, e só é entendida por Safari 17.4+, Chrome 77+ e Firefox 122+.
-     Quem não entende ignora a segunda e fica com a primeira. */
+  /* FORMA do tema (`ornament.separator`), não glifo: sem o glifo na fonte, cairia no emoji do sistema.
+     O 2º `content` zera o texto alternativo (o leitor de tela não anuncia a marca a cada serviço);
+     navegador que não o entende (antes de Safari 17.4, Firefox 122) fica com o 1º. */
   .services li:not(:last-child)::after {
     content: '';
     content: '' / '';
@@ -62,16 +54,5 @@ const { items }: Props = Astro.props;
     clip-path: var(--site-ornament-separator);
     background: var(--site-color-brand);
     opacity: 0.55;
-  }
-
-  @media (max-width: 359px) {
-    .services {
-      font-size: 0.8125rem;
-      gap: 2px 8px;
-    }
-
-    .services li {
-      gap: 8px;
-    }
   }
 </style>

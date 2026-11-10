@@ -3,25 +3,17 @@ import Icon from './Icon.astro';
 import type { IconName } from '@/types/blocks';
 
 /**
- * Tela sem conteúdo: nenhum horário livre, erro ao enviar, nada encontrado.
- *
- * Componente próprio porque estado vazio mal feito é onde a pessoa desiste. As
- * três partes são obrigatórias na prática: o que aconteceu (`title`), por que
- * (`text`) e o que fazer agora — que vem pelo `<slot>`, quase sempre um caminho
- * alternativo de contato.
+ * Tela sem conteúdo: nenhum horário livre, erro ao enviar, nada encontrado. Estado vazio mal feito
+ * é onde a pessoa desiste: diga o que aconteceu (`title`), por quê (`text`) e o que fazer (`<slot>`).
  */
 
 interface Props {
   icon: IconName;
   title: string;
   text?: string;
-  /**
-   * `alert` para o que deu errado do nosso lado. `neutral` para o que
-   * simplesmente não existe — dia cheio não é falha de ninguém, e pintar de
-   * vermelho faria parecer que é.
-   */
+  /** `alert`: erro do nosso lado. `neutral`: dia cheio não é falha, e vermelho faria parecer. */
   tone?: 'neutral' | 'alert';
-  /** Nível do título. 3 quando o estado vazio mora dentro de uma seção com `<h2>`. */
+  /** 3 quando o estado vazio mora dentro de uma seção com `<h2>`. */
   level?: 2 | 3;
 }
 
@@ -70,9 +62,7 @@ const Heading = level === 3 ? 'h3' : 'h2';
     color: var(--site-color-brand);
   }
 
-  /* No erro o círculo enche: o contorno some e o ícone vira vazado. É o único
-     sinal de gravidade da peça, e ele não depende só de cor — o ícone de alerta
-     é diferente do ícone do estado neutro. */
+  /* Único sinal de gravidade da peça, e não depende só de cor: o ícone de alerta também é outro. */
   .empty[data-tone='alert'] .empty__icon {
     background: var(--site-color-brand);
     color: var(--site-color-on-brand);
@@ -102,7 +92,6 @@ const Heading = level === 3 ? 'h3' : 'h2';
     margin-top: 20px;
   }
 
-  /* Sem ação, o espaço de 20px acima sobraria no rodapé do cartão. */
   .empty__actions:empty {
     display: none;
   }

@@ -4,11 +4,8 @@ import { sites } from '@/config';
 import type { SiteConfig } from '@/types/site';
 
 /**
- * Rota de uma página de links: `/{slug}`.
- *
- * `getStaticPaths` gera um HTML por cliente no build — é o que faz cada
- * página ter seu próprio título e sua própria imagem de preview no
- * WhatsApp/Instagram, em vez de todas compartilharem o mesmo <head>.
+ * Página de links `/{slug}`. Um HTML por cliente no build, para cada página ter título
+ * e imagem de preview próprios no WhatsApp/Instagram.
  */
 export function getStaticPaths() {
   return sites.map((site) => ({

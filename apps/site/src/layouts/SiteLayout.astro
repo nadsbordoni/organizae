@@ -1,5 +1,5 @@
 ---
-import '@fontsource-variable/jost/wght.css';
+import '@fontsource-variable/dm-sans/opsz.css';
 import '@/styles/global.css';
 
 import { toCssVars } from '@/themes/toCssVars';
@@ -7,14 +7,8 @@ import type { ThemeTokens } from '@/types/theme';
 import type { SiteSeo } from '@/types/site';
 
 /**
- * Casca de uma página: <head> completo e tema aplicado.
- *
- * O tema entra como CSS custom properties no <html>, então trocar de cliente
- * não custa nenhum JavaScript em runtime — só valores diferentes num atributo
- * `style` gerado no build.
- *
- * Sobre as fontes: a Jost cobre todo o texto. Um cliente com fonte de marca
- * declara o próprio `@font-face` e aponta para ela no tema.
+ * Casca de uma página: <head> completo e o tema como CSS custom properties no <html>, gerado
+ * no build (trocar de cliente não custa JS). Cliente com fonte de marca declara o próprio `@font-face`.
  */
 
 interface Props {
@@ -22,21 +16,13 @@ interface Props {
   seo: Required<Pick<SiteSeo, 'title' | 'description'>> & SiteSeo;
   /** URL canônica absoluta. */
   canonical?: string;
-  /** `noindex` para páginas que não devem aparecer em busca. */
   noindex?: boolean;
 }
 
 const { theme, seo, canonical, noindex = false } = Astro.props;
 
-/**
- * O `site` do astro.config.mjs é o que transforma caminho em URL absoluta no
- * canonical e na imagem de Open Graph. Publicar com o placeholder faz o
- * preview no WhatsApp e no Instagram sair sem imagem — o canal que mais
- * importa para um link na bio. Por isso o build de produção FALHA em vez de
- * avisar. Em `npm run dev` não atrapalha.
- */
-// `/i` é obrigatório: `new URL()` minúscula o host, então 'SEU-USUARIO'
-// chega aqui como 'seu-usuario'.
+// O build de produção FALHA com `site` placeholder: sem ele o preview no WhatsApp e no Instagram
+// sai sem imagem. O `/i` é obrigatório: `new URL()` minúscula o host ('SEU-USUARIO' chega como 'seu-usuario').
 if (import.meta.env.PROD && (!Astro.site || /seu-usuario|example\.com|localhost/i.test(Astro.site.href))) {
   throw new Error(
     'astro.config.mjs: `site` ainda é placeholder. Preencha com o domínio real — ' +
@@ -62,12 +48,10 @@ const ogImageUrl = seo.ogImage
     <link rel="canonical" href={canonicalUrl} />
     {noindex && <meta name="robots" content="noindex, follow" />}
 
-    <!-- Pinta a barra do navegador na cor da página no Android/Chrome. -->
     <meta name="theme-color" content={theme.background.pageSolid} />
 
-    {seo.favicon && <link rel="icon" href={seo.favicon} />}
+    <link rel="icon" href={seo.favicon ?? '/marca/icone.svg'} />
 
-    <!-- Preview de compartilhamento (WhatsApp, Instagram, Facebook). -->
     <meta property="og:type" content="website" />
     <meta property="og:title" content={seo.title} />
     <meta property="og:description" content={seo.description} />

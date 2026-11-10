@@ -1,13 +1,12 @@
-import { formatPrice, parsePrice, toClock, toMinutes } from './agenda';
+import { WEEKDAYS, addDays, formatPrice, freeWindows, parsePrice, scheduleFor, toClock, toMinutes, weekdayOf } from './agenda';
 import type { AppointmentStatus } from './dashboard-status';
 import type { IconName } from '@/types/blocks';
 import type { Agenda, IsoDate } from '@/types/agenda';
 import type { AppointmentRow } from '@/types/painel';
 
-/** Cor de estado do painel. Cada uma vira `--site-panel-<tom>` no tema. */
+/** Cada tom vira `--site-panel-<tom>` no tema. */
 export type PanelTone = 'info' | 'positive' | 'attention' | 'danger';
 
-/** Como cada situação aparece no selo. */
 export const STATUS_BADGE: Record<AppointmentStatus, { label: string; tone: PanelTone; icon: IconName }> = {
   pending: { label: 'A confirmar', tone: 'attention', icon: 'clock' },
   confirmed: { label: 'Confirmado', tone: 'info', icon: 'check-circle' },
@@ -23,7 +22,7 @@ export function greeting(minutes: number): string {
   return 'Boa noite';
 }
 
-/** Primeiro nome, ou nada. E-mail digitado no lugar do nome não vira saudação. */
+/** `undefined` se vazio, ou se for e-mail digitado no lugar do nome. */
 export function firstName(name: string | undefined): string | undefined {
   const first = name?.trim().split(/\s+/)[0];
   return first && !first.includes('@') ? first : undefined;
@@ -36,18 +35,15 @@ export function initials(name: string): string {
   return (words[0] ?? '?').slice(0, 2).toUpperCase();
 }
 
-/** Tom estável por nome: a mesma cliente tem sempre a mesma cor de iniciais. */
-export function toneFor(name: string): PanelTone {
-  const tones: PanelTone[] = ['positive', 'info', 'attention'];
+/** Hash do nome: a mesma cliente tem sempre a mesma cor de iniciais. */
+export function toneFor(name: string): 'pink-soft' | 'yellow-soft' | 'blue-soft' | 'green' {
+  const tones = ['pink-soft', 'yellow-soft', 'blue-soft', 'green'] as const;
   let hash = 0;
   for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
   return tones[hash % tones.length]!;
 }
 
-/*
- * Datas por extenso. `timeZone: 'UTC'` porque a data já vem na hora de parede
- * do negócio: converter de novo deslocaria o dia.
- */
+// `timeZone: 'UTC'`: a data já vem na hora de parede do negócio, e converter de novo deslocaria o dia.
 const at = (date: IsoDate) => new Date(`${date}T12:00:00Z`);
 const capitalize = (text: string) => `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
 
@@ -63,12 +59,16 @@ export function monthLabel(date: IsoDate): string {
   return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(at(date));
 }
 
+/** '18 de junho de 2025'. */
+export function longDateLabel(date: IsoDate): string {
+  return new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(at(date));
+}
+
 /** '28 set.' */
 export function shortDayLabel(date: IsoDate): string {
   return new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(at(date));
 }
 
-/** Fim de um atendimento. */
 export function endTime(row: Pick<AppointmentRow, 'start_time' | 'duration_min'>): string {
   return toClock(toMinutes(row.start_time) + row.duration_min);
 }
@@ -82,7 +82,7 @@ function serviceIds(row: AppointmentRow): string[] | undefined {
   }
 }
 
-/** Nomes dos serviços. Id órfão (serviço tirado do catálogo) aparece como id: melhor que sumir. */
+/** Id órfão (serviço tirado do catálogo) aparece como id, em vez de sumir. */
 export function serviceNames(row: AppointmentRow, agenda: Agenda | undefined): string {
   const ids = serviceIds(row);
   if (!ids) return 'Serviço não identificado';
@@ -94,11 +94,7 @@ export function serviceNames(row: AppointmentRow, agenda: Agenda | undefined): s
   return ids.map((id) => names.get(id) ?? id).join(' + ');
 }
 
-/**
- * Soma dos preços do catálogo nos atendimentos dados. `undefined` se algum
- * serviço não tem preço legível: total errado que parece completo é pior que
- * nenhum total.
- */
+/** `undefined` se algum serviço não tem preço legível: total errado que parece completo é pior que nenhum. */
 export function catalogTotal(rows: AppointmentRow[], agenda: Agenda | undefined): string | undefined {
   const prices = new Map(
     (agenda?.categories ?? []).flatMap((category) =>
@@ -122,4 +118,83 @@ export function catalogTotal(rows: AppointmentRow[], agenda: Agenda | undefined)
 /** 'R$ 8.460,00' → 'R$ 8.460': no resumo os centavos redondos só ocupam espaço. */
 export function compactPrice(text: string): string {
   return text.replace(/,00$/, '');
+}
+
+/** De domingo a sábado. */
+export function weekOf(date: IsoDate): IsoDate[] {
+  const sunday = addDays(date, -WEEKDAYS.indexOf(weekdayOf(date)));
+  return WEEKDAYS.map((_, offset) => addDays(sunday, offset));
+}
+
+/** '8 – 14 nov' ou '29 nov – 5 dez'. */
+export function weekRangeLabel(first: IsoDate, last: IsoDate): string {
+  const month = (date: IsoDate) =>
+    new Intl.DateTimeFormat('pt-BR', { month: 'short', timeZone: 'UTC' }).format(at(date)).replace('.', '');
+  const day = (date: IsoDate) => Number(date.slice(8, 10));
+  return month(first) === month(last)
+    ? `${day(first)} – ${day(last)} ${month(last)}`
+    : `${day(first)} ${month(first)} – ${day(last)} ${month(last)}`;
+}
+
+/** '9 — 14 de novembro de 2026', ou '30 de novembro — 5 de dezembro de 2026'. */
+export function weekRangeLongLabel(first: IsoDate, last: IsoDate): string {
+  const parts = (date: IsoDate) =>
+    new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+      .formatToParts(at(date))
+      .reduce<Record<string, string>>((acc, part) => ({ ...acc, [part.type]: part.value }), {});
+  const a = parts(first);
+  const b = parts(last);
+  return a.month === b.month
+    ? `${a.day} — ${b.day} de ${b.month} de ${b.year}`
+    : `${a.day} de ${a.month} — ${b.day} de ${b.month} de ${b.year}`;
+}
+
+/** 'Seg', 'Ter'… */
+export function shortWeekday(date: IsoDate): string {
+  const name = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', timeZone: 'UTC' }).format(at(date));
+  return capitalize(name.replace('.', ''));
+}
+
+/** Fração do expediente ocupada, de 0 a 1. `undefined` com o dia fechado: fechado NÃO é vazio. */
+export function dayLoad(
+  agenda: Agenda | undefined,
+  date: IsoDate,
+  rows: Array<Pick<AppointmentRow, 'start_time' | 'duration_min'>>,
+): number | undefined {
+  const hours = agenda ? scheduleFor(agenda, date).hours : null;
+  if (!hours) return undefined;
+
+  const minutes = (windows: Array<[number, number]>) =>
+    windows.reduce((sum, [start, end]) => sum + (end - start), 0);
+  const open = minutes(freeWindows(hours));
+  if (!open) return undefined;
+
+  const busy = rows.map((row) => ({ from: row.start_time, to: endTime(row) }));
+  return (open - minutes(freeWindows(hours, busy))) / open;
+}
+
+/** Resposta para conta ligada a um negócio que saiu de `config/sites/` sem mexer no banco. */
+export function tenantNotConfigured(tenantSlug: string): Response {
+  return new Response(`Conta ligada ao negócio "${tenantSlug}", que não está configurado.`, {
+    status: 500,
+    headers: { 'content-type': 'text/plain; charset=utf-8' },
+  });
+}
+
+/** Os últimos `count` meses até o de `today`, do mais antigo ao atual: `{ short: 'Dez', long: 'dezembro' }`. */
+export function lastMonths(today: IsoDate, count: number): Array<{ short: string; long: string }> {
+  const [year, month] = today.split('-').map(Number) as [number, number];
+  return Array.from({ length: count }, (_, i) => {
+    const date = new Date(Date.UTC(year, month - 1 - (count - 1 - i), 1));
+    const short = new Intl.DateTimeFormat('pt-BR', { month: 'short', timeZone: 'UTC' }).format(date);
+    const long = new Intl.DateTimeFormat('pt-BR', { month: 'long', timeZone: 'UTC' }).format(date);
+    return { short: capitalize(short.replace('.', '')), long };
+  });
+}
+
+/** '5511987650101' → '(11) 98765-0101'. Fora desse formato, devolve como veio. */
+export function formatPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  const local = digits.startsWith('55') ? digits.slice(2) : digits;
+  return /^\d{10,11}$/.test(local) ? `(${local.slice(0, 2)}) ${local.slice(2, -4)}-${local.slice(-4)}` : phone;
 }

@@ -4,15 +4,8 @@ import { mapEmbedUrl } from '@/lib/links';
 import type { LocationBlock } from '@/types/blocks';
 
 /**
- * Card de localização.
- *
- * Tem estrutura própria (endereço visível em linhas, mapa opcional) em vez de
- * ser só um botão: quem procura "como chegar" muitas vezes quer LER o
- * endereço, não abrir o mapa.
- *
- * O card NÃO é um `<a>` inteiro porque um iframe não pode viver dentro de um
- * link. O alvo clicável é a faixa do endereço, que continua com área de toque
- * de sobra.
+ * Card de localização com o endereço visível: quem procura "como chegar" muitas vezes
+ * quer LER o endereço. NÃO é um `<a>` inteiro porque iframe não pode ficar dentro de link.
  */
 
 interface Props {
@@ -22,11 +15,8 @@ interface Props {
 const { block }: Props = Astro.props;
 const { title, subtitle, address, mapsUrl, map = false, mapQuery } = block;
 
-/**
- * `map` aceita `true` (derivamos a busca do endereço) ou já a URL pronta do
- * "Incorporar um mapa" do Google — que é mais precisa, porque carrega o
- * ponto e o zoom exatos que a pessoa marcou.
- */
+// `map`: `true` deriva a busca do endereço; a URL do "Incorporar um mapa" do Google
+// é mais precisa, porque traz o ponto e o zoom exatos.
 const embedUrl =
   typeof map === 'string' ? map : map ? mapEmbedUrl(mapQuery ?? address.join(', ')) : null;
 ---
@@ -47,7 +37,7 @@ const embedUrl =
 
   <a class="loc__link" href={mapsUrl} target="_blank" rel="noopener noreferrer">
     <span class="loc__icon" aria-hidden="true">
-      <Icon name="pin" size={22} />
+      <Icon name="pin" size={18} />
     </span>
 
     <span class="loc__body">
@@ -59,26 +49,22 @@ const embedUrl =
     </span>
 
     <span class="loc__trail" aria-hidden="true">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="m6 3.5 5 4.5-5 4.5" />
-      </svg>
+      <Icon name="chevron-right" size={18} />
     </span>
   </a>
 </div>
 
 <style>
   .loc {
-    border-radius: var(--site-radius-card);
-    border: 1.5px solid var(--site-color-border);
+    border-radius: var(--site-radius-button);
+    border: 1px solid var(--site-color-border-strong);
     background: var(--site-color-surface);
     box-shadow: var(--site-shadow-resting);
-    /* Recorta o mapa nos cantos arredondados do card. */
     overflow: hidden;
   }
 
   .loc__map {
-    /* Proporção fixa reserva o espaço antes do iframe chegar, evitando que a
-       página pule quando o mapa carrega. */
+    /* Reserva o espaço antes do iframe chegar, para a página não pular. */
     aspect-ratio: 16 / 10;
     background: var(--site-color-brand-soft);
   }
@@ -92,11 +78,11 @@ const embedUrl =
 
   .loc__link {
     display: grid;
-    grid-template-columns: 26px 1fr 16px;
-    align-items: start;
-    gap: 12px;
+    grid-template-columns: 40px 1fr 18px;
+    align-items: center;
+    gap: 14px;
 
-    padding: 16px 18px;
+    padding: 13px 16px 13px 13px;
     color: var(--site-color-text);
     text-decoration: none;
     -webkit-tap-highlight-color: transparent;
@@ -115,11 +101,13 @@ const embedUrl =
   }
 
   .loc__icon {
-    display: flex;
-    justify-content: center;
-    /* Alinha o ícone com a primeira linha de texto. */
-    padding-top: 2px;
-    color: var(--site-color-brand);
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--tone-soft, var(--site-accent-blue-soft));
+    color: var(--site-color-text);
   }
 
   .loc__body {
@@ -130,8 +118,8 @@ const embedUrl =
   }
 
   .loc__title {
-    font-weight: 500;
-    font-size: 1.0625rem;
+    font-weight: 600;
+    font-size: 1rem;
     line-height: 1.3;
   }
 
@@ -145,7 +133,7 @@ const embedUrl =
     display: flex;
     flex-direction: column;
     font-style: normal;
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     line-height: 1.4;
     color: var(--site-color-text-muted);
     overflow-wrap: anywhere;
@@ -154,8 +142,7 @@ const embedUrl =
   .loc__trail {
     display: flex;
     justify-content: center;
-    padding-top: 4px;
-    opacity: 0.45;
+    opacity: 0.7;
   }
 
   @media (prefers-reduced-motion: reduce) {

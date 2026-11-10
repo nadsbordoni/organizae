@@ -3,24 +3,14 @@ import type { Block } from '@/types/blocks';
 import type { SiteConfig } from '@/types/site';
 
 /**
- * Caminho do fluxo de agendamento de um site.
- *
- * ⚠️ PALAVRA RESERVADA: nenhuma coleção pode usar este slug, senão as duas rotas
- * colidiriam em `/{slug}/agendar`. A checagem está em `pages/[slug]/[collection].astro`.
+ * PALAVRA RESERVADA: nenhuma coleção pode usar este slug, senão as rotas colidem em
+ * `/{slug}/agendar`. A checagem está em `pages/[slug]/[collection].astro`.
  */
 export const BOOKING_PATH = 'agendar';
 
 /**
- * Preenche os blocos que DERIVAM da configuração do site, antes de renderizar.
- *
- * Existe para que os componentes de bloco continuem recebendo só `block`: o
- * registry de `BlockList.astro` fica uniforme, e tudo que um bloco precisa saber
- * do site inteiro é resolvido aqui, num lugar só.
- *
- * É o mesmo princípio de `lib/links.ts` — quem edita a configuração escreve o
- * mínimo, e o que dá para deduzir é deduzido. Um horário escrito à mão ao lado
- * de uma agenda estruturada vira, mais cedo ou mais tarde, dois horários
- * diferentes na mesma página.
+ * Preenche os blocos que DERIVAM da configuração do site, para os componentes receberem só `block`.
+ * Horário escrito à mão ao lado da agenda vira, cedo ou tarde, dois horários na mesma página.
  */
 export function resolveBlocks(site: SiteConfig): Block[] {
   return site.blocks.map((block) => {

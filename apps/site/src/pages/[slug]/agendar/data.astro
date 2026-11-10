@@ -9,11 +9,7 @@ import { bookingPaths } from '@/config';
 import type { SiteConfig } from '@/types/site';
 import type { Agenda } from '@/types/agenda';
 
-/**
- * Passo 2 de 3: dia e horário.
- *
- * Chegar aqui sem serviço na query volta para o passo 1 — ver `mountSchedule`.
- */
+/** Passo 2 de 3: dia e horário. Sem serviço na query, volta para o passo 1 (`mountSchedule`). */
 export const getStaticPaths = bookingPaths;
 
 interface Props {

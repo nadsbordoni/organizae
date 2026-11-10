@@ -3,25 +3,18 @@ import Icon from './Icon.astro';
 import type { IconName } from '@/types/blocks';
 
 /**
- * Opção escolhível numa lista — a peça central de qualquer catálogo de serviço.
- *
- * Um desenho, três controles, porque a diferença entre eles é de REGRA e não de
- * aparência: `chevron` avança ao toque (categoria), `radio` escolhe um
- * (pagamento, profissional), `checkbox` escolhe vários (serviços do
- * atendimento). Quem oferece corte, design de sobrancelha ou alongamento monta
- * qualquer uma das listas sem escrever markup.
- *
- * O layout é o mesmo do `LinkButton` — chegada, texto, saída — para que uma
- * lista de opções e uma lista de links não pareçam de sistemas diferentes.
+ * Opção escolhível numa lista. Um desenho, três controles, porque a diferença é de REGRA:
+ * `chevron` avança, `radio` escolhe um, `checkbox` escolhe vários. Layout igual ao do
+ * `LinkButton` para opções e links não parecerem de sistemas diferentes.
  */
 
 interface Props {
   title: string;
   description?: string;
-  /** Miniatura à esquerda. Tem precedência sobre `icon`. */
+  /** Tem precedência sobre `icon`. */
   image?: { src: string; alt: string };
   icon?: IconName;
-  /** Apoio curto abaixo do título: duração, preço. Sai separado por ponto. */
+  /** Apoio curto abaixo do título (duração, preço), separado por ponto. */
   meta?: string[];
   /** `radio` e `checkbox` exigem `name`; `radio` exige `value`. */
   control?: 'chevron' | 'radio' | 'checkbox';
@@ -29,7 +22,7 @@ interface Props {
   value?: string;
   checked?: boolean;
   disabled?: boolean;
-  /** Selo ao lado do título. Ex: 'Em breve'. */
+  /** Selo ao lado do título. Ex.: 'Em breve'. */
   badge?: string;
   /** Ganchos do script do fluxo. */
   [key: `data-${string}`]: string | undefined;
@@ -52,8 +45,7 @@ const {
 
 const isInput = control === 'radio' || control === 'checkbox';
 
-// O `<label>` só é clicável porque envolve o input; o `<button>` é o alvo em si.
-// Nos dois casos o alvo de toque é o cartão inteiro, não só o controle.
+// O cartão inteiro é o alvo de toque: o `<label>` envolve o input, o `<button>` é o próprio alvo.
 const Tag = isInput ? 'label' : 'button';
 const tagProps = isInput ? {} : { type: 'button' as const, disabled };
 ---
@@ -140,13 +132,10 @@ const tagProps = isInput ? {} : { type: 'button' as const, disabled };
       background-color 0.16s ease;
   }
 
-  /* Sem miniatura o slot de chegada encolhe para o tamanho de um ícone, em vez
-     de deixar um vão de 52px antes do texto. */
   .choice:not(:has(img)) {
     --lead-size: 26px;
   }
 
-  /* O controle tem tamanho próprio e fixo — não acompanha a miniatura. */
   .choice:has(.choice__input) {
     --lead-size: 22px;
     padding: 14px;
@@ -168,8 +157,7 @@ const tagProps = isInput ? {} : { type: 'button' as const, disabled };
     outline-offset: 3px;
   }
 
-  /* Escolhido: fundo suave e fio da marca. A cor não está sozinha — o miolo do
-     controle aparece junto, para quem não distingue o rosa do branco. */
+  /* A cor NÃO vem sozinha: o miolo do controle aparece junto, para quem não distingue o rosa do branco. */
   .choice:has(.choice__input:checked) {
     border-color: var(--site-color-brand);
     background: var(--site-color-brand-soft);
@@ -178,7 +166,7 @@ const tagProps = isInput ? {} : { type: 'button' as const, disabled };
   .choice[data-disabled] {
     cursor: not-allowed;
     box-shadow: none;
-    /* Não abaixe mais: a 0.55 o título ainda passa de 4.5:1 sobre o cartão. */
+    /* NÃO abaixe mais: a 0.55 o título ainda passa de 4.5:1 sobre o cartão. */
     opacity: 0.55;
   }
 
@@ -209,12 +197,7 @@ const tagProps = isInput ? {} : { type: 'button' as const, disabled };
     color: var(--site-color-brand);
   }
 
-  /* Controle desenhado à mão: o nativo não aceita cor de marca de forma
-     consistente entre iOS, Android e desktop. `appearance: none` desliga o
-     desenho do sistema; o resto é a caixa e o miolo.
-
-     A FORMA carrega a regra, como o usuário do sistema já espera: círculo
-     escolhe um, quadrado escolhe vários. */
+  /* Desenhado à mão: o nativo não aceita cor de marca de forma consistente entre iOS, Android e desktop. */
   .choice__input {
     appearance: none;
     -webkit-appearance: none;
@@ -261,8 +244,7 @@ const tagProps = isInput ? {} : { type: 'button' as const, disabled };
     background: var(--site-color-brand);
   }
 
-  /* O tique é desenhado com duas bordas giradas: um SVG aqui exigiria colocar
-     markup dentro do input, que não aceita filho. */
+  /* Tique com duas bordas giradas: o input não aceita filho, então não cabe um SVG. */
   .choice__input[type='checkbox']::before {
     content: '';
     width: 6px;
@@ -348,9 +330,8 @@ const tagProps = isInput ? {} : { type: 'button' as const, disabled };
       transition: none;
     }
 
-    /* Mesmo seletor das regras de hover e active acima, incluindo o `:not()`:
-       sem ele este `transform: none` perde por especificidade e o cartão continua
-       subindo para quem pediu menos movimento. */
+    /* Repete o seletor do hover/active, com o `:not()`: sem ele perde por especificidade
+       e o cartão continua subindo. */
     .choice:hover:not([data-disabled]),
     .choice:active:not([data-disabled]) {
       transform: none;

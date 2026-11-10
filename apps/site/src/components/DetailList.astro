@@ -3,20 +3,15 @@ import Icon from './Icon.astro';
 import type { IconName } from '@/types/blocks';
 
 /**
- * Lista de ícone + informação. Usada no resumo do agendamento e nas regras de
- * atendimento — as duas são a mesma coisa: uma linha curta com um símbolo que a
- * identifica de relance.
- *
- * `label` existe porque ÍCONE NÃO É RÓTULO: um leitor de tela anuncia
- * "14:00" sem dizer que aquilo é o horário. O ícone é decorativo (`aria-hidden`
- * vem do próprio `Icon`) e quem carrega o significado é o texto escondido.
+ * Lista de ícone + informação (resumo do agendamento, regras de atendimento).
+ * ÍCONE NÃO É RÓTULO: o ícone é decorativo, e o `label` escondido dá o significado ao leitor de tela.
  */
 
 export interface DetailItem {
   icon: IconName;
-  /** O valor visível. Ex: 'Quarta, 14 de Agosto de 2026'. */
+  /** Ex.: 'Quarta, 14 de Agosto de 2026'. */
   text: string;
-  /** O que o valor É, para leitores de tela. Ex: 'Data'. */
+  /** O que o valor É, para leitores de tela. Ex.: 'Data'. */
   label?: string;
   /** Gancho para o script preencher o texto depois. */
   slotName?: string;
@@ -24,7 +19,7 @@ export interface DetailItem {
 
 interface Props {
   items: DetailItem[];
-  /** Envolve num cartão. Solto, a lista serve de apoio dentro de outro cartão. */
+  /** Envolve num cartão; solto, a lista serve de apoio dentro de outro cartão. */
   boxed?: boolean;
 }
 
@@ -77,8 +72,7 @@ const { items, boxed = false }: Props = Astro.props;
 
   .details__icon {
     display: flex;
-    /* Alinha o ícone pela primeira linha do texto, não pelo topo da caixa —
-       sem isto, uma linha que quebra em duas deixa o ícone flutuando. */
+    /* Alinha pela 1ª linha do texto; sem isto, uma linha que quebra deixa o ícone flutuando. */
     align-items: center;
     justify-content: center;
     height: 1.5em;
@@ -90,8 +84,7 @@ const { items, boxed = false }: Props = Astro.props;
     overflow-wrap: anywhere;
   }
 
-  /* Um item vazio (ainda não preenchido pelo script) não deve deixar linha em
-     branco no meio da lista. */
+  /* Item ainda não preenchido pelo script não deixa linha em branco na lista. */
   .details__row:has([data-detail]:empty) {
     display: none;
   }

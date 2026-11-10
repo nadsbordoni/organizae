@@ -10,12 +10,8 @@ import NoteBlockView from './NoteBlock.astro';
 import type { Block, BlockType } from '@/types/blocks';
 
 /**
- * Renderiza a lista de blocos de uma página.
- *
- * O REGISTRY abaixo é o único ponto que liga `type` → componente.
- * Como ele é `satisfies Record<BlockType, ...>`, adicionar um tipo em
- * `types/blocks.ts` sem registrar aqui QUEBRA O BUILD — que é exatamente
- * onde queremos descobrir o esquecimento, e não em produção.
+ * Renderiza os blocos de uma página. O REGISTRY é o único elo `type` → componente:
+ * graças ao `satisfies`, um tipo novo em `types/blocks.ts` sem registro aqui QUEBRA O BUILD.
  */
 
 interface Props {
@@ -35,16 +31,14 @@ const REGISTRY = {
 
 const { blocks } = Astro.props;
 
-// `hidden` permite tirar um bloco do ar sem apagar a configuração.
 const visible = blocks.filter((block) => !block.hidden);
 ---
 
 <div class="stack">
   {
     visible.map((block) => {
-      // O TypeScript não consegue correlacionar a chave da união com as props
-      // do componente correspondente. O `satisfies` acima já garante que o par
-      // existe; este cast só destrava a renderização.
+      // O TS não correlaciona a chave da união com as props do componente;
+      // o `satisfies` acima já garante o par, o cast só destrava a renderização.
       const Component = REGISTRY[block.type] as (props: { block: Block }) => unknown;
       return <Component block={block} />;
     })
@@ -56,5 +50,19 @@ const visible = blocks.filter((block) => !block.hidden);
     display: flex;
     flex-direction: column;
     gap: var(--site-space-stack);
+  }
+
+  /* Cor do quadradinho de ícone alternada a partir do 2º filho: o 1º costuma ser o
+     botão principal (sem quadradinho), então a 1ª linha comum sai amarela, como no protótipo. */
+  .stack > :global(:nth-child(3n + 2)) {
+    --tone-soft: var(--site-accent-yellow-soft);
+  }
+
+  .stack > :global(:nth-child(3n)) {
+    --tone-soft: var(--site-accent-blue-soft);
+  }
+
+  .stack > :global(:nth-child(3n + 1)) {
+    --tone-soft: var(--site-accent-pink-soft);
   }
 </style>

@@ -11,11 +11,8 @@ import type { SiteConfig } from '@/types/site';
 import type { Agenda } from '@/types/agenda';
 
 /**
- * Conclusão. Não numera passo: a pessoa já saiu do caminho.
- *
- * ⚠️ "Pedido enviado" e não "agendamento confirmado": o fluxo público ainda não
- * grava no banco, nada foi reservado e quem confirma é a pessoa do outro lado.
- * Ver README, "Agendamento".
+ * Conclusão. "Pedido enviado", e NÃO "agendamento confirmado": o fluxo público ainda não grava
+ * no banco, nada foi reservado e quem confirma é a pessoa do outro lado. Ver README, "Agendamento".
  */
 export const getStaticPaths = bookingPaths;
 

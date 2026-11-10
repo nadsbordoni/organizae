@@ -24,10 +24,8 @@ body {
   color: var(--site-color-text);
 
   background-color: var(--site-background-page-solid);
-  /* Duas camadas: o grão por cima, o gradiente por baixo. `auto` no primeiro
-     tamanho deixa o azulejo da textura valer o tamanho declarado no próprio
-     arquivo — sem isso o `cover` do gradiente esticaria o grão até virar borrão.
-     Tema sem textura declara `none` e a primeira camada não desenha nada. */
+  /* Grão por cima do gradiente. `auto` mantém o azulejo no tamanho do próprio arquivo;
+     sem ele o `cover` do gradiente esticaria o grão até virar borrão. */
   background-image: var(--site-background-texture), var(--site-background-page);
   background-repeat: repeat, no-repeat;
   background-size: auto, cover;
@@ -37,7 +35,7 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 
-  /* Requisito: nunca gerar scroll horizontal. */
+  /* Requisito: NUNCA gerar scroll horizontal. */
   overflow-x: hidden;
 }
 
@@ -48,19 +46,8 @@ picture {
   max-width: 100%;
 }
 
-/**
- * `hidden` precisa ganhar de qualquer `display` declarado no componente.
- *
- * A regra do navegador é `[hidden] { display: none }`, com a MESMA
- * especificidade de um seletor de classe — e como ela vem da folha do
- * user-agent, qualquer `.algo { display: flex }` de autor passa na frente. O
- * elemento continua marcado como escondido para leitores de tela, mas aparece
- * na tela.
- *
- * Foi exatamente o que aconteceu com os passos do agendamento e com a lista de
- * serviços: todos visíveis de uma vez. `!important` aqui não é atalho — é a
- * única forma de um atributo vencer uma classe sem inflar o seletor.
- */
+/* O `[hidden]` do navegador perde para qualquer `display` de classe do autor.
+   `!important` NÃO é atalho: é a única forma de o atributo vencer sem inflar o seletor. */
 [hidden] {
   display: none !important;
 }
@@ -90,7 +77,6 @@ a {
   color: inherit;
 }
 
-/* Conteúdo visível só para leitores de tela (ex: link "pular para o conteúdo"). */
 .sr-only {
   position: absolute;
   width: 1px;
