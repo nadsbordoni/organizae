@@ -23,6 +23,8 @@ export interface ThemeTokens {
     borderStrong: string;
     /** Sobretítulo em caixa alta acima dos títulos. Contraste mínimo de 4.5:1. */
     eyebrow: string;
+    /** Mensagem de erro de formulário. Contraste mínimo de 4.5:1. */
+    error: string;
   };
 
   background: {

@@ -1,0 +1,134 @@
+---
+import Icon from '@/components/Icon.astro';
+import AppointmentDetails from './AppointmentDetails.astro';
+import { endTime, numericDate, serviceNames } from '@/lib/painel';
+import type { Agenda } from '@/types/agenda';
+import type { AgendaNotification } from '@/types/painel';
+
+/** Um evento da agenda na tela de notificações. "Ver detalhes" abre o mesmo cartão da Agenda. */
+interface Props {
+  notification: AgendaNotification;
+  agenda?: Agenda;
+}
+
+const { notification: n, agenda } = Astro.props;
+const cancelled = n.kind === 'cancelled';
+// Como no protótipo: rosa para novo, azul para cancelado, amarelo para o que já foi lido.
+const tone = cancelled ? 'blue' : n.read ? 'yellow' : 'pink';
+const detailsId = `det-aviso-${n.id}`;
+---
+
+<article class="note" data-read={n.read ? '' : undefined} style={`--tone: var(--site-accent-${tone}-soft)`}>
+  <header class="note__head">
+    <span class="note__icon" aria-hidden="true">
+      <Icon name="calendar" size={18} />
+    </span>
+    <h3 class="note__title">{cancelled ? 'Agendamento cancelado' : 'Novo agendamento'}</h3>
+    {!n.read && <span class="note__dot" aria-hidden="true" />}
+  </header>
+
+  <p class="note__who">{n.row.client_name} · {serviceNames(n.row, agenda)}</p>
+  <p class="note__when">
+    {numericDate(n.row.date)} · {n.row.start_time} — {endTime(n.row)}
+  </p>
+  {cancelled && <span class="note__badge">Horário liberado</span>}
+  <p class="note__meta">Hoje, {n.at} · {n.read ? 'Lida' : 'Não lida'}</p>
+
+  <button class="note__link" type="button" popovertarget={detailsId}>Ver detalhes do agendamento</button>
+  <AppointmentDetails id={detailsId} row={n.row} agenda={agenda} />
+</article>
+
+<style>
+  .note {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 18px 18px 14px;
+    border-radius: 16px;
+    border: 1px solid var(--site-color-border);
+    background: var(--site-panel-background);
+  }
+
+  .note[data-read] {
+    background: var(--site-color-surface);
+  }
+
+  .note__head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    margin-bottom: 8px;
+  }
+
+  .note__icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--tone);
+  }
+
+  .note__title {
+    flex: 1;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .note__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--site-accent-pink-deep);
+  }
+
+  .note__who {
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .note__when {
+    font-size: 0.875rem;
+  }
+
+  .note__badge {
+    margin-top: 4px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--site-accent-blue-soft);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .note__meta {
+    margin-top: 6px;
+    font-size: 0.75rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .note__link {
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--site-color-text);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .note__link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .note__link:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+</style>

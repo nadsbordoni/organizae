@@ -9,8 +9,10 @@ interface Props {
   label: string;
   name?: string;
   placeholder?: string;
-  /** Ignorado quando `rows > 1`. */
+  /** Ignorado quando `rows > 1` ou com `options`. */
   type?: 'text' | 'email' | 'password' | 'tel';
+  /** Presente, vira `<select>` com estas opções. */
+  options?: string[];
   /** NÃO é detalhe: sem `current-password`, o gerenciador de senhas do iPhone não oferece preencher. */
   autocomplete?: string;
   /** Acima de 1, vira `<textarea>`. */
@@ -23,6 +25,8 @@ interface Props {
   /** Use em NO MÁXIMO um campo por tela. */
   autofocus?: boolean;
   hint?: string;
+  /** Ids de outros textos que descrevem o campo, além da dica (ex.: regras de senha). */
+  describedBy?: string;
   /** Ganchos de script, aplicados no campo em si, não no invólucro. */
   [key: `data-${string}`]: string | undefined;
 }
@@ -33,6 +37,7 @@ const {
   name,
   placeholder,
   type = 'text',
+  options,
   autocomplete,
   rows = 1,
   maxlength,
@@ -40,10 +45,13 @@ const {
   required = false,
   autofocus = false,
   hint,
+  describedBy,
   ...rest
 } = Astro.props;
 
 const hintId = hint ? `${id}-hint` : undefined;
+const describedById = [hintId, describedBy].filter(Boolean).join(' ') || undefined;
+const hasEnd = Astro.slots.has('end');
 ---
 
 <div class="field">
@@ -52,36 +60,51 @@ const hintId = hint ? `${id}-hint` : undefined;
     {optional && <span class="field__optional">(opcional)</span>}
   </label>
 
-  {
-    rows > 1 ? (
-      <textarea
-        class="field__control"
-        id={id}
-        name={name ?? id}
-        rows={rows}
-        maxlength={maxlength}
-        placeholder={placeholder}
-        autocomplete={autocomplete}
-        required={required}
-        aria-describedby={hintId}
-        {...rest}
-      />
-    ) : (
-      <input
-        class="field__control"
-        type={type}
-        id={id}
-        name={name ?? id}
-        maxlength={maxlength}
-        placeholder={placeholder}
-        autocomplete={autocomplete}
-        required={required}
-        autofocus={autofocus}
-        aria-describedby={hintId}
-        {...rest}
-      />
-    )
-  }
+  <div class="field__box" data-end={hasEnd ? '' : undefined}>
+    {
+      options ? (
+        <select
+          class="field__control"
+          id={id}
+          name={name ?? id}
+          autocomplete={autocomplete}
+          required={required}
+          aria-describedby={describedById}
+          {...rest}
+        >
+          {options.map((option) => <option>{option}</option>)}
+        </select>
+      ) : rows > 1 ? (
+        <textarea
+          class="field__control"
+          id={id}
+          name={name ?? id}
+          rows={rows}
+          maxlength={maxlength}
+          placeholder={placeholder}
+          autocomplete={autocomplete}
+          required={required}
+          aria-describedby={describedById}
+          {...rest}
+        />
+      ) : (
+        <input
+          class="field__control"
+          type={type}
+          id={id}
+          name={name ?? id}
+          maxlength={maxlength}
+          placeholder={placeholder}
+          autocomplete={autocomplete}
+          required={required}
+          autofocus={autofocus}
+          aria-describedby={describedById}
+          {...rest}
+        />
+      )
+    }
+    <slot name="end" />
+  </div>
 
   {hint && <p class="field__hint" id={hintId}>{hint}</p>}
 </div>
@@ -123,6 +146,39 @@ const hintId = hint ? `${id}-hint` : undefined;
 
     resize: vertical;
     transition: border-color 0.16s ease;
+  }
+
+  .field__box {
+    position: relative;
+  }
+
+  /* Espaço para o botão do fim do campo (ex.: mostrar senha). */
+  .field__box[data-end] .field__control {
+    padding-right: 52px;
+  }
+
+  /* Quem preenche o slot `end` usa a classe `field__end`: o Astro tira o atributo `slot` do HTML. */
+  .field__box > :global(.field__end) {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    translate: 0 -50%;
+  }
+
+  select.field__control {
+    appearance: none;
+    padding-right: 44px;
+    background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+      linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position:
+      calc(100% - 22px) 50%,
+      calc(100% - 17px) 50%;
+    background-size: 5px 5px;
+    background-repeat: no-repeat;
+  }
+
+  .field__control[aria-invalid='true'] {
+    border-color: var(--site-color-error);
   }
 
   .field__control::placeholder {

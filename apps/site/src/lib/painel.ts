@@ -136,6 +136,12 @@ export function weekRangeLabel(first: IsoDate, last: IsoDate): string {
     : `${day(first)} ${month(first)} – ${day(last)} ${month(last)}`;
 }
 
+/** '20/06/2025', ou '20/06' sem o ano. */
+export function numericDate(date: IsoDate, withYear = true): string {
+  const [year, month, day] = date.split('-');
+  return withYear ? `${day}/${month}/${year}` : `${day}/${month}`;
+}
+
 /** '9 — 14 de novembro de 2026', ou '30 de novembro — 5 de dezembro de 2026'. */
 export function weekRangeLongLabel(first: IsoDate, last: IsoDate): string {
   const parts = (date: IsoDate) =>

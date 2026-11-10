@@ -1,7 +1,7 @@
 import { addDays, nowInBusinessTime, weekdayOf } from './agenda';
 import type { AppointmentStatus } from './dashboard-status';
 import type { AgendaException, IsoDate } from '@/types/agenda';
-import type { AppointmentRow, AuthenticatedUser } from '@/types/painel';
+import type { AgendaNotification, AppointmentRow, AuthenticatedUser } from '@/types/painel';
 
 /**
  * Dados FICTÍCIOS do painel, no lugar do back-end. Saem quando a API existir: `forTenant`
@@ -52,9 +52,21 @@ function statusDe(indice: number, quando: 'passado' | 'hoje' | 'futuro'): Appoin
   return indice % 2 === 0 ? 'confirmed' : 'pending';
 }
 
+/** Próximo dia depois de `hoje` em que o exemplo atende (não abre aos domingos). */
+function proximoDiaUtil(hoje: IsoDate, depois = 1): IsoDate {
+  let date = hoje;
+  for (let n = 0; n < depois; ) {
+    date = addDays(date, 1);
+    if (weekdayOf(date) !== 'sun') n++;
+  }
+  return date;
+}
+
 function doDia(date: IsoDate, hoje: IsoDate): AppointmentRow[] {
   if (weekdayOf(date) === 'sun') return [];
   const quando = date < hoje ? 'passado' : date === hoje ? 'hoje' : 'futuro';
+  // O 4º atendimento do próximo dia útil é o cancelamento dos avisos de demonstração.
+  const cancelado = date === proximoDiaUtil(hoje) ? 3 : -1;
   const dia = Number(date.slice(8, 10));
 
   return MODELO.map((m, i) => ({
@@ -67,7 +79,7 @@ function doDia(date: IsoDate, hoje: IsoDate): AppointmentRow[] {
     client_name: m.nome,
     client_phone: m.telefone,
     notes: m.obs,
-    status: statusDe(i, quando),
+    status: i === cancelado ? 'cancelled' : statusDe(i, quando),
     origin: i % 2 === 0 ? ('site' as const) : ('panel' as const),
     created_at: `${date}T08:00:00Z`,
     updated_at: `${date}T08:00:00Z`,
@@ -123,3 +135,14 @@ export const resumoDemonstracao = {
     { id: 'esmaltacao', agendamentos: 29 },
   ],
 };
+
+/** Avisos de DEMONSTRAÇÃO, como no protótipo (quadro 05), apontando para atendimentos do exemplo. */
+export function avisosDemonstracao(hoje: IsoDate): AgendaNotification[] {
+  const amanha = doDia(proximoDiaUtil(hoje), hoje);
+  const depois = doDia(proximoDiaUtil(hoje, 2), hoje);
+  return [
+    { id: 'novo-1', kind: 'created', at: '13:15', read: false, row: amanha[0]! },
+    { id: 'cancelado-1', kind: 'cancelled', at: '12:40', read: false, row: amanha[3]! },
+    { id: 'novo-2', kind: 'created', at: '11:10', read: true, row: depois[1]! },
+  ];
+}

@@ -10,9 +10,11 @@ import { baseTheme } from '@/themes/base';
 
 interface Props {
   title: string;
+  /** `legal` no cadastro e no login; `brand` na recuperação de senha, como no protótipo. */
+  footer?: 'legal' | 'brand';
 }
 
-const { title } = Astro.props;
+const { title, footer = 'legal' } = Astro.props;
 const seo = { title: `${title} • Organizaê`, description: 'Acesso ao painel do Organizaê.', noindex: true };
 ---
 
@@ -23,7 +25,9 @@ const seo = { title: `${title} • Organizaê`, description: 'Acesso ao painel d
       <div class="auth__body">
         <slot />
       </div>
-      <p class="auth__legal">Ao continuar, você concorda com nossos Termos e Política de Privacidade.</p>
+      <p class="auth__legal">
+        {footer === 'legal' ? 'Ao continuar, você concorda com nossos Termos e Política de Privacidade.' : 'Organizaê · Seu negócio, no lugar.'}
+      </p>
     </main>
 
     <aside class="auth__art" aria-hidden="true">
@@ -37,6 +41,27 @@ const seo = { title: `${title} • Organizaê`, description: 'Acesso ao painel d
     </aside>
   </div>
 </SiteLayout>
+
+<script>
+  // PROTÓTIPO: sem API, o formulário valido só leva à próxima tela. Assim nada do que foi digitado,
+  // senha inclusive, vai parar na URL. Trocar pelo envio à API.
+  for (const form of document.querySelectorAll<HTMLFormElement>('form[data-prototype]')) {
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      location.assign(form.getAttribute('action') ?? '/painel');
+    });
+  }
+
+  // `data-lock-submit`: o botão só libera com o formulário válido, como no protótipo da nova senha.
+  for (const form of document.querySelectorAll<HTMLFormElement>('form[data-lock-submit]')) {
+    const submit = form.querySelector<HTMLButtonElement>('[type="submit"]');
+    const sync = () => {
+      if (submit) submit.disabled = !form.checkValidity();
+    };
+    form.addEventListener('input', sync);
+    sync();
+  }
+</script>
 
 <style>
   .auth {
@@ -65,6 +90,29 @@ const seo = { title: `${title} • Organizaê`, description: 'Acesso ao painel d
   .auth__legal {
     font-size: 0.6875rem;
     color: var(--site-color-text-muted);
+  }
+
+  /* Ritmo comum dos formulários das telas de acesso. */
+  .auth__body :global(.auth-form) {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin-top: 32px;
+  }
+
+  .auth__body :global(.auth-actions) {
+    display: flex;
+    gap: 16px;
+  }
+
+  .auth__body :global(.auth-actions > :last-child) {
+    flex: 1;
+  }
+
+  .auth__body :global(.auth-row) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
   }
 
   .auth__art {

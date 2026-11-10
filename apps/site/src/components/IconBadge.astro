@@ -1,0 +1,28 @@
+---
+import Icon from './Icon.astro';
+import type { IconName } from '@/types/blocks';
+
+/** Círculo amarelo com ícone das telas de conclusão ("Tudo certo", "Confira seu e-mail"). */
+interface Props {
+  icon: IconName;
+}
+
+const { icon } = Astro.props;
+---
+
+<span class="badge" aria-hidden="true">
+  <Icon name={icon} size={26} />
+</span>
+
+<style>
+  .badge {
+    display: grid;
+    place-items: center;
+    width: 78px;
+    height: 78px;
+    margin-bottom: 28px;
+    border-radius: 50%;
+    background: var(--site-accent-yellow-soft);
+    color: var(--site-color-text);
+  }
+</style>

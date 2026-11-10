@@ -11,10 +11,10 @@ import type { SiteConfig } from '@/types/site';
 /**
  * Casca do painel com o tema do negócio. Item do menu sem tela NÃO é link (seria 404 na mão da
  * dona do negócio): ganha `href` quando a tela existir.
- * PROTÓTIPO: busca, avisos e "Conversar" aparecem como no desenho, sem ação.
+ * PROTÓTIPO: busca e "Conversar" aparecem como no desenho, sem ação.
  */
 
-export type PanelPage = 'home' | 'agenda';
+export type PanelPage = 'home' | 'agenda' | 'notificacoes';
 
 interface Props {
   site: SiteConfig;
@@ -126,9 +126,15 @@ const seo = { title: `${title} • ${profile.name}`, description: 'Painel do neg
         </label>
 
         <div class="top__end">
-          <button class="top__button" type="button" aria-label="Avisos">
+          <a
+            class="top__button"
+            href="/painel/notificacoes"
+            aria-label="Notificações"
+            title="Notificações"
+            aria-current={current === 'notificacoes' ? 'page' : undefined}
+          >
             <Icon name="bell" size={20} />
-          </button>
+          </a>
           <span class="top__date">{longDateLabel(today)}</span>
         </div>
       </header>
@@ -465,6 +471,11 @@ const seo = { title: `${title} • ${profile.name}`, description: 'Painel do neg
 
   .top__button:hover {
     background: var(--site-color-brand-soft);
+  }
+
+  /* Sino na tela de notificações: o mesmo amarelo do item ativo do menu. */
+  .top__button[aria-current='page'] {
+    background: var(--site-accent-yellow-soft);
   }
 
   .top__button:focus-visible {

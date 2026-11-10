@@ -36,7 +36,7 @@ const aviso = erro ? (MENSAGENS[erro] ?? MENSAGENS.erro!) : null;
   }
 
   {/* PROTÓTIPO: sem autenticação. Troque pelo POST de login da API. */}
-  <form class="login__form" method="get" action="/painel">
+  <form class="login__form" method="post" action="/painel" data-prototype>
     {next && <input type="hidden" name="next" value={next} />}
     <TextField
       id="email"
@@ -56,12 +56,19 @@ const aviso = erro ? (MENSAGENS[erro] ?? MENSAGENS.erro!) : null;
       required
     />
 
-    <label class="login__lembrar">
-      <input type="checkbox" name="lembrar" checked />
-      Manter conectado
-    </label>
+    <div class="login__row">
+      <label class="login__lembrar">
+        <input type="checkbox" name="lembrar" checked />
+        Manter conectado
+      </label>
+      <a class="login__link" href="/painel/senha">Esqueci minha senha</a>
+    </div>
 
     <ActionButton label="Entrar" type="submit" variant="primary" />
+
+    <p class="login__signup">
+      Ainda não tem uma conta? <a class="login__link" href="/painel/cadastro">Começar agora</a>
+    </p>
   </form>
 </AuthLayout>
 
@@ -84,6 +91,40 @@ const aviso = erro ? (MENSAGENS[erro] ?? MENSAGENS.erro!) : null;
     flex-direction: column;
     gap: 20px;
     margin-top: 32px;
+  }
+
+  .login__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .login__link {
+    font-weight: 600;
+    color: var(--site-color-text);
+    text-decoration: none;
+  }
+
+  .login__link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .login__link:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  .login__row .login__link,
+  .login__signup {
+    font-size: 0.8125rem;
+  }
+
+  .login__signup {
+    color: var(--site-color-text-muted);
   }
 
   .login__lembrar {

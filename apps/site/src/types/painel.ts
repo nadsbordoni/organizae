@@ -10,6 +10,16 @@ export interface AuthenticatedUser {
   sessionId: string;
 }
 
+/** Evento da agenda para a tela de notificações. */
+export interface AgendaNotification {
+  id: string;
+  kind: 'created' | 'cancelled';
+  /** 'HH:MM' de hoje, quando o evento aconteceu. */
+  at: string;
+  read: boolean;
+  row: AppointmentRow;
+}
+
 export interface AppointmentRow {
   id: number;
   tenant_slug: string;

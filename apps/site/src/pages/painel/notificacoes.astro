@@ -1,0 +1,265 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import Callout from '@/components/Callout.astro';
+import AppointmentDetails from '@/components/painel/AppointmentDetails.astro';
+import NotificationCard from '@/components/painel/NotificationCard.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import PanelSection from '@/components/painel/PanelSection.astro';
+import StatCard from '@/components/painel/StatCard.astro';
+import { getSite } from '@/config';
+import { addDays, nowInBusinessTime, toMinutes } from '@/lib/agenda';
+import { occupiesSlot } from '@/lib/dashboard-status';
+import { avisosDemonstracao, forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
+import { numericDate, serviceNames, tenantNotConfigured } from '@/lib/painel';
+
+/**
+ * Notificações (quadro 05 do protótipo), com as notificações à esquerda para serem o centro da tela.
+ * Os avisos são DEMONSTRAÇÃO; o filtro vive na URL (`?f=nao-lidas`).
+ */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const agenda = site.agenda;
+const agora = nowInBusinessTime(agenda?.timezone ?? 'America/Sao_Paulo');
+const hoje = agora.date;
+
+const avisos = avisosDemonstracao(hoje);
+const naoLidas = avisos.filter((a) => !a.read);
+const soNaoLidas = Astro.url.searchParams.get('f') === 'nao-lidas';
+const lista = soNaoLidas ? naoLidas : avisos;
+const novos = avisos.filter((a) => a.kind === 'created').length;
+const cancelamentos = avisos.filter((a) => a.kind === 'cancelled').length;
+
+const dados = forTenant(user.tenantSlug);
+// O atendimento em andamento ainda conta como próximo.
+const proximos = (await dados.appointmentsBetween(hoje, addDays(hoje, 7)))
+  .filter((m) => occupiesSlot(m.status))
+  .filter((m) => m.date > hoje || toMinutes(m.start_time) + m.duration_min > agora.minutes)
+  .slice(0, 4);
+---
+
+<PanelLayout site={site} user={user} current="notificacoes" title="Notificações">
+  <PanelHeading
+    eyebrow="Notificações · Acompanhamento"
+    title="Seu negócio está em movimento"
+    intro="Acompanhe as mudanças da agenda sem perder o contexto."
+  >
+    <ActionButton label="Abrir agenda" variant="secondary" href="/painel/agenda" full={false} />
+  </PanelHeading>
+
+  <div class="layout">
+    <PanelSection
+      title="Notificações"
+      subtitle={`${naoLidas.length} não ${naoLidas.length === 1 ? 'lida' : 'lidas'} · Eventos da agenda`}
+      id="titulo-notificacoes"
+    >
+      <div class="filters">
+        <nav class="filters__chips" aria-label="Filtrar notificações">
+          <a class="chip" href="/painel/notificacoes" aria-current={soNaoLidas ? undefined : 'page'}>Todas</a>
+          <a class="chip" href="/painel/notificacoes?f=nao-lidas" aria-current={soNaoLidas ? 'page' : undefined}>
+            Não lidas · {naoLidas.length}
+          </a>
+        </nav>
+        {/* PROTÓTIPO: sem ação até o back guardar o que foi lido. */}
+        <ActionButton label="Marcar como lidas" variant="secondary" full={false} />
+      </div>
+
+      {
+        lista.length ? (
+          <ul class="notes">
+            {lista.map((n) => (
+              <li>
+                <NotificationCard notification={n} agenda={agenda} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p class="empty">Nenhuma notificação não lida.</p>
+        )
+      }
+    </PanelSection>
+
+    <div class="side">
+      <div class="stats">
+        <StatCard label="Novos agendamentos" value={String(novos)} note={`Hoje · ${numericDate(hoje)}`} tone="pink" />
+        <StatCard label="Cancelamentos" value={String(cancelamentos)} note="Hoje · Horário liberado" tone="yellow" />
+      </div>
+
+      <PanelSection title="Próximos atendimentos" subtitle={`${site.profile.name} · Visão de gestão`} id="titulo-proximos">
+        <div class="next">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Cliente</th>
+                <th scope="col">Serviço</th>
+                <th scope="col">Data / hora</th>
+              </tr>
+            </thead>
+            <tbody>
+              {
+                proximos.map((m) => (
+                  <tr>
+                    <td>
+                      <button class="next__who" type="button" popovertarget={`det-proximo-${m.id}`}>
+                        {m.client_name}
+                      </button>
+                      <AppointmentDetails id={`det-proximo-${m.id}`} row={m} agenda={agenda} />
+                    </td>
+                    <td>{serviceNames(m, agenda)}</td>
+                    <td>
+                      {numericDate(m.date, false)} · {m.start_time}
+                    </td>
+                  </tr>
+                ))
+              }
+            </tbody>
+          </table>
+        </div>
+      </PanelSection>
+
+      <Callout tone="info" icon="info" title="Tudo no seu contexto">
+        As notificações mostram as mudanças na agenda. Abra o atendimento para conferir os detalhes.
+      </Callout>
+    </div>
+  </div>
+</PanelLayout>
+
+<style>
+  /* Notificações à esquerda e mais estreitas; números e próximos à direita, 1 para 1,45 como no protótipo. */
+  .layout {
+    /* O cinza do tema cai para 4,3:1 sobre o bege do cabeçalho da tabela: aqui ele escurece. */
+    --muted-on-tint: color-mix(in srgb, var(--site-color-text-muted) 80%, var(--site-color-text));
+
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr);
+    align-items: start;
+    gap: 24px;
+    margin-top: 32px;
+  }
+
+  .side {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .filters__chips {
+    display: flex;
+    gap: 8px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: var(--site-color-brand-soft);
+    color: var(--site-color-text);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .chip[aria-current='page'] {
+    background: var(--site-accent-yellow-soft);
+  }
+
+  .chip:focus-visible,
+  .next__who:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  .notes {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    list-style: none;
+  }
+
+  .empty {
+    font-size: 0.875rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .next {
+    border-radius: 16px;
+    border: 1px solid var(--site-color-border);
+    overflow: hidden;
+  }
+
+  .next table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+
+  .next th {
+    padding: 14px 18px;
+    background: var(--site-color-brand-soft);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-align: left;
+    text-transform: uppercase;
+    color: var(--muted-on-tint);
+  }
+
+  .next td {
+    padding: 12px 18px;
+    border-top: 1px solid var(--site-color-border);
+  }
+
+  .next__who {
+    min-height: 36px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--site-color-text);
+    font: inherit;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .next__who:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+
+  @media (max-width: 1099px) {
+    .layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 599px) {
+    .stats {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .next th,
+    .next td {
+      padding-inline: 12px;
+    }
+  }
+</style>

@@ -13,6 +13,8 @@ export const baseTheme: ThemeTokens = {
     border: '#e5dfd5',
     borderStrong: '#ddd5c9',
     eyebrow: '#8b6920',
+    // O vermelho do protótipo (#b75b5b) fica abaixo de 4.5:1 em texto pequeno.
+    error: '#a63d3d',
   },
   background: {
     page: '#faf6ee',
