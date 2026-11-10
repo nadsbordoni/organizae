@@ -1,0 +1,401 @@
+---
+import SetupLayout from '@/layouts/SetupLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import Icon from '@/components/Icon.astro';
+import TextField from '@/components/TextField.astro';
+
+/**
+ * Configuração, passo 4: categorias com serviços dentro, como a cliente vê no agendamento. Com a
+ * API: `POST /api/v1/categories` e `POST /api/v1/services`. A lista viaja como JSON no campo
+ * escondido `servicos`; os campos dos formulários de adicionar não têm `name` e não são guardados.
+ */
+const EXEMPLO = [
+  {
+    name: 'Cabelo',
+    description: 'Corte, cor e tratamento',
+    services: [
+      { name: 'Corte + finalização', minutes: 60, price: 'R$ 120,00' },
+      { name: 'Coloração personalizada', minutes: 120, price: 'R$ 280,00' },
+      { name: 'Hidratação premium', minutes: 45, price: 'R$ 95,00' },
+    ],
+  },
+];
+const DURACOES = ['15', '30', '45', '60', '75', '90', '120', '150', '180', '240'];
+---
+
+<SetupLayout
+  step={4}
+  title="O que você oferece?"
+  intro="Organize seus serviços em categorias, do jeito que suas clientes vão ver."
+>
+  <input type="hidden" name="servicos" value={JSON.stringify(EXEMPLO)} data-catalog-value />
+
+  <div class="cats" data-catalog-list></div>
+  <p class="error" role="alert" hidden data-catalog-error></p>
+
+  <template data-category>
+    <section class="cat">
+      <header class="cat__head">
+        <span class="cat__text">
+          <strong data-cat-name></strong>
+          <small data-cat-desc></small>
+        </span>
+        <button class="icon" type="button" data-cat-remove>
+          <Icon name="close" size={16} />
+        </button>
+      </header>
+      <ul class="cat__list" data-cat-services></ul>
+      <button class="cat__add" type="button" data-service-add>
+        <Icon name="plus" size={16} />
+        Adicionar serviço
+      </button>
+    </section>
+  </template>
+
+  <template data-service>
+    <li class="svc">
+      <span class="svc__text">
+        <strong data-svc-name></strong>
+        <small data-svc-meta></small>
+      </span>
+      <button class="icon" type="button" data-svc-remove>
+        <Icon name="close" size={16} />
+      </button>
+    </li>
+  </template>
+
+  <div class="panel" hidden data-service-form>
+    <TextField id="novo-servico" name="" label="Nome do serviço" placeholder="Ex.: Manutenção em gel" />
+    <div class="setup-row">
+      <TextField id="nova-duracao" name="" label="Duração (minutos)" options={DURACOES} />
+      <TextField id="novo-preco" name="" label="Preço" placeholder="R$ 0,00" hint="Ex.: R$ 90 ou R$ 90,50" />
+    </div>
+    <p class="error" role="alert" hidden data-service-error></p>
+    <div class="panel__actions">
+      <ActionButton label="Cancelar" variant="ghost" full={false} data-service-cancel="" />
+      <ActionButton label="Adicionar serviço" variant="secondary" full={false} data-service-save="" />
+    </div>
+  </div>
+
+  <button class="add" type="button" aria-expanded="false" data-category-add>
+    <Icon name="plus" size={16} />
+    Adicionar categoria
+  </button>
+
+  <div class="panel" hidden data-category-form>
+    <TextField id="nova-categoria" name="" label="Nome da categoria" placeholder="Ex.: Unhas" />
+    <TextField id="nova-descricao" name="" label="Descrição" placeholder="Ex.: Alongamento, manutenção e esmaltação" optional />
+    <p class="error" role="alert" hidden data-category-error></p>
+    <div class="panel__actions">
+      <ActionButton label="Cancelar" variant="ghost" full={false} data-category-cancel="" />
+      <ActionButton label="Criar categoria" variant="secondary" full={false} data-category-save="" />
+    </div>
+  </div>
+</SetupLayout>
+
+<script>
+  import { formatDuration, formatPrice, parsePrice } from '@/lib/agenda';
+
+  type Service = { name: string; minutes: number; price: string };
+  type Category = { name: string; description: string; services: Service[] };
+
+  const $ = <T extends Element>(selector: string) => document.querySelector<T>(selector)!;
+  const value = $<HTMLInputElement>('[data-catalog-value]');
+  const list = $<HTMLElement>('[data-catalog-list]');
+  const error = $<HTMLElement>('[data-catalog-error]');
+  const categoryTemplate = $<HTMLTemplateElement>('[data-category]');
+  const serviceTemplate = $<HTMLTemplateElement>('[data-service]');
+  const serviceForm = $<HTMLElement>('[data-service-form]');
+  const categoryForm = $<HTMLElement>('[data-category-form]');
+  const addCategory = $<HTMLButtonElement>('[data-category-add]');
+  let target = -1;
+
+  const read = (): Category[] => {
+    try {
+      const parsed = JSON.parse(value.value) as Array<Category | Service>;
+      if (!Array.isArray(parsed)) return [];
+      // Sessão salva antes das categorias: só a lista de serviços. Vira uma categoria.
+      if (parsed.length && !('services' in parsed[0]!)) {
+        return [{ name: 'Serviços', description: '', services: parsed as Service[] }];
+      }
+      return parsed as Category[];
+    } catch {
+      return [];
+    }
+  };
+
+  const write = (catalog: Category[]) => {
+    value.value = JSON.stringify(catalog);
+    render();
+  };
+
+  const say = (el: HTMLElement, message: string) => {
+    el.textContent = message;
+    el.hidden = !message;
+  };
+
+  function render() {
+    const catalog = read();
+    serviceForm.hidden = true;
+    list.after(serviceForm);
+    list.replaceChildren(
+      ...catalog.map((category, c) => {
+        const card = categoryTemplate.content.firstElementChild!.cloneNode(true) as HTMLElement;
+        card.querySelector('[data-cat-name]')!.textContent = category.name;
+        const desc = card.querySelector<HTMLElement>('[data-cat-desc]')!;
+        desc.textContent = category.description;
+        desc.hidden = !category.description;
+        const remove = card.querySelector<HTMLButtonElement>('[data-cat-remove]')!;
+        remove.setAttribute('aria-label', `Remover a categoria ${category.name}`);
+        remove.addEventListener('click', () => {
+          const n = category.services.length;
+          if (n && !confirm(`Remover a categoria ${category.name} e ${n === 1 ? 'o serviço' : `os ${n} serviços`} dela?`)) return;
+          write(catalog.filter((_, i) => i !== c));
+        });
+        card.querySelector('[data-cat-services]')!.replaceChildren(
+          ...category.services.map((service, s) => {
+            const row = serviceTemplate.content.firstElementChild!.cloneNode(true) as HTMLElement;
+            row.querySelector('[data-svc-name]')!.textContent = service.name;
+            row.querySelector('[data-svc-meta]')!.textContent = `${formatDuration(service.minutes)} · ${service.price}`;
+            const del = row.querySelector<HTMLButtonElement>('[data-svc-remove]')!;
+            del.setAttribute('aria-label', `Remover ${service.name}`);
+            del.addEventListener('click', () => {
+              category.services.splice(s, 1);
+              write(catalog);
+            });
+            return row;
+          }),
+        );
+        card.querySelector('[data-service-add]')!.addEventListener('click', () => openService(c, card));
+        return card;
+      }),
+    );
+  }
+
+  // O formulário de serviço é um só: muda para dentro da categoria escolhida.
+  function openService(index: number, card: HTMLElement) {
+    target = index;
+    card.querySelector('[data-service-add]')!.before(serviceForm);
+    serviceForm.hidden = false;
+    say($('[data-service-error]'), '');
+    $<HTMLInputElement>('#novo-servico').focus();
+  }
+
+  function saveService() {
+    const name = $<HTMLInputElement>('#novo-servico');
+    const price = $<HTMLInputElement>('#novo-preco');
+    const cents = parsePrice(price.value);
+    const problem = !name.value.trim()
+      ? 'Dê um nome ao serviço.'
+      : cents === undefined
+        ? 'Escreva o preço como R$ 90 ou R$ 90,50.'
+        : '';
+    say($('[data-service-error]'), problem);
+    if (problem) return;
+    const catalog = read();
+    catalog[target]?.services.push({
+      name: name.value.trim(),
+      minutes: Number($<HTMLSelectElement>('#nova-duracao').value),
+      price: formatPrice(cents!),
+    });
+    name.value = price.value = '';
+    write(catalog);
+  }
+
+  function saveCategory() {
+    const name = $<HTMLInputElement>('#nova-categoria');
+    const description = $<HTMLInputElement>('#nova-descricao');
+    if (!name.value.trim()) return say($('[data-category-error]'), 'Dê um nome à categoria.');
+    const catalog = [...read(), { name: name.value.trim(), description: description.value.trim(), services: [] }];
+    name.value = description.value = '';
+    toggleCategory(false);
+    write(catalog);
+    const cards = list.querySelectorAll<HTMLElement>('.cat');
+    openService(catalog.length - 1, cards[cards.length - 1]!);
+  }
+
+  function toggleCategory(open: boolean) {
+    categoryForm.hidden = !open;
+    addCategory.setAttribute('aria-expanded', String(open));
+    say($('[data-category-error]'), '');
+    if (open) $<HTMLInputElement>('#nova-categoria').focus();
+  }
+
+  $('[data-service-save]').addEventListener('click', saveService);
+  $('[data-service-cancel]').addEventListener('click', () => (serviceForm.hidden = true));
+  $('[data-category-save]').addEventListener('click', saveCategory);
+  $('[data-category-cancel]').addEventListener('click', () => toggleCategory(false));
+  addCategory.addEventListener('click', () => toggleCategory(categoryForm.hidden));
+
+  // Enter nos formulários de adicionar salva ali mesmo, em vez de enviar o passo inteiro.
+  for (const [panel, save] of [[serviceForm, saveService], [categoryForm, saveCategory]] as const) {
+    panel.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' || !(event.target instanceof HTMLInputElement)) return;
+      event.preventDefault();
+      save();
+    });
+  }
+
+  // Antes do envio do protótipo (captura): precisa de serviço, e nenhuma categoria vazia.
+  value.form?.addEventListener(
+    'submit',
+    (event) => {
+      const catalog = read();
+      const empty = catalog.find((category) => category.services.length === 0);
+      const problem = !catalog.some((c) => c.services.length)
+        ? 'Cadastre pelo menos um serviço para continuar.'
+        : empty
+          ? `A categoria ${empty.name} está sem serviços. Adicione um ou remova a categoria.`
+          : '';
+      say(error, problem);
+      if (!problem) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    },
+    { capture: true },
+  );
+
+  value.addEventListener('input', render);
+  render();
+</script>
+
+<style>
+  .cats {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* Cartão de categoria no desenho da sanfona do agendamento: o que a cliente vai ver. */
+  .cat {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .cat__head,
+  .svc {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .cat__head {
+    padding-left: 2px;
+  }
+
+  .cat__text,
+  .svc__text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .cat__text strong {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .cat__text small,
+  .svc__text small {
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .cat__list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    list-style: none;
+  }
+
+  .svc {
+    padding: 10px 6px 10px 14px;
+    border-radius: 14px;
+    border: 1px solid var(--site-color-border-strong);
+  }
+
+  .svc__text strong {
+    font-size: 1rem;
+    font-weight: 500;
+  }
+
+  .icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 0;
+    border-radius: 10px;
+    background: none;
+    color: var(--site-color-text-muted);
+    cursor: pointer;
+  }
+
+  .icon:hover {
+    background: var(--site-color-brand-soft);
+    color: var(--site-color-text);
+  }
+
+  .cat__add,
+  .add {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    border-radius: var(--site-radius-button);
+    border: 1px dashed var(--site-color-border-strong);
+    background: none;
+    color: var(--site-color-text);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .add {
+    min-height: 48px;
+    border-style: solid;
+    background: var(--site-color-surface);
+  }
+
+  .cat__add:hover,
+  .add:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  .icon:focus-visible,
+  .cat__add:focus-visible,
+  .add:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  .panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+    border-radius: 16px;
+    background: var(--site-background-page-solid);
+  }
+
+  .panel__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .error {
+    font-size: 0.8125rem;
+    color: var(--site-color-error);
+  }
+</style>

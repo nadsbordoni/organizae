@@ -1,0 +1,39 @@
+---
+/** Corpo de um passo de fluxo em etapas (agendamento, configuração inicial): título, apoio e conteúdo. */
+interface Props {
+  title: string;
+  intro?: string;
+}
+
+const { title, intro } = Astro.props;
+---
+
+<section class="step">
+  <h2 class="step__title">{title}</h2>
+  {intro && <p class="step__intro">{intro}</p>}
+  <slot />
+</section>
+
+<style>
+  .step {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .step__title {
+    font-family: var(--site-font-body);
+    font-size: clamp(1.25rem, 5vw, 1.5rem);
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--site-color-text);
+  }
+
+  /* Título e introdução são um bloco só; o `gap` de 18px separaria demais. */
+  .step__intro {
+    margin-top: -12px;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    color: var(--site-color-text-muted);
+  }
+</style>

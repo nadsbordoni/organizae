@@ -4,10 +4,7 @@ import ActionButton from '@/components/ActionButton.astro';
 import Heading from '@/components/Heading.astro';
 import TextField from '@/components/TextField.astro';
 
-/**
- * Entrada do painel, sem slug de propósito: o negócio vem da sessão. Aqui vale o tema do Organizaê.
- * "Esqueci minha senha" e "Começar agora" do protótipo só entram quando essas telas existirem.
- */
+/** Entrada do painel, sem slug de propósito: o negócio vem da sessão. Aqui vale o tema do Organizaê. */
 export const prerender = false;
 
 const erro = Astro.url.searchParams.get('erro');

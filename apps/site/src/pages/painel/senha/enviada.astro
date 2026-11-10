@@ -12,7 +12,7 @@ import IconBadge from '@/components/IconBadge.astro';
  */
 ---
 
-<AuthLayout title="Instruções enviadas" footer="brand">
+<AuthLayout title="Instruções enviadas" footer="brand" mascot="envelope">
   <IconBadge icon="mail" />
   <Heading
     eyebrow="Confira seu e-mail"
@@ -25,7 +25,7 @@ import IconBadge from '@/components/IconBadge.astro';
       Confira também o spam. Você pode solicitar um novo link em 60 segundos.
     </Callout>
     {/* PROTÓTIPO: reenviar só reinicia a contagem. */}
-    <ActionButton label="Solicitar novo link em 01:00" disabled data-resend />
+    <ActionButton label="Solicitar novo link em 01:00" disabled data-resend="" />
     <ActionButton label="Usar outro e-mail" variant="secondary" href="/painel/senha" />
     <BackLink href="/painel/login" label="Voltar para entrar" />
   </div>

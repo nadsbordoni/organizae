@@ -3,15 +3,12 @@ import AuthLayout from '@/layouts/AuthLayout.astro';
 import ActionButton from '@/components/ActionButton.astro';
 import Heading from '@/components/Heading.astro';
 import TextField from '@/components/TextField.astro';
+import { BUSINESS_SEGMENTS } from '@/lib/painel';
 
-/**
- * Cadastro, passo 2 (quadro 01). Com a API: `POST /api/v1/businesses`. A lista de categorias deve
- * vir das categorias de negócio do back, que ainda não têm rota de leitura.
- */
-const CATEGORIAS = ['Beleza e bem-estar', 'Cabelo', 'Unhas', 'Estética', 'Barbearia', 'Outro'];
+/** Cadastro, passo 2 (quadro 01). Com a API: `POST /api/v1/businesses`. */
 ---
 
-<AuthLayout title="Sobre o negócio">
+<AuthLayout title="Sobre o negócio" mascot="lojinha">
   <Heading
     eyebrow="Sobre o seu negócio"
     title="Conte um pouco sobre a empresa"
@@ -27,7 +24,7 @@ const CATEGORIAS = ['Beleza e bem-estar', 'Cabelo', 'Unhas', 'Estética', 'Barbe
       required
       autofocus
     />
-    <TextField id="categoria" label="Categoria" options={CATEGORIAS} required />
+    <TextField id="categoria" label="Categoria" options={BUSINESS_SEGMENTS} required />
     <div class="auth-row">
       <TextField id="documento" label="CNPJ ou CPF" placeholder="00.000.000/0000-00" required />
       <TextField id="cidade" label="Cidade" autocomplete="address-level2" placeholder="Ex.: Recife" required />

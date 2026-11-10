@@ -204,3 +204,6 @@ export function formatPhone(phone: string): string {
   const local = digits.startsWith('55') ? digits.slice(2) : digits;
   return /^\d{10,11}$/.test(local) ? `(${local.slice(0, 2)}) ${local.slice(2, -4)}-${local.slice(-4)}` : phone;
 }
+
+/** Segmentos de negócio do cadastro e da configuração inicial. Devem vir das categorias de negócio do back quando houver rota. */
+export const BUSINESS_SEGMENTS = ['Beleza e bem-estar', 'Cabelo', 'Unhas', 'Estética', 'Barbearia', 'Outro'];

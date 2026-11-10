@@ -9,7 +9,7 @@ import TextField from '@/components/TextField.astro';
 /** Cadastro, passo 1 (quadro 01). Com a API: `POST /api/v1/users` e depois `POST /api/v1/auth/login`. */
 ---
 
-<AuthLayout title="Criar acesso">
+<AuthLayout title="Criar acesso" mascot="prancheta">
   <Heading
     eyebrow="Primeiro passo"
     title="Vamos criar seu acesso"
@@ -26,7 +26,16 @@ import TextField from '@/components/TextField.astro';
       autofocus
     />
     <TextField id="email" label="E-mail" type="email" autocomplete="email" placeholder="voce@empresa.com.br" required />
-    <TextField id="telefone" label="Telefone" type="tel" autocomplete="tel" placeholder="(00) 00000-0000" required />
+    <TextField
+      id="telefone"
+      label="Telefone"
+      type="tel"
+      autocomplete="tel"
+      placeholder="(00) 00000-0000"
+      pattern="[0-9\(\)+ \-]{10,20}"
+      title="Só números, com DDD. Ex.: (81) 99999-9999"
+      required
+    />
     <PasswordField id="senha" label="Crie uma senha" autocomplete="new-password" placeholder="8 ou mais caracteres" rules />
     <ActionButton label="Continuar" type="submit" />
     <BackLink href="/painel/login" label="Voltar para entrar" />

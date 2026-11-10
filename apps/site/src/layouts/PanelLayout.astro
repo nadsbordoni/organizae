@@ -95,7 +95,7 @@ const seo = { title: `${title} • ${profile.name}`, description: 'Painel do neg
 
       <div class="side__help">
         <span class="side__help-mascot" aria-hidden="true">
-          <img src="/marca/mascote-acenando.webp" alt="" width="480" height="720" />
+          <img src="/marca/mascote-atendimento-rosto.webp" alt="" width="64" height="64" />
         </span>
         <strong>Precisa de ajuda?</strong>
         {/* PROTÓTIPO: sem ação. Vai abrir a assistente quando ela tiver tela. */}
@@ -415,8 +415,9 @@ const seo = { title: `${title} • ${profile.name}`, description: 'Painel do neg
   }
 
   .side__help-mascot img {
-    width: auto;
-    height: 52px;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   .side__help strong {

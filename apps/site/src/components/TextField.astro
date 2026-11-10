@@ -18,6 +18,9 @@ interface Props {
   /** Acima de 1, vira `<textarea>`. */
   rows?: number;
   maxlength?: number;
+  /** Formato aceito (regex do HTML). `title` vira a explicação que o navegador mostra no erro. */
+  pattern?: string;
+  title?: string;
   /** Acrescenta "(opcional)" ao rótulo. Marca-se o opcional porque asterisco em cada linha vira ruído. */
   optional?: boolean;
   /** A validação do navegador é ajuda, nunca garantia: o servidor confere de novo. */
@@ -41,6 +44,8 @@ const {
   autocomplete,
   rows = 1,
   maxlength,
+  pattern,
+  title,
   optional = false,
   required = false,
   autofocus = false,
@@ -94,6 +99,8 @@ const hasEnd = Astro.slots.has('end');
           id={id}
           name={name ?? id}
           maxlength={maxlength}
+          pattern={pattern}
+          title={title}
           placeholder={placeholder}
           autocomplete={autocomplete}
           required={required}

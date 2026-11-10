@@ -1,6 +1,7 @@
 ---
 import PanelLayout from '@/layouts/PanelLayout.astro';
 import ActionButton from '@/components/ActionButton.astro';
+import EmptyState from '@/components/EmptyState.astro';
 import DayList from '@/components/painel/DayList.astro';
 import FinanceChart from '@/components/painel/FinanceChart.astro';
 import PanelHeading from '@/components/painel/PanelHeading.astro';
@@ -103,7 +104,12 @@ const topo = Math.max(...maisAgendados.map((s) => s.agendamentos)) * 1.1;
         doDia.length ? (
           <DayList rows={doDia.slice(0, 4)} agenda={agenda} label="Atendimentos de hoje" idPrefix="det-hoje" />
         ) : (
-          <p class="empty">Nenhum atendimento hoje.</p>
+          <EmptyState
+            level={3}
+            mascot="relaxando"
+            title="Nenhum atendimento hoje"
+            text="Um bom dia para organizar o resto da semana."
+          />
         )
       }
     </PanelSection>
@@ -117,7 +123,7 @@ const topo = Math.max(...maisAgendados.map((s) => s.agendamentos)) * 1.1;
       {/* PROTÓTIPO: sem ação. */}
       <button class="assist__button" type="button">Ver análise completa</button>
       <span class="assist__mascot" aria-hidden="true">
-        <img src="/marca/mascote-acenando.webp" alt="" width="480" height="720" loading="lazy" />
+        <img src="/marca/mascote-tablet.webp" alt="" width="465" height="720" loading="lazy" />
       </span>
     </section>
 
@@ -181,10 +187,6 @@ const topo = Math.max(...maisAgendados.map((s) => s.agendamentos)) * 1.1;
     cursor: pointer;
   }
 
-  .empty {
-    font-size: 0.875rem;
-    color: var(--site-color-text-muted);
-  }
 
   .rank__who {
     display: flex;

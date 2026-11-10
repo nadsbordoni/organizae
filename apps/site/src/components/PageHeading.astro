@@ -21,7 +21,11 @@ const { title, intro, backHref, backLabel, ...rest } = Astro.props;
 ---
 
 <header class="heading">
-  <IconButton href={backHref} label={backLabel} icon="chevron-left" {...rest} />
+  {/* Slot `end`: saída do fluxo à direita do voltar, como o "Fazer depois" da configuração inicial. */}
+  <div class="heading__top">
+    <IconButton href={backHref} label={backLabel} icon="chevron-left" {...rest} />
+    <slot name="end" />
+  </div>
 
   <div class="heading__text">
     <h1 class="heading__title">{title}</h1>
@@ -32,6 +36,13 @@ const { title, intro, backHref, backLabel, ...rest } = Astro.props;
 <style>
   .heading {
     margin-bottom: 24px;
+  }
+
+  .heading__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
   }
 
   .heading__text {

@@ -1,0 +1,402 @@
+---
+import SetupLayout from '@/layouts/SetupLayout.astro';
+import Icon from '@/components/Icon.astro';
+
+/**
+ * Configuração, passo 3. Cada dia aceita até 4 períodos (ex.: 08:00–12:00 e 14:00–18:00), no
+ * mesmo formato do back: `PUT /api/v1/business-hours` recebe uma lista de períodos por dia, sem
+ * sobreposição. Os períodos viajam como JSON no campo escondido `periodos-<dia>`.
+ */
+const DAYS = [
+  { key: 'mon', label: 'Segunda-feira', open: true },
+  { key: 'tue', label: 'Terça-feira', open: true },
+  { key: 'wed', label: 'Quarta-feira', open: true },
+  { key: 'thu', label: 'Quinta-feira', open: true },
+  { key: 'fri', label: 'Sexta-feira', open: true },
+  { key: 'sat', label: 'Sábado', open: false },
+  // O protótipo não mostra o domingo; ele entra desligado para quem atende aos domingos.
+  { key: 'sun', label: 'Domingo', open: false },
+];
+const PADRAO = JSON.stringify([['09:00', '18:00']]);
+---
+
+<SetupLayout
+  step={3}
+  title="Quando você atende?"
+  intro="Defina sua disponibilidade padrão. Ajustes pontuais poderão ser feitos na agenda."
+>
+  <ul class="days">
+    {
+      DAYS.map((day) => (
+        <li class="day" data-day>
+          <label class="day__toggle">
+            <input
+              class="switch"
+              type="checkbox"
+              role="switch"
+              name={`aberto-${day.key}`}
+              checked={day.open}
+              data-day-open
+            />
+            <span class="day__name">{day.label}</span>
+          </label>
+          <span class="day__hours" data-day-hours />
+          <button
+            class="day__edit"
+            type="button"
+            aria-expanded="false"
+            aria-label={`Editar horários de ${day.label}`}
+            data-day-edit
+          >
+            <Icon name="more" size={18} />
+          </button>
+          <input type="hidden" name={`periodos-${day.key}`} value={PADRAO} data-day-value />
+          <div class="day__editor" hidden data-day-editor>
+            <div class="periods" data-day-list />
+            <p class="periods__error" role="alert" hidden data-day-error />
+            <button class="periods__add" type="button" data-day-add>
+              <Icon name="plus" size={16} />
+              Adicionar período
+            </button>
+          </div>
+        </li>
+      ))
+    }
+  </ul>
+
+  <template data-period-row>
+    <div class="period">
+      <input type="time" data-from />
+      <span aria-hidden="true">até</span>
+      <input type="time" data-to />
+      <button class="period__remove" type="button" data-remove>
+        <Icon name="close" size={16} />
+      </button>
+    </div>
+  </template>
+</SetupLayout>
+
+<script>
+  import { toClock, toMinutes } from '@/lib/agenda';
+
+  type Period = [string, string];
+  const MAX = 4;
+  const template = document.querySelector<HTMLTemplateElement>('[data-period-row]')!;
+
+  function problem(periods: Period[]): string {
+    if (periods.some(([from, to]) => !from || !to || to <= from)) {
+      return 'O fim de cada período precisa ser depois do começo.';
+    }
+    const sorted = [...periods].sort((a, b) => a[0].localeCompare(b[0]));
+    if (sorted.some((period, i) => i > 0 && period[0] < sorted[i - 1]![1])) return 'Os períodos não podem se sobrepor.';
+    return '';
+  }
+
+  for (const day of document.querySelectorAll<HTMLElement>('[data-day]')) {
+    const name = day.querySelector('.day__name')!.textContent;
+    const open = day.querySelector<HTMLInputElement>('[data-day-open]')!;
+    const hours = day.querySelector<HTMLElement>('[data-day-hours]')!;
+    const edit = day.querySelector<HTMLButtonElement>('[data-day-edit]')!;
+    const editor = day.querySelector<HTMLElement>('[data-day-editor]')!;
+    const list = day.querySelector<HTMLElement>('[data-day-list]')!;
+    const error = day.querySelector<HTMLElement>('[data-day-error]')!;
+    const add = day.querySelector<HTMLButtonElement>('[data-day-add]')!;
+    const value = day.querySelector<HTMLInputElement>('[data-day-value]')!;
+
+    const read = (): Period[] => {
+      try {
+        const parsed = JSON.parse(value.value) as Period[];
+        return Array.isArray(parsed) && parsed.length ? parsed : [['09:00', '18:00']];
+      } catch {
+        return [['09:00', '18:00']];
+      }
+    };
+
+    // Só o texto e a validação; as linhas não são recriadas, para não roubar o foco de quem digita.
+    const sync = () => {
+      const periods = [...list.querySelectorAll('.period')].map((row) => {
+        const from = row.querySelector<HTMLInputElement>('[data-from]')!.value;
+        const to = row.querySelector<HTMLInputElement>('[data-to]')!.value;
+        return [from, to] as Period;
+      });
+      if (periods.length) value.value = JSON.stringify(periods);
+      const current = read();
+      hours.textContent = open.checked ? current.map(([from, to]) => `${from} — ${to}`).join(' · ') : 'Fechado';
+      day.toggleAttribute('data-closed', !open.checked);
+      const message = open.checked ? problem(current) : '';
+      error.textContent = message;
+      error.hidden = !message;
+      day.toggleAttribute('data-invalid', Boolean(message));
+      add.disabled = current.length >= MAX;
+      edit.disabled = !open.checked;
+      if (!open.checked) {
+        editor.hidden = true;
+        edit.setAttribute('aria-expanded', 'false');
+      }
+    };
+
+    const render = () => {
+      const periods = read();
+      list.replaceChildren(
+        ...periods.map(([from, to], index) => {
+          const row = template.content.firstElementChild!.cloneNode(true) as HTMLElement;
+          const start = row.querySelector<HTMLInputElement>('[data-from]')!;
+          const end = row.querySelector<HTMLInputElement>('[data-to]')!;
+          const remove = row.querySelector<HTMLButtonElement>('[data-remove]')!;
+          start.value = from;
+          end.value = to;
+          start.setAttribute('aria-label', `${name}, início do período ${index + 1}`);
+          end.setAttribute('aria-label', `${name}, fim do período ${index + 1}`);
+          remove.setAttribute('aria-label', `Remover o período ${index + 1} de ${name}`);
+          remove.disabled = periods.length === 1;
+          remove.addEventListener('click', () => {
+            value.value = JSON.stringify(periods.filter((_, i) => i !== index));
+            render();
+          });
+          start.addEventListener('change', sync);
+          end.addEventListener('change', sync);
+          return row;
+        }),
+      );
+      sync();
+    };
+
+    add.addEventListener('click', () => {
+      const periods = read();
+      const last = Math.max(...periods.map(([, to]) => toMinutes(to)));
+      const from = Math.min(last + 60, 22 * 60);
+      value.value = JSON.stringify([...periods, [toClock(from), toClock(Math.min(from + 240, 23 * 60 + 59))]]);
+      render();
+      list.querySelector<HTMLInputElement>('.period:last-child [data-from]')?.focus();
+    });
+
+    edit.addEventListener('click', () => {
+      editor.hidden = !editor.hidden;
+      edit.setAttribute('aria-expanded', String(!editor.hidden));
+    });
+
+    open.addEventListener('change', sync);
+    // O protótipo pode preencher o campo escondido com o que já foi digitado.
+    value.addEventListener('input', render);
+    render();
+  }
+
+  // Antes do envio do protótipo (captura): com período inválido, abre o dia e não avança.
+  template.closest('form')?.addEventListener(
+    'submit',
+    (event) => {
+      const invalid = document.querySelector<HTMLElement>('[data-day][data-invalid]');
+      if (!invalid) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      invalid.querySelector<HTMLElement>('[data-day-editor]')!.hidden = false;
+      invalid.querySelector('[data-day-edit]')!.setAttribute('aria-expanded', 'true');
+      invalid.querySelector<HTMLInputElement>('[data-from]')?.focus();
+    },
+    { capture: true },
+  );
+</script>
+
+<style>
+  .days {
+    list-style: none;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+    overflow: hidden;
+  }
+
+  .day {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto 40px;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 12px 6px 16px;
+    border-top: 1px solid var(--site-color-border);
+  }
+
+  .day:first-child {
+    border-top: 0;
+  }
+
+  .day__toggle {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 44px;
+    cursor: pointer;
+  }
+
+  .day__name {
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .day__hours {
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .day[data-closed] .day__hours {
+    color: var(--site-color-text-muted);
+  }
+
+  .day[data-invalid] .day__hours {
+    color: var(--site-color-error);
+  }
+
+  .day__edit,
+  .period__remove {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 0;
+    border-radius: 10px;
+    background: none;
+    color: var(--site-color-text);
+    cursor: pointer;
+  }
+
+  .day__edit:hover:not(:disabled),
+  .period__remove:hover:not(:disabled) {
+    background: var(--site-color-brand-soft);
+  }
+
+  .day__edit:disabled,
+  .period__remove:disabled {
+    cursor: default;
+    opacity: 0.35;
+  }
+
+  .day__edit:focus-visible,
+  .period__remove:focus-visible,
+  .periods__add:focus-visible,
+  .switch:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  .day__editor {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    grid-column: 1 / -1;
+    padding: 4px 0 14px;
+  }
+
+  .periods {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .period {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .period input {
+    min-height: 44px;
+    padding: 0 12px;
+    border-radius: var(--site-radius-field);
+    border: 1px solid var(--site-color-border-strong);
+    background: var(--site-color-surface);
+    font: inherit;
+    font-size: 1rem;
+    color: var(--site-color-text);
+  }
+
+  .day[data-invalid] .period input {
+    border-color: var(--site-color-error);
+  }
+
+  .periods__error {
+    font-size: 0.8125rem;
+    color: var(--site-color-error);
+  }
+
+  .periods__add {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: var(--site-radius-button);
+    border: 1px solid var(--site-color-border-strong);
+    background: var(--site-color-surface);
+    color: var(--site-color-text);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .periods__add:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
+
+  /* Interruptor desenhado sobre o próprio checkbox: o leitor de tela anuncia "interruptor, ligado". */
+  .switch {
+    flex: none;
+    position: relative;
+    width: 38px;
+    height: 22px;
+    margin: 0;
+    border-radius: 999px;
+    background: var(--site-color-border-strong);
+    /* Fio por dentro: sem ele o contorno fica abaixo de 3:1 sobre o fundo branco. */
+    box-shadow: inset 0 0 0 1px var(--site-color-text-muted);
+    appearance: none;
+    cursor: pointer;
+    transition: background-color 0.16s ease;
+  }
+
+  .switch::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--site-color-surface);
+    transition: translate 0.16s ease;
+  }
+
+  .switch:checked {
+    background: var(--site-accent-green);
+    box-shadow: inset 0 0 0 1px var(--site-accent-green-deep);
+  }
+
+  .switch:checked::after {
+    translate: 16px 0;
+  }
+
+  @media (max-width: 479px) {
+    .day {
+      grid-template-columns: minmax(0, 1fr) 40px;
+    }
+
+    .day__hours {
+      grid-column: 1;
+      grid-row: 2;
+      padding: 0 0 6px 52px;
+      text-align: left;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .switch,
+    .switch::after {
+      transition: none;
+    }
+  }
+</style>

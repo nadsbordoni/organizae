@@ -1,0 +1,45 @@
+---
+import SiteLayout from '@/layouts/SiteLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import Heading from '@/components/Heading.astro';
+import { baseTheme } from '@/themes/base';
+
+/** Página não encontrada, com o tema e o mascote do Organizaê. */
+const seo = { title: 'Página não encontrada • Organizaê', description: 'Esta página não existe.', noindex: true };
+---
+
+<SiteLayout theme={baseTheme} seo={seo} noindex>
+  <main class="lost" id="conteudo">
+    <img class="lost__mascot" src="/marca/mascote-lupa.webp" alt="" width="527" height="720" />
+    <Heading
+      align="center"
+      eyebrow="Erro 404"
+      title="Não encontramos esta página"
+      intro="O endereço pode ter mudado ou ter sido digitado errado."
+    />
+    <div class="lost__actions">
+      <ActionButton label="Voltar para o início" href="/" full={false} />
+    </div>
+  </main>
+</SiteLayout>
+
+<style>
+  .lost {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100svh;
+    padding: 40px 20px;
+  }
+
+  .lost__mascot {
+    width: auto;
+    height: min(240px, 32svh);
+    margin-bottom: 24px;
+  }
+
+  .lost__actions {
+    margin-top: 28px;
+  }
+</style>

@@ -2,6 +2,7 @@
 import PanelLayout from '@/layouts/PanelLayout.astro';
 import ActionButton from '@/components/ActionButton.astro';
 import Callout from '@/components/Callout.astro';
+import EmptyState from '@/components/EmptyState.astro';
 import AppointmentDetails from '@/components/painel/AppointmentDetails.astro';
 import NotificationCard from '@/components/painel/NotificationCard.astro';
 import PanelHeading from '@/components/painel/PanelHeading.astro';
@@ -78,7 +79,7 @@ const proximos = (await dados.appointmentsBetween(hoje, addDays(hoje, 7)))
             ))}
           </ul>
         ) : (
-          <p class="empty">Nenhuma notificação não lida.</p>
+          <EmptyState level={3} mascot="sininho" title="Tudo em dia" text="Você já viu todas as notificações." />
         )
       }
     </PanelSection>
@@ -189,10 +190,6 @@ const proximos = (await dados.appointmentsBetween(hoje, addDays(hoje, 7)))
     list-style: none;
   }
 
-  .empty {
-    font-size: 0.875rem;
-    color: var(--site-color-text-muted);
-  }
 
   .stats {
     display: grid;

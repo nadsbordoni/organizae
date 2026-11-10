@@ -12,9 +12,11 @@ interface Props {
   title: string;
   /** `legal` no cadastro e no login; `brand` na recuperação de senha, como no protótipo. */
   footer?: 'legal' | 'brand';
+  /** Pose do mascote no painel escuro: `public/marca/mascote-<pose>.webp`. Uma por tela. */
+  mascot?: string;
 }
 
-const { title, footer = 'legal' } = Astro.props;
+const { title, footer = 'legal', mascot = 'acenando' } = Astro.props;
 const seo = { title: `${title} • Organizaê`, description: 'Acesso ao painel do Organizaê.', noindex: true };
 ---
 
@@ -33,7 +35,7 @@ const seo = { title: `${title} • Organizaê`, description: 'Acesso ao painel d
     <aside class="auth__art" aria-hidden="true">
       <span class="auth__ring auth__ring--outer"></span>
       <span class="auth__ring auth__ring--inner"></span>
-      <img class="auth__mascot" src="/marca/mascote-acenando.webp" alt="" width="480" height="720" />
+      <img class="auth__mascot" src={`/marca/mascote-${mascot}.webp`} alt="" height="720" />
       <span class="auth__caption">
         <strong>Organize sem complicar</strong>
         <span>Agenda, clientes e financeiro em um só lugar.</span>
@@ -43,24 +45,9 @@ const seo = { title: `${title} • Organizaê`, description: 'Acesso ao painel d
 </SiteLayout>
 
 <script>
-  // PROTÓTIPO: sem API, o formulário valido só leva à próxima tela. Assim nada do que foi digitado,
-  // senha inclusive, vai parar na URL. Trocar pelo envio à API.
-  for (const form of document.querySelectorAll<HTMLFormElement>('form[data-prototype]')) {
-    form.addEventListener('submit', (event) => {
-      event.preventDefault();
-      location.assign(form.getAttribute('action') ?? '/painel');
-    });
-  }
+  import { wirePrototypeForms } from '@/lib/prototype-form';
 
-  // `data-lock-submit`: o botão só libera com o formulário válido, como no protótipo da nova senha.
-  for (const form of document.querySelectorAll<HTMLFormElement>('form[data-lock-submit]')) {
-    const submit = form.querySelector<HTMLButtonElement>('[type="submit"]');
-    const sync = () => {
-      if (submit) submit.disabled = !form.checkValidity();
-    };
-    form.addEventListener('input', sync);
-    sync();
-  }
+  wirePrototypeForms();
 </script>
 
 <style>

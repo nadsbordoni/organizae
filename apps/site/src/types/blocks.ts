@@ -38,6 +38,7 @@ export type IconName =
   | 'check-circle'
   | 'alert-circle'
   | 'info'
+  | 'more'
   | 'eye'
   | 'eye-off'
   | 'logout'

@@ -7,7 +7,7 @@ import IconBadge from '@/components/IconBadge.astro';
 /** Cadastro concluído (quadro 01). */
 ---
 
-<AuthLayout title="Conta criada">
+<AuthLayout title="Conta criada" mascot="comemorando">
   <IconBadge icon="check" />
   <Heading
     eyebrow="Tudo certo"
@@ -15,7 +15,6 @@ import IconBadge from '@/components/IconBadge.astro';
     intro="Agora vamos personalizar o Organizaê para deixar tudo com a cara do seu negócio."
   />
   <div class="auth-form">
-    {/* PROTÓTIPO: a configuração inicial (quadro 03) ainda não existe; por ora leva ao painel. */}
-    <ActionButton label="Personalizar meu espaço" icon="sparkles" iconPosition="end" href="/painel" />
+    <ActionButton label="Personalizar meu espaço" icon="sparkles" iconPosition="end" href="/painel/configuracao" />
   </div>
 </AuthLayout>
