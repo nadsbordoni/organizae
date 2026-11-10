@@ -1,9 +1,20 @@
+from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    String,
+    Text,
+    UniqueConstraint,
+    Uuid,
+    text,
+)
 from sqlalchemy import Enum as SqlEnum
-from sqlalchemy import ForeignKey, String, Text, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -23,6 +34,16 @@ class ServiceMode(str, Enum):
 
 class Business(Base):
     __tablename__ = "businesses"
+    __table_args__ = (
+        # The slug format check (regex) lives only in the migration, because the
+        # SQLite used by the tests has no "~" operator.
+        UniqueConstraint("slug", name="uq_businesses_slug"),
+        # A published page must always be reachable by its slug.
+        CheckConstraint(
+            "NOT is_published OR (slug IS NOT NULL AND published_at IS NOT NULL)",
+            name="ck_businesses_published_page",
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(
         Uuid, primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
@@ -38,6 +59,14 @@ class Business(Base):
     address: Mapped[str | None] = mapped_column(String(255), nullable=True)
     service_mode: Mapped[ServiceMode] = mapped_column(
         SqlEnum(ServiceMode), nullable=False
+    )
+    instagram: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    slug: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    is_published: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
+    published_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
 
     category: Mapped["BusinessCategory"] = relationship(

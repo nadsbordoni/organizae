@@ -17,6 +17,9 @@ from app.modules.businesses.router import (
     business_error_handler,
 )
 from app.modules.businesses.router import (
+    public_router as public_pages_router,
+)
+from app.modules.businesses.router import (
     router as businesses_router,
 )
 from app.modules.categories.exceptions import CategoryError
@@ -42,6 +45,7 @@ app = FastAPI(
 )
 
 app.include_router(businesses_router, prefix="/api/v1")
+app.include_router(public_pages_router, prefix="/api/v1")
 app.include_router(services_router, prefix="/api/v1")
 app.include_router(professionals_router, prefix="/api/v1")
 app.include_router(assistant_router, prefix="/api/v1")
