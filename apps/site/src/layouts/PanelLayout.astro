@@ -1,0 +1,719 @@
+---
+import SiteLayout from './SiteLayout.astro';
+import Icon from '@/components/Icon.astro';
+import OrganizaeLogo from '@/components/OrganizaeLogo.astro';
+import { nowInBusinessTime } from '@/lib/agenda';
+import { initials, longDateLabel } from '@/lib/painel';
+import type { AuthenticatedUser } from '@/types/painel';
+import type { IconName } from '@/types/blocks';
+import type { SiteConfig } from '@/types/site';
+
+/**
+ * Casca do painel com o tema do negócio. Item do menu sem tela NÃO é link (seria 404 na mão da
+ * dona do negócio): ganha `href` quando a tela existir.
+ * PROTÓTIPO: busca e "Conversar" aparecem como no desenho, sem ação.
+ */
+
+export type PanelPage = 'home' | 'agenda' | 'notificacoes';
+
+interface Props {
+  site: SiteConfig;
+  user: AuthenticatedUser;
+  current: PanelPage;
+  title: string;
+}
+
+const { site, user, current, title } = Astro.props;
+
+const NAV: Array<{ page?: PanelPage; label: string; href?: string; icon: IconName }> = [
+  { page: 'home', label: 'Visão geral', href: '/painel', icon: 'home' },
+  { page: 'agenda', label: 'Agenda', href: '/painel/agenda', icon: 'calendar' },
+  { label: 'Clientes', icon: 'users' },
+  { label: 'Serviços', icon: 'briefcase' },
+  { label: 'Financeiro', icon: 'wallet' },
+  { label: 'Relatórios', icon: 'chart' },
+  { label: 'Configurações', icon: 'settings' },
+];
+
+const { profile } = site;
+const who = user.name ?? user.email;
+const today = nowInBusinessTime(site.agenda?.timezone ?? 'America/Sao_Paulo').date;
+const seo = { title: `${title} • ${profile.name}`, description: 'Painel do negócio.', noindex: true };
+---
+
+<SiteLayout theme={site.theme} seo={seo} noindex>
+  {/* Antes da pintura, para o menu não abrir e fechar na frente da pessoa. */}
+  <script is:inline>
+    try {
+      if (localStorage.getItem('painel:menu') === 'recolhido') {
+        document.documentElement.dataset.menu = 'recolhido';
+      }
+    } catch {}
+  </script>
+
+  <div class="panel">
+    <aside class="side">
+      <a class="side__brand" href="/painel" aria-label="Organizaê — início do painel">
+        <span class="side__brand-full"><OrganizaeLogo tone="light" /></span>
+        <img class="side__brand-mono" src="/marca/simbolo-fundo-escuro.svg" alt="" width="28" height="26" />
+      </a>
+
+      {/* Setinha na borda do menu em vez do menu hambúrguer do protótipo: diz melhor "recolher". */}
+      <button class="side__toggle" type="button" data-panel-toggle aria-label="Recolher o menu" title="Recolher o menu" aria-expanded="true">
+        <Icon name="chevron-left" size={16} />
+      </button>
+
+      <nav class="side__nav" aria-label="Painel">
+        <ul>
+          {
+            NAV.map((item) => (
+              <li data-soon={item.href ? undefined : ''}>
+                {item.href ? (
+                  <a
+                    class="side__link"
+                    href={item.href}
+                    title={item.label}
+                    aria-current={item.page === current ? 'page' : undefined}
+                  >
+                    <Icon name={item.icon} size={20} />
+                    <span class="side__label">{item.label}</span>
+                  </a>
+                ) : (
+                  <span class="side__link" aria-disabled="true" title={`${item.label} — em breve`}>
+                    <Icon name={item.icon} size={20} />
+                    <span class="side__label">
+                      {item.label}
+                      <span class="side__soon">Em breve</span>
+                    </span>
+                  </span>
+                )}
+              </li>
+            ))
+          }
+        </ul>
+      </nav>
+
+      <div class="side__help">
+        <span class="side__help-mascot" aria-hidden="true">
+          <img src="/marca/mascote-atendimento-rosto.webp" alt="" width="64" height="64" />
+        </span>
+        <strong>Precisa de ajuda?</strong>
+        {/* PROTÓTIPO: sem ação. Vai abrir a assistente quando ela tiver tela. */}
+        <button class="side__help-button" type="button">Conversar</button>
+      </div>
+
+      <div class="side__user">
+        <span class="side__avatar" aria-hidden="true">{initials(who)}</span>
+        <span class="side__who">
+          <strong>{who}</strong>
+          <span>Administração · {profile.name}</span>
+        </span>
+        <form class="side__logout-form" method="post" action="/api/logout">
+          <button class="side__logout" type="submit" aria-label="Sair do painel" title="Sair">
+            <Icon name="logout" size={18} />
+          </button>
+        </form>
+      </div>
+    </aside>
+
+    <div class="frame">
+      <header class="top">
+        {/* PROTÓTIPO: a busca ainda não procura nada. */}
+        <label class="top__search">
+          <Icon name="search" size={18} />
+          <span class="sr-only">Buscar</span>
+          <input type="search" placeholder="Buscar clientes, horários e serviços..." />
+        </label>
+
+        <div class="top__end">
+          <a
+            class="top__button"
+            href="/painel/notificacoes"
+            aria-label="Notificações"
+            title="Notificações"
+            aria-current={current === 'notificacoes' ? 'page' : undefined}
+          >
+            <Icon name="bell" size={20} />
+          </a>
+          <span class="top__date">{longDateLabel(today)}</span>
+        </div>
+      </header>
+
+      <main class="main" id="conteudo">
+        <slot />
+      </main>
+    </div>
+  </div>
+</SiteLayout>
+
+<script>
+  const toggle = document.querySelector<HTMLButtonElement>('[data-panel-toggle]');
+  const root = document.documentElement;
+
+  const sync = () => {
+    const collapsed = root.dataset.menu === 'recolhido';
+    toggle?.setAttribute('aria-expanded', String(!collapsed));
+    const label = collapsed ? 'Abrir o menu' : 'Recolher o menu';
+    toggle?.setAttribute('aria-label', label);
+    toggle?.setAttribute('title', label);
+  };
+
+  toggle?.addEventListener('click', () => {
+    const collapse = root.dataset.menu !== 'recolhido';
+    if (collapse) root.dataset.menu = 'recolhido';
+    else delete root.dataset.menu;
+    try {
+      localStorage.setItem('painel:menu', collapse ? 'recolhido' : 'aberto');
+    } catch {
+      /* navegação privada antiga: o menu só não lembra a escolha */
+    }
+    sync();
+  });
+
+  sync();
+</script>
+
+<style>
+  .panel {
+    /* 248px é a largura do menu no protótipo. */
+    --side-width: 248px;
+
+    display: grid;
+    grid-template-columns: var(--side-width) minmax(0, 1fr);
+    min-height: 100svh;
+    background: var(--site-panel-background);
+  }
+
+  :global(html[data-menu='recolhido']) .panel {
+    --side-width: 84px;
+  }
+
+  /* SEM `overflow`: cortaria a setinha de recolher, que sai da borda.
+     Em tela baixa quem sai é o cartão de ajuda (ver o fim do arquivo). */
+  .side {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    height: 100svh;
+    padding: 24px 16px;
+    background: var(--site-panel-sidebar);
+    color: var(--site-panel-on-sidebar);
+  }
+
+  .side__toggle {
+    position: absolute;
+    top: 30px;
+    right: -14px;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 3px solid var(--site-panel-background);
+    border-radius: 50%;
+    background: var(--site-panel-sidebar-accent);
+    color: var(--site-color-text);
+    cursor: pointer;
+  }
+
+  .side__toggle :global(svg) {
+    transition: rotate 0.2s ease;
+  }
+
+  :global(html[data-menu='recolhido']) .side__toggle :global(svg) {
+    rotate: 180deg;
+  }
+
+  .side__brand {
+    display: flex;
+    align-items: center;
+    min-height: 40px;
+    padding-inline: 8px;
+    color: inherit;
+    text-decoration: none;
+    border-radius: 10px;
+  }
+
+  .side__brand-mono {
+    display: none;
+    width: 28px;
+    height: auto;
+  }
+
+  .side__nav {
+    margin-top: 24px;
+  }
+
+  .side__nav ul {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    list-style: none;
+  }
+
+  .side__link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 48px;
+    padding: 0 14px;
+    border-radius: 12px;
+    color: var(--site-panel-on-sidebar-muted);
+    font-size: 1rem;
+    text-decoration: none;
+    transition:
+      background-color 0.16s ease,
+      color 0.16s ease;
+  }
+
+  a.side__link:hover {
+    background: var(--site-panel-sidebar-active);
+    color: var(--site-panel-on-sidebar);
+  }
+
+  .side__link[aria-current='page'] {
+    background: var(--site-panel-sidebar-active);
+    color: var(--site-panel-on-sidebar);
+  }
+
+  .side__link[aria-current='page'] :global(svg) {
+    color: var(--site-panel-sidebar-accent);
+  }
+
+  .side__label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 1;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  /* Item sem tela. NÃO baixe a opacidade: a 0.85 o rótulo fica em 5,4:1 sobre o menu; a 0.72 cai para 4,3:1. */
+  .side__link[aria-disabled='true'] {
+    cursor: default;
+    opacity: 0.85;
+  }
+
+  .side__soon {
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--site-panel-sidebar-active);
+    /* Claro: o cinza do rótulo sobre o fundo do selo ficaria em 4,5:1 raspando. */
+    color: var(--site-panel-on-sidebar);
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  .side__link:focus-visible,
+  .side__brand:focus-visible,
+  .side__logout:focus-visible,
+  .side__help-button:focus-visible,
+  .side__toggle:focus-visible {
+    outline: 2px solid var(--site-panel-sidebar-accent);
+    outline-offset: 2px;
+  }
+
+  .side__user {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: auto;
+    padding: 20px 12px 0;
+    border-top: 1px solid color-mix(in srgb, var(--site-panel-on-sidebar) 14%, transparent);
+  }
+
+  .side__avatar {
+    display: grid;
+    place-items: center;
+    flex: none;
+    border-radius: 12px;
+    background: var(--site-accent-pink-soft);
+    color: var(--site-color-text);
+    font-weight: 600;
+  }
+
+  .side__avatar {
+    width: 44px;
+    height: 44px;
+    margin-bottom: 10px;
+    font-size: 0.875rem;
+  }
+
+  .side__who {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .side__who strong {
+    overflow: hidden;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .side__who span {
+    overflow: hidden;
+    font-size: 0.6875rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--site-panel-on-sidebar-muted);
+  }
+
+  .side__logout-form {
+    position: absolute;
+    top: 18px;
+    right: 4px;
+  }
+
+  .side__logout {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 0;
+    border-radius: 12px;
+    background: none;
+    color: var(--site-panel-on-sidebar-muted);
+    cursor: pointer;
+  }
+
+  .side__logout:hover {
+    background: var(--site-panel-sidebar-active);
+    color: var(--site-panel-on-sidebar);
+  }
+
+  .side__help {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+    margin-top: 24px;
+    margin-bottom: 24px;
+    padding: 16px;
+    border-radius: 16px;
+    background: var(--site-panel-sidebar-active);
+  }
+
+  .side__help-mascot {
+    display: grid;
+    place-items: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--site-background-page-solid);
+    overflow: hidden;
+  }
+
+  .side__help-mascot img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .side__help strong {
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+
+  .side__help-button {
+    width: 100%;
+    min-height: 48px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--site-accent-yellow-soft);
+    color: var(--site-color-text);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 650;
+    cursor: pointer;
+  }
+
+  .frame {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .top {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 74px;
+    padding: 0 32px 0 28px;
+    border-bottom: 1px solid var(--site-color-border);
+    background: var(--site-panel-background);
+  }
+
+  .top__button {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: 12px;
+    background: none;
+    color: var(--site-color-text);
+    cursor: pointer;
+  }
+
+  .top__button:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  /* Sino na tela de notificações: o mesmo amarelo do item ativo do menu. */
+  .top__button[aria-current='page'] {
+    background: var(--site-accent-yellow-soft);
+  }
+
+  .top__button:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  .top__search {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 12px;
+    max-width: 520px;
+    color: var(--site-color-text-muted);
+  }
+
+  .top__search input {
+    flex: 1;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 0.9375rem;
+    color: var(--site-color-text);
+  }
+
+  .top__search input::placeholder {
+    color: var(--site-color-text-muted);
+    opacity: 1;
+  }
+
+  .top__search input:focus-visible {
+    outline: none;
+  }
+
+  .top__search:focus-within {
+    color: var(--site-color-text);
+  }
+
+  .top__end {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+  }
+
+  .top__date {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  /* Menu recolhido: só ícones; os rótulos continuam no `title` e para o leitor de tela. */
+  @media (min-width: 1100px) {
+    :global(html[data-menu='recolhido']) .side {
+      padding-inline: 12px;
+    }
+
+    :global(html[data-menu='recolhido']) .side__brand-full,
+    :global(html[data-menu='recolhido']) .side__who,
+    :global(html[data-menu='recolhido']) .side__logout-form,
+    :global(html[data-menu='recolhido']) .side__help {
+      display: none;
+    }
+
+    :global(html[data-menu='recolhido']) .side__brand-mono {
+      display: block;
+    }
+
+    :global(html[data-menu='recolhido']) .side__brand {
+      justify-content: center;
+      padding-inline: 0;
+    }
+
+    :global(html[data-menu='recolhido']) .side__link {
+      justify-content: center;
+      padding: 0;
+    }
+
+    :global(html[data-menu='recolhido']) .side__label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+
+    :global(html[data-menu='recolhido']) .side__user {
+      align-items: center;
+      padding-inline: 0;
+    }
+
+    :global(html[data-menu='recolhido']) .side__avatar {
+      margin-bottom: 0;
+    }
+  }
+
+  /* Tablet: sempre recolhido, sem botão; não há largura para o menu aberto e o conteúdo juntos. */
+  @media (min-width: 720px) and (max-width: 1099px) {
+    .panel {
+      --side-width: 84px;
+    }
+
+    .side {
+      padding-inline: 12px;
+    }
+
+    .side__toggle,
+    .side__brand-full,
+    .side__who,
+    .side__logout-form,
+    .side__help,
+    .top__date {
+      display: none;
+    }
+
+    .side__brand-mono {
+      display: block;
+    }
+
+    .side__brand {
+      justify-content: center;
+      padding-inline: 0;
+    }
+
+    .side__link {
+      justify-content: center;
+      padding: 0;
+    }
+
+    .side__label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+
+    .side__user {
+      align-items: center;
+      padding-inline: 0;
+    }
+
+    .side__avatar {
+      margin-bottom: 0;
+    }
+  }
+
+  /* Celular: o menu vira barra no topo, só com as telas que existem; a busca sai por falta de largura. */
+  @media (max-width: 719px) {
+    .panel {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto 1fr;
+    }
+
+    .side {
+      position: static;
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+      height: auto;
+      padding: 10px 12px;
+    }
+
+    .side__nav {
+      margin: 0 0 0 auto;
+    }
+
+    .side__nav ul {
+      flex-direction: row;
+      gap: 2px;
+    }
+
+    .side__nav li[data-soon],
+    .side__toggle,
+    .side__who,
+    .side__avatar,
+    .side__help,
+    .top {
+      display: none;
+    }
+
+    .side__link {
+      padding: 0 12px;
+    }
+
+    .side__label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+
+    .side__user {
+      margin: 0;
+      padding: 0;
+      border: 0;
+    }
+
+    .side__logout-form {
+      position: static;
+    }
+  }
+
+  /* Limite de 1600px: em monitor muito largo, as linhas da tabela ficariam longas demais de ler. */
+  .main {
+    width: 100%;
+    max-width: 1600px;
+    margin-inline: auto;
+    padding: 52px 42px 64px;
+  }
+
+  @media (max-width: 1099px) {
+    .main {
+      padding: 32px 28px 56px;
+    }
+  }
+
+  @media (max-width: 719px) {
+    .main {
+      padding: 24px 16px 48px;
+    }
+  }
+
+  @media (max-height: 760px) and (min-width: 720px) {
+    .side__help {
+      display: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .side__link,
+    .side__toggle :global(svg) {
+      transition: none;
+    }
+  }
+</style>

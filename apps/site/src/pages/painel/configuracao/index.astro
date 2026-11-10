@@ -1,0 +1,136 @@
+---
+import SetupLayout from '@/layouts/SetupLayout.astro';
+import BusinessMark from '@/components/BusinessMark.astro';
+import TextField from '@/components/TextField.astro';
+import { BUSINESS_SEGMENTS } from '@/lib/painel';
+
+/** Configuração, passo 1. Com a API: `PATCH /api/v1/businesses/{id}` (nome, categoria, descrição, logo). */
+---
+
+<SetupLayout
+  step={1}
+  title="Deixe tudo com a sua cara"
+  intro="Escolha as informações que seus clientes verão primeiro."
+>
+  <div class="logo">
+    <span class="logo__mark" data-logo-mark>
+      <BusinessMark profile={{ name: 'Seu negócio' }} size={80} />
+    </span>
+    <div class="logo__text">
+      <strong>Logo do negócio</strong>
+      <small id="logo-regra">PNG, JPG ou SVG. Máximo de 5 MB.</small>
+      <label class="logo__pick">
+        Escolher arquivo
+        <input
+          class="sr-only"
+          type="file"
+          name="logo"
+          accept="image/png,image/jpeg,image/svg+xml"
+          aria-describedby="logo-regra"
+          data-logo-input
+        />
+      </label>
+      <p class="logo__error" role="alert" hidden data-logo-error>O arquivo passa de 5 MB. Escolha um menor.</p>
+    </div>
+  </div>
+
+  <div class="setup-row">
+    <TextField id="negocio" label="Nome público" autocomplete="organization" placeholder="Ex.: Studio Aurora" required autofocus />
+    <TextField id="categoria" label="Segmento" options={BUSINESS_SEGMENTS} required />
+  </div>
+  <TextField
+    id="descricao"
+    label="Descrição curta"
+    placeholder="Ex.: Cuidado, beleza e bem-estar em cada detalhe."
+    maxlength={120}
+    optional
+  />
+</SetupLayout>
+
+<script>
+  import { initials } from '@/lib/painel';
+
+  const MAX = 5 * 1024 * 1024;
+  const mark = document.querySelector<HTMLElement>('[data-logo-mark] .mark');
+  const name = document.querySelector<HTMLInputElement>('#negocio');
+  const file = document.querySelector<HTMLInputElement>('[data-logo-input]');
+  const error = document.querySelector<HTMLElement>('[data-logo-error]');
+
+  const showInitials = () => {
+    if (mark && !mark.style.backgroundImage) mark.textContent = initials(name?.value.trim() || 'Seu negócio');
+  };
+  name?.addEventListener('input', showInitials);
+  showInitials();
+
+  file?.addEventListener('change', () => {
+    const chosen = file.files?.[0];
+    if (!chosen || !mark || !error) return;
+    const tooBig = chosen.size > MAX;
+    error.hidden = !tooBig;
+    file.setCustomValidity(tooBig ? 'O arquivo passa de 5 MB.' : '');
+    if (tooBig) return;
+    mark.style.backgroundImage = `url(${URL.createObjectURL(chosen)})`;
+    mark.textContent = '';
+  });
+</script>
+
+<style>
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 24px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .logo__mark :global(.mark) {
+    background-size: cover;
+    background-position: center;
+  }
+
+  .logo__text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .logo__text strong {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .logo__text small {
+    font-size: 0.75rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .logo__pick {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin-top: 8px;
+    padding: 0 20px;
+    border-radius: var(--site-radius-button);
+    border: 1px solid var(--site-color-border-strong);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .logo__pick:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  .logo__pick:focus-within {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  .logo__error {
+    font-size: 0.8125rem;
+    color: var(--site-color-error);
+  }
+</style>

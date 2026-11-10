@@ -1,0 +1,24 @@
+---
+import LinkPage from '@/components/LinkPage.astro';
+import { sites } from '@/config';
+import type { SiteConfig } from '@/types/site';
+
+/**
+ * Página de links `/{slug}`. Um HTML por cliente no build, para cada página ter título
+ * e imagem de preview próprios no WhatsApp/Instagram.
+ */
+export function getStaticPaths() {
+  return sites.map((site) => ({
+    params: { slug: site.slug },
+    props: { site },
+  }));
+}
+
+interface Props {
+  site: SiteConfig;
+}
+
+const { site } = Astro.props;
+---
+
+<LinkPage site={site} />

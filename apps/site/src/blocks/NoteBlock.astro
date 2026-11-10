@@ -1,0 +1,23 @@
+---
+import type { NoteBlock } from '@/types/blocks';
+
+interface Props {
+  block: NoteBlock;
+}
+
+const { block } = Astro.props;
+---
+
+<p class="note">{block.text}</p>
+
+<style>
+  .note {
+    margin: 0;
+    padding: 0 8px;
+    text-align: center;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--site-color-text-muted);
+    text-wrap: pretty;
+  }
+</style>

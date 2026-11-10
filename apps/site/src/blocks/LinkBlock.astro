@@ -1,0 +1,21 @@
+---
+import LinkButton from '@/components/LinkButton.astro';
+import type { LinkBlock } from '@/types/blocks';
+
+interface Props {
+  block: LinkBlock;
+}
+
+const { block } = Astro.props;
+---
+
+<LinkButton
+  title={block.title}
+  subtitle={block.subtitle}
+  href={block.href}
+  icon={block.icon}
+  image={block.image}
+  emphasis={block.emphasis}
+  external={block.external}
+  affiliate={block.affiliate}
+/>

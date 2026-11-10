@@ -2,42 +2,40 @@
 
 Plataforma de agendamento e gestão para prestadores de serviço, como estúdios de beleza e salões. Cada estúdio tem sua página pública e seu painel, e todos compartilham a mesma aplicação.
 
-> Projeto da faculdade, em fase de planejamento. Ainda não há código da aplicação.
+> Projeto da faculdade, em desenvolvimento. A API fica em [`apps/api`](apps/api) e as telas em [`apps/site`](apps/site). As telas ainda usam dados de exemplo e não estão ligadas à API.
 
 ## Arquitetura
 
 ```mermaid
 flowchart TD
-    A["Site publico do studio - Astro"] --> D["API - Spring Boot e Java"]
+    A["Site publico do studio - Astro"] --> D["API - FastAPI e Python"]
     B["Painel do prestador - React e Vite"] --> D
-    D --> E["PostgreSQL com tenant_id"]
-    D --> F["Tarefas agendadas - Quartz ou JobRunr"]
-    F --> G["WhatsApp e e-mail"]
+    D --> E["PostgreSQL com business_id"]
+    D --> F["Assistente - Gemini"]
 ```
 
-Os dois front-ends falam com uma API única, e só ela acessa o banco e as tarefas em segundo plano.
+Os dois front-ends falam com uma API única, e só ela acessa o banco e a assistente.
 
 ## Decisões
 
 | Tema | Escolha | Motivo |
 |---|---|---|
-| Back-end | Spring Boot, Java 21, Maven | Linguagem e ferramenta mais usadas na faculdade |
+| Back-end | Python 3.12, FastAPI, SQLAlchemy, Alembic, uv | Definido pelo time de back |
 | Banco | PostgreSQL | Impede agendamentos sobrepostos direto no banco e oferece Row-Level Security |
-| Multi-tenant | Um banco, `tenant_id` em toda tabela | Mais simples de operar com vários estúdios |
+| Multi-tenant | Um banco, `business_id` nas tabelas de cada negócio | Mais simples de operar com vários estúdios |
 | Painel | React + Vite | App logado, sem necessidade de SEO |
 | Páginas públicas | Astro | HTML rápido e bom SEO |
-| Contrato front/back | OpenAPI gerado pela API | Os tipos do front são gerados a partir dele |
-| Tarefas em segundo plano | JobRunr (Postgres) | Lembretes e cobranças sem precisar de Redis |
+| Contrato front/back | OpenAPI gerado pelo FastAPI | Os tipos do front são gerados a partir dele |
 
-## Estrutura prevista
+## Estrutura
 
 ```
 organizae/
   apps/
-    api/        Spring Boot
-    painel/     React + Vite
-    site/       Astro
-  docker-compose.yml   PostgreSQL local
+    api/        FastAPI: negócios, serviços, clientes, agendamentos e assistente
+    site/       Astro: páginas públicas, agendamento e protótipo do painel
+    painel/     React + Vite (a criar; por ora o painel está em apps/site)
+  AGENTS.md     Convenções de código do projeto
 ```
 
 ## Assistente de IA

@@ -1,0 +1,528 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import EmptyState from '@/components/EmptyState.astro';
+import Icon from '@/components/Icon.astro';
+import DayList from '@/components/painel/DayList.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import PanelSection from '@/components/painel/PanelSection.astro';
+import WeekGrid from '@/components/painel/WeekGrid.astro';
+import { getSite } from '@/config';
+import { addDays, isIsoDate, nowInBusinessTime, scheduleFor, weekdayOf } from '@/lib/agenda';
+import { occupiesSlot } from '@/lib/dashboard-status';
+import { forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
+import {
+  dayLoad,
+  shortWeekday,
+  tenantNotConfigured,
+  weekOf,
+  weekRangeLabel,
+  weekRangeLongLabel,
+  weekdayLabel,
+} from '@/lib/painel';
+
+/**
+ * Agenda: grade da semana no computador (quadro 05 do protótipo); no celular, a faixa dos 7 dias
+ * com o dia escolhido embaixo, para a dona ver a semana inteira sempre que abre a tela.
+ * O dia vive na URL (`?d=AAAA-MM-DD`): voltar e recarregar funcionam sem JavaScript.
+ */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const agenda = site.agenda;
+const agora = nowInBusinessTime(agenda?.timezone ?? 'America/Sao_Paulo');
+const hoje = agora.date;
+const pedido = Astro.url.searchParams.get('d') ?? '';
+const dia = isIsoDate(pedido) ? pedido : hoje;
+
+const semana = weekOf(dia);
+const inicio = semana[0]!;
+const fim = semana[6]!;
+
+const dados = forTenant(user.tenantSlug);
+const daSemana = await dados.appointmentsBetween(inicio, fim);
+const excecoes = await dados.exceptionsBetween(inicio, fim);
+
+const ativosDaSemana = daSemana.filter((m) => occupiesSlot(m.status));
+const dias = semana.map((date) => {
+  const doDia = ativosDaSemana.filter((m) => m.date === date);
+  const pendentes = doDia.filter((m) => m.status === 'pending').length;
+  const carga = dayLoad(agenda, date, doDia);
+  // A faixa é visual; o leitor de tela ouve o dia inteiro numa frase.
+  const resumo = [
+    carga === undefined ? 'fechado' : undefined,
+    `${doDia.length} ${doDia.length === 1 ? 'atendimento' : 'atendimentos'}`,
+    pendentes ? `${pendentes} a confirmar` : undefined,
+    carga === undefined ? undefined : `${Math.round(carga * 100)}% ocupado`,
+  ].filter(Boolean);
+  return {
+    date,
+    total: doDia.length,
+    pendentes,
+    carga,
+    label: `${weekdayLabel(date)}${date === hoje ? ', hoje' : ''}: ${resumo.join(', ')}`,
+  };
+});
+
+const excecao = excecoes.find((item) => item.date === dia);
+const fechado = excecao?.hours === null;
+const ativos = ativosDaSemana.filter((m) => m.date === dia);
+
+// Só os dias em que o negócio abre na semana comum: feriado aparece fechado, o domingo de sempre nem entra.
+const colunas = semana
+  .filter((date) => agenda?.hours[weekdayOf(date)])
+  .map((date) => {
+    const horario = agenda ? scheduleFor(agenda, date) : { hours: null };
+    return {
+      date,
+      head: `${shortWeekday(date)} ${Number(date.slice(8, 10))}`,
+      label: `${weekdayLabel(date)}${date === hoje ? ', hoje' : ''}`,
+      today: date === hoje,
+      hours: horario.hours,
+      reason: 'reason' in horario ? horario.reason : undefined,
+      rows: ativosDaSemana.filter((m) => m.date === date),
+    };
+  });
+const primeira = colunas[0]?.date ?? inicio;
+const ultima = colunas.at(-1)?.date ?? fim;
+
+const agendaDe = (data: string) => `/painel/agenda?d=${data}`;
+---
+
+<PanelLayout site={site} user={user} current="agenda" title="Agenda">
+  <PanelHeading
+    eyebrow="Agenda"
+    title="Sua semana em um olhar"
+    intro="Organize horários, encaixes e disponibilidade da equipe."
+  >
+    <ActionButton label="Hoje" variant="secondary" href="/painel/agenda" full={false} />
+    {/* PROTÓTIPO: ainda não marca nada. */}
+    <ActionButton label="Novo agendamento" icon="plus" iconPosition="end" full={false} />
+  </PanelHeading>
+
+  <nav class="weeknav" aria-label="Escolher a semana">
+    <span class="weeknav__view">Semana</span>
+    <a class="weeknav__arrow" href={agendaDe(addDays(dia, -7))} aria-label="Semana anterior">
+      <Icon name="chevron-left" size={20} />
+    </a>
+    {/* Largura fixa: trocar de semana não mexe nas setas. */}
+    <p class="weeknav__label">
+      <span class="desk">{weekRangeLongLabel(primeira, ultima)}</span>
+      <span class="mobile">{weekRangeLabel(inicio, fim)}</span>
+    </p>
+    <a class="weeknav__arrow" href={agendaDe(addDays(dia, 7))} aria-label="Próxima semana">
+      <Icon name="chevron-right" size={20} />
+    </a>
+    <ul class="legend" aria-label="Legenda">
+      <li data-kind="confirmed">Confirmado</li>
+      <li data-kind="pending">Pendente</li>
+      <li data-kind="block">Bloqueio</li>
+    </ul>
+  </nav>
+
+  <div class="desk">
+    <WeekGrid
+      days={colunas}
+      agenda={agenda}
+      now={agora.minutes}
+      label={`Semana de ${weekRangeLongLabel(primeira, ultima)}`}
+    />
+  </div>
+
+  <div class="mobile">
+    <nav class="week" aria-label="Dias da semana">
+      <ol class="week__days">
+        {
+          dias.map((d) => (
+            <li>
+              <a
+                class="week__day"
+                href={agendaDe(d.date)}
+                aria-label={d.label}
+                aria-current={d.date === dia ? 'page' : undefined}
+                data-closed={d.carga === undefined ? '' : undefined}
+                data-today={d.date === hoje ? '' : undefined}
+              >
+                <span class="week__name">{shortWeekday(d.date)}</span>
+                <span class="week__num">{Number(d.date.slice(8, 10))}</span>
+                <span class="week__count">{d.carga === undefined ? 'Fechado' : d.total > 0 ? d.total : '—'}</span>
+                <span class="week__bar">
+                  <span class="week__fill" style={`width: ${Math.round((d.carga ?? 0) * 100)}%`} />
+                </span>
+                <span class="week__pending">
+                  {d.pendentes > 0 && (
+                    <>
+                      <Icon name="clock" size={12} />
+                      {d.pendentes}
+                    </>
+                  )}
+                </span>
+              </a>
+            </li>
+          ))
+        }
+      </ol>
+    </nav>
+
+  <PanelSection title={weekdayLabel(dia)} subtitle={dia === hoje ? 'Hoje' : undefined} id="titulo-dia">
+    {
+      fechado && (
+        <div class="closed">
+          {/* Volta a prometer "ninguém marca" SÓ quando o site público ler as exceções do banco. */}
+          <EmptyState
+            level={3}
+            icon="calendar"
+            title="Dia fechado"
+            text={`${excecao?.reason ? `${excecao.reason}. ` : ''}O agendamento do site ainda não sabe disso e continua oferecendo o dia.`}
+          />
+          <form method="post" action="/api/dia">
+            <input type="hidden" name="data" value={dia} />
+            <input type="hidden" name="acao" value="abrir" />
+            <ActionButton label="Reabrir este dia" variant="secondary" type="submit" full={false} />
+          </form>
+        </div>
+      )
+    }
+
+    {/* Dia fechado com atendimento continua listando: esconder cliente marcada é pior que a incoerência. */}
+    {
+      ativos.length > 0 ? (
+        <DayList rows={ativos} agenda={agenda} label={`Atendimentos de ${weekdayLabel(dia)}`} detailed idPrefix="det-dia" />
+      ) : (
+        !fechado && (
+          <EmptyState
+            level={3}
+            mascot="relaxando"
+            title="Nenhum atendimento"
+            text="Este dia está livre. Pedidos feitos pelo site ainda chegam só pelo WhatsApp."
+          />
+        )
+      )
+    }
+
+    {
+      !fechado && (
+        <form class="close-day" method="post" action="/api/dia">
+          <input type="hidden" name="data" value={dia} />
+          <input type="hidden" name="acao" value="fechar" />
+          <ActionButton
+            label="Fechar este dia"
+            variant="ghost"
+            type="submit"
+            full={false}
+            disabled={ativos.length > 0}
+          />
+          {ativos.length > 0 && (
+            <p class="close-day__note">Cancele ou remarque os atendimentos antes de fechar o dia.</p>
+          )}
+        </form>
+      )
+    }
+  </PanelSection>
+  </div>
+</PanelLayout>
+
+<style>
+  .weeknav {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 56px 0 52px;
+    padding: 14px 20px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .weeknav__view {
+    display: inline-flex;
+    align-items: center;
+    min-height: 56px;
+    margin-right: 4px;
+    padding: 0 24px;
+    border-radius: var(--site-radius-button);
+    border: 1px solid var(--site-color-border-strong);
+    font-size: 1.0625rem;
+    font-weight: 600;
+  }
+
+  .weeknav__arrow {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    border: 1px solid var(--site-color-border-strong);
+    color: var(--site-color-text);
+  }
+
+  .weeknav__arrow:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  .weeknav__arrow:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  .weeknav__label {
+    min-width: 15.5rem;
+    text-align: center;
+    font-size: 1.25rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .legend {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+    list-style: none;
+  }
+
+  .legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: 999px;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  /* O mesmo traço dos atendimentos na grade: sem ele a legenda não diria a que se refere. */
+  .legend li::before {
+    content: '';
+    width: 0;
+    height: 14px;
+    border-left: 2px solid var(--site-color-text);
+  }
+
+  .legend [data-kind='confirmed'] {
+    background: var(--site-color-brand-soft);
+  }
+
+  .legend [data-kind='pending'] {
+    border: 1px solid var(--site-color-border-strong);
+  }
+
+  .legend [data-kind='pending']::before {
+    border-left-style: dashed;
+  }
+
+  .legend [data-kind='block'] {
+    background: color-mix(in srgb, var(--site-accent-green) 14%, var(--site-color-surface));
+  }
+
+  .legend [data-kind='block']::before {
+    border-color: var(--site-accent-blue-deep);
+  }
+
+  .mobile {
+    display: none;
+  }
+
+  @media (max-width: 1099px) {
+    .desk {
+      display: none;
+    }
+
+    .mobile {
+      display: block;
+    }
+
+    span.mobile {
+      display: inline;
+    }
+
+    .weeknav {
+      justify-content: flex-end;
+      margin: 32px 0 0;
+      padding: 10px 12px;
+    }
+
+    .weeknav__view,
+    .legend {
+      display: none;
+    }
+
+    .weeknav__label {
+      min-width: 9.5rem;
+      font-size: 1.125rem;
+    }
+  }
+
+  .week {
+    margin: 16px 0;
+  }
+
+  .week__days {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 10px;
+    list-style: none;
+  }
+
+  .week__day {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 10px 12px;
+    border-radius: 16px;
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+    color: var(--site-color-text);
+    text-decoration: none;
+    transition: background-color 0.16s ease;
+  }
+
+  .week__day:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  .week__day:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  .week__name {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--site-color-text-muted);
+  }
+
+  .week__num {
+    font-family: var(--site-font-display);
+    font-size: 1.625rem;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+
+  .week__count {
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+
+  .week__bar {
+    width: 100%;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--site-color-brand-soft);
+    overflow: hidden;
+  }
+
+  .week__fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--site-accent-green);
+  }
+
+  .week__pending {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    min-height: 16px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--site-accent-yellow-deep);
+  }
+
+  /* Hoje em amarelo, como no protótipo. Rótulo escuro: o cinza não passa de 4.5:1 sobre o amarelo. */
+  .week__day[data-today] {
+    border-color: var(--site-accent-yellow-soft);
+    background: var(--site-accent-yellow-soft);
+  }
+
+  .week__day[data-today] .week__name,
+  .week__day[data-today] .week__pending {
+    color: var(--site-color-text);
+  }
+
+  .week__day[data-today] .week__bar {
+    background: color-mix(in srgb, var(--site-color-text) 12%, transparent);
+  }
+
+  /* Dia escolhido: como o botão principal, também quando é hoje. */
+  .week__day[aria-current='page'] {
+    border-color: var(--site-color-brand);
+    background: var(--site-color-brand);
+    color: var(--site-color-on-brand);
+  }
+
+  .week__day[aria-current='page'] .week__name {
+    color: var(--site-panel-on-sidebar-muted);
+  }
+
+  .week__day[aria-current='page'] .week__bar {
+    background: color-mix(in srgb, var(--site-color-on-brand) 18%, transparent);
+  }
+
+  .week__day[aria-current='page'] .week__pending {
+    color: var(--site-accent-yellow);
+  }
+
+  .week__day[data-closed]:not([aria-current='page']) {
+    border-style: dashed;
+    background: none;
+    color: var(--site-color-text-muted);
+  }
+
+  .closed {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .close-day {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .close-day__note {
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  /* Os 7 dias continuam numa linha só, que é o motivo da tela: só encolhem o respiro e o número. */
+  @media (max-width: 599px) {
+    .week__days {
+      gap: 4px;
+    }
+
+    .week__day {
+      padding: 10px 2px 8px;
+      border-radius: 12px;
+    }
+
+    .week__name {
+      letter-spacing: 0;
+    }
+
+    .week__num {
+      font-size: 1.25rem;
+    }
+
+    .week__count {
+      font-size: 0.75rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .week__day {
+      transition: none;
+    }
+  }
+</style>

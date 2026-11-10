@@ -1,0 +1,42 @@
+---
+/** Rodapé das páginas públicas com a assinatura do Organizaê; `note` entra acima dela (aviso, CNPJ). */
+
+interface Props {
+  note?: string;
+}
+
+const { note } = Astro.props;
+---
+
+<footer class="footer">
+  {note && <p>{note}</p>}
+  <p class="footer__sign">
+    <img src="/marca/icone.svg" alt="" width="28" height="28" />
+    Feito com Organizaê
+  </p>
+</footer>
+
+<style>
+  .footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin-top: 28px;
+    text-align: center;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: var(--site-color-text-muted);
+  }
+
+  .footer__sign {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .footer__sign img {
+    width: 28px;
+    height: 28px;
+  }
+</style>

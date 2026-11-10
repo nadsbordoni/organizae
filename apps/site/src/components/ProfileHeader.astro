@@ -1,0 +1,80 @@
+---
+import BusinessMark from './BusinessMark.astro';
+import Headline from './Headline.astro';
+import ServiceList from './ServiceList.astro';
+import type { Profile } from '@/types/site';
+
+/**
+ * Cabeçalho do perfil, o que a pessoa vê ao chegar do Instagram. Peso visual decrescente:
+ * logo → nome → diferencial → o que oferece; nada compete com os links.
+ */
+
+interface Props {
+  profile: Profile;
+}
+
+const { profile }: Props = Astro.props;
+---
+
+<header class="profile">
+  <BusinessMark profile={profile} size={72} priority />
+
+  {/* A categoria vem DEPOIS do nome no HTML, para o leitor de tela anunciar
+      "Joana, Manicure", e sobe para cima dele só na tela. */}
+  <h1 class="profile__name">
+    <span>{profile.name}</span>
+    {profile.nameSuffix && <span class="profile__suffix">{profile.nameSuffix}</span>}
+  </h1>
+
+  {profile.headline && <Headline text={profile.headline} />}
+
+  {profile.services && profile.services.length > 0 && <ServiceList items={profile.services} />}
+</header>
+
+<style>
+  .profile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  .profile__name {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+    margin-top: 22px;
+
+    font-family: var(--site-font-display);
+    font-weight: var(--site-font-display-weight);
+    font-size: 2.25rem;
+    letter-spacing: var(--site-font-display-tracking);
+    line-height: 1.1;
+    color: var(--site-color-text);
+    overflow-wrap: anywhere;
+  }
+
+  .profile__suffix {
+    font-family: var(--site-font-body);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--site-color-eyebrow);
+  }
+
+  .profile :global(.headline) {
+    margin-top: 14px;
+  }
+
+  .profile :global(.services) {
+    margin-top: 22px;
+  }
+
+  @media (max-width: 359px) {
+    .profile__name {
+      font-size: 2rem;
+    }
+  }
+</style>

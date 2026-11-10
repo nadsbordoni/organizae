@@ -1,0 +1,26 @@
+---
+import LinkButton from '@/components/LinkButton.astro';
+import type { BookingBlock } from '@/types/blocks';
+
+/**
+ * Entrada do agendamento próprio. Mesmo visual dos outros botões de propósito:
+ * numa página de link na bio, um botão diferente dos vizinhos parece anúncio.
+ */
+
+interface Props {
+  block: BookingBlock;
+}
+
+const { block }: Props = Astro.props;
+const { title = 'Reserve seu horário', subtitle, href, emphasis = 'primary' } = block;
+
+// Quebrar o build é melhor do que publicar um botão que não leva a lugar nenhum.
+if (!href) {
+  throw new Error(
+    'Bloco `booking` sem `href`: renderize os blocos por `resolveBlocks(site)`, ' +
+      'ou confirme que o site tem uma `agenda` configurada.',
+  );
+}
+---
+
+<LinkButton title={title} subtitle={subtitle} href={href} icon="calendar" emphasis={emphasis} />

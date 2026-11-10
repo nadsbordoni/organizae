@@ -1,0 +1,104 @@
+---
+import '@fontsource-variable/dm-sans/opsz.css';
+import '@/styles/global.css';
+
+import { toCssVars } from '@/themes/toCssVars';
+import type { ThemeTokens } from '@/types/theme';
+import type { SiteSeo } from '@/types/site';
+
+/**
+ * Casca de uma página: <head> completo e o tema como CSS custom properties no <html>, gerado
+ * no build (trocar de cliente não custa JS). Cliente com fonte de marca declara o próprio `@font-face`.
+ */
+
+interface Props {
+  theme: ThemeTokens;
+  seo: Required<Pick<SiteSeo, 'title' | 'description'>> & SiteSeo;
+  /** URL canônica absoluta. */
+  canonical?: string;
+  noindex?: boolean;
+}
+
+const { theme, seo, canonical, noindex = false } = Astro.props;
+
+// O build de produção FALHA com `site` placeholder: sem ele o preview no WhatsApp e no Instagram
+// sai sem imagem. O `/i` é obrigatório: `new URL()` minúscula o host ('SEU-USUARIO' chega como 'seu-usuario').
+if (import.meta.env.PROD && (!Astro.site || /seu-usuario|example\.com|localhost/i.test(Astro.site.href))) {
+  throw new Error(
+    'astro.config.mjs: `site` ainda é placeholder. Preencha com o domínio real — ' +
+      'sem ele o canonical e a imagem de Open Graph saem quebrados.',
+  );
+}
+
+const cssVars = toCssVars(theme);
+const canonicalUrl = canonical ?? new URL(Astro.url.pathname, Astro.site ?? Astro.url).href;
+const ogImageUrl = seo.ogImage
+  ? new URL(seo.ogImage, Astro.site ?? Astro.url).href
+  : undefined;
+---
+
+<!doctype html>
+<html lang="pt-BR" style={cssVars}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+    <title>{seo.title}</title>
+    <meta name="description" content={seo.description} />
+    <link rel="canonical" href={canonicalUrl} />
+    {noindex && <meta name="robots" content="noindex, follow" />}
+
+    <meta name="theme-color" content={theme.background.pageSolid} />
+
+    <link rel="icon" href={seo.favicon ?? '/marca/icone.svg'} />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={seo.title} />
+    <meta property="og:description" content={seo.description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:locale" content="pt_BR" />
+    {ogImageUrl && <meta property="og:image" content={ogImageUrl} />}
+    {ogImageUrl && <meta property="og:image:width" content="1200" />}
+    {ogImageUrl && <meta property="og:image:height" content="630" />}
+    {ogImageUrl && <meta property="og:image:alt" content={seo.title} />}
+
+    <meta name="twitter:card" content={ogImageUrl ? 'summary_large_image' : 'summary'} />
+    <meta name="twitter:title" content={seo.title} />
+    <meta name="twitter:description" content={seo.description} />
+    {ogImageUrl && <meta name="twitter:image" content={ogImageUrl} />}
+
+    <meta name="generator" content={Astro.generator} />
+  </head>
+
+  <body>
+    <a class="skip" href="#conteudo">Pular para o conteúdo</a>
+    <slot />
+  </body>
+</html>
+
+<style>
+  /* Atalho de teclado: aparece só quando recebe foco via Tab. */
+  .skip {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    transform: translate(-50%, -120%);
+
+    z-index: 10;
+    padding: 12px 20px;
+    border-radius: 0 0 12px 12px;
+
+    background: var(--site-color-brand);
+    color: var(--site-color-on-brand);
+    font-size: 0.9375rem;
+    text-decoration: none;
+
+    transition: transform 0.16s ease;
+  }
+
+  .skip:focus-visible {
+    transform: translate(-50%, 0);
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+</style>

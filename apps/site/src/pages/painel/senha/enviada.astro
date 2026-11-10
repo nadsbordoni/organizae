@@ -1,0 +1,53 @@
+---
+import AuthLayout from '@/layouts/AuthLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import BackLink from '@/components/BackLink.astro';
+import Callout from '@/components/Callout.astro';
+import Heading from '@/components/Heading.astro';
+import IconBadge from '@/components/IconBadge.astro';
+
+/**
+ * Instruções enviadas (quadro 02). Não diz se o e-mail existe: dizer seria entregar quem tem conta.
+ * O novo link só libera depois de 60 segundos.
+ */
+---
+
+<AuthLayout title="Instruções enviadas" footer="brand" mascot="envelope">
+  <IconBadge icon="mail" />
+  <Heading
+    eyebrow="Confira seu e-mail"
+    title="Instruções enviadas"
+    intro="Se houver uma conta associada a este e-mail, você receberá um link para redefinir sua senha."
+  />
+
+  <div class="auth-form">
+    <Callout tone="info" icon="info" title="Não encontrou a mensagem?">
+      Confira também o spam. Você pode solicitar um novo link em 60 segundos.
+    </Callout>
+    {/* PROTÓTIPO: reenviar só reinicia a contagem. */}
+    <ActionButton label="Solicitar novo link em 01:00" disabled data-resend="" />
+    <ActionButton label="Usar outro e-mail" variant="secondary" href="/painel/senha" />
+    <BackLink href="/painel/login" label="Voltar para entrar" />
+  </div>
+</AuthLayout>
+
+<script>
+  const button = document.querySelector<HTMLButtonElement>('[data-resend]');
+  const label = button?.querySelector('.action__label');
+
+  const countdown = () => {
+    if (!button || !label) return;
+    let left = 60;
+    button.disabled = true;
+    const tick = () => {
+      const seconds = String(left % 60).padStart(2, '0');
+      label.textContent = left > 0 ? `Solicitar novo link em 0${Math.floor(left / 60)}:${seconds}` : 'Solicitar novo link';
+      button.disabled = left > 0;
+      if (left-- > 0) setTimeout(tick, 1000);
+    };
+    tick();
+  };
+
+  button?.addEventListener('click', countdown);
+  countdown();
+</script>

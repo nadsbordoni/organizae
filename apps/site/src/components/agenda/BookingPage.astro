@@ -1,0 +1,96 @@
+---
+import SiteLayout from '@/layouts/SiteLayout.astro';
+import PageContainer from '@/components/PageContainer.astro';
+import PageHeading from '@/components/PageHeading.astro';
+import Footer from '@/components/Footer.astro';
+import FlowStep from '@/components/FlowStep.astro';
+import StepProgress from '@/components/StepProgress.astro';
+import { BOOKING_PATH } from '@/lib/blocks';
+import type { BookingContext } from '@/lib/booking-ui';
+import type { SiteConfig } from '@/types/site';
+
+/**
+ * Casca dos passos do agendamento. Cada passo é uma página própria, para o voltar do
+ * navegador e o recarregar funcionarem; a escolha viaja na query (`lib/booking-state.ts`).
+ */
+
+interface Props {
+  site: SiteConfig;
+  /** A conclusão não recebe passo: já saiu do caminho. */
+  step?: 1 | 2 | 3;
+  title: string;
+  intro?: string;
+  /** Sem query: o script dos passos 2 e 3 acrescenta a escolha. */
+  backHref: string;
+  backLabel: string;
+}
+
+const { site, step, title, intro, backHref, backLabel }: Props = Astro.props;
+
+const STEP_NAMES = ['Serviços', 'Data e horário', 'Revisão'];
+
+const seo = {
+  ...site.seo,
+  title: `${title} • ${site.profile.name}`,
+  description: `Escolha o serviço, o dia e o horário no ${site.profile.name}.`,
+  // Fora dos buscadores: cair no meio do fluxo por uma busca perde o contexto do negócio.
+  noindex: true,
+};
+
+const agenda = site.agenda!;
+
+// Serviço escondido fica de fora: `readSelection()` valida a URL contra ESTE catálogo.
+const context: BookingContext = {
+  agenda: {
+    ...agenda,
+    categories: agenda.categories
+      .filter((category) => !category.hidden)
+      .map((category) => ({
+        ...category,
+        services: category.services.filter((service) => !service.hidden),
+      })),
+  },
+  business: {
+    name: site.profile.name,
+    base: `/${site.slug}/${BOOKING_PATH}`,
+    homeHref: `/${site.slug}`,
+    // Para o arquivo de calendário; vem do bloco de localização, sem redigitar.
+    address: site.blocks.find((block) => block.type === 'location')?.address.join(', '),
+  },
+};
+---
+
+<SiteLayout theme={site.theme} seo={seo} noindex>
+  <PageContainer as="main" id="conteudo">
+    <PageHeading title="Agendamento" backHref={backHref} backLabel={backLabel} data-back="" />
+
+    {
+      step && (
+        <div class="progress">
+          <StepProgress steps={STEP_NAMES} current={step} />
+        </div>
+      )
+    }
+
+    <FlowStep title={title} intro={intro}>
+      <slot />
+    </FlowStep>
+
+    <Footer note={site.footerNote} />
+  </PageContainer>
+</SiteLayout>
+
+{/* O `<` escapado impede que um texto com `</script>` feche a tag.
+    NÃO tire quando o catálogo vier do banco. */}
+<script
+  type="application/json"
+  id="dados-agendamento"
+  set:html={JSON.stringify(context).replace(/</g, '\\u003c')}
+  is:inline
+></script>
+
+<style>
+  .progress {
+    margin-bottom: 22px;
+  }
+</style>

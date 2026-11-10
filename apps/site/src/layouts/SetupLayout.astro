@@ -1,0 +1,108 @@
+---
+import SiteLayout from './SiteLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import FlowStep from '@/components/FlowStep.astro';
+import PageContainer from '@/components/PageContainer.astro';
+import PageHeading from '@/components/PageHeading.astro';
+import StepProgress from '@/components/StepProgress.astro';
+import { SETUP_STEPS } from '@/lib/setup';
+import { baseTheme } from '@/themes/base';
+import type { IconName } from '@/types/blocks';
+
+/**
+ * Configuração inicial (quadro 03) com o mesmo esqueleto do agendamento: voltar, título do fluxo,
+ * progresso, passo e uma ação principal. A pedido, sem a coluna lateral, a barra com o logo e o
+ * sobretítulo do protótipo, que repetiam o que as barrinhas já dizem.
+ */
+interface Props {
+  /** Começa em 1. */
+  step: number;
+  title: string;
+  intro: string;
+  nextLabel?: string;
+  nextIcon?: IconName;
+}
+
+const { step, title, intro, nextLabel = 'Continuar', nextIcon } = Astro.props;
+
+const previous = SETUP_STEPS[step - 2];
+const back = previous?.href ?? '/painel/cadastro/pronto';
+const backLabel = previous ? `Voltar para ${previous.name}` : 'Voltar para a conta criada';
+const next = SETUP_STEPS[step]?.href ?? '/painel';
+const seo = {
+  title: `${SETUP_STEPS[step - 1]!.name} • Configuração inicial`,
+  description: 'Configuração inicial do Organizaê.',
+  noindex: true,
+};
+---
+
+<SiteLayout theme={baseTheme} seo={seo} noindex>
+  <PageContainer as="main" id="conteudo">
+    <PageHeading title="Configuração inicial" backHref={back} backLabel={backLabel}>
+      <a class="later" slot="end" href="/painel">Fazer depois</a>
+    </PageHeading>
+
+    <div class="progress">
+      <StepProgress steps={SETUP_STEPS.map((s) => s.name)} current={step} />
+    </div>
+
+    <FlowStep title={title} intro={intro}>
+      <form class="setup__form" method="post" action={next} data-prototype>
+        <slot />
+        <ActionButton label={nextLabel} type="submit" icon={nextIcon} iconPosition="end" />
+      </form>
+    </FlowStep>
+  </PageContainer>
+</SiteLayout>
+
+<script>
+  import { wirePrototypeForms } from '@/lib/prototype-form';
+
+  wirePrototypeForms();
+</script>
+
+<style>
+  .later {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--site-color-text);
+    text-decoration: none;
+  }
+
+  .later:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .later:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  .progress {
+    margin-bottom: 22px;
+  }
+
+  .setup__form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  /* Duas colunas de campos; uma só em tela estreita. */
+  .setup__form :global(.setup-row) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  @media (max-width: 479px) {
+    .setup__form :global(.setup-row) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

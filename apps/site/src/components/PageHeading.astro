@@ -1,0 +1,68 @@
+---
+import IconButton from './IconButton.astro';
+
+/**
+ * Cabeçalho de página interna (voltar + título + introdução), compartilhado entre Achadinhos e
+ * Agendamento. SEM cabeçalho de perfil de propósito: o voltar já nomeia o negócio, e dois títulos
+ * grandes seguidos competiriam.
+ */
+
+interface Props {
+  title: string;
+  intro?: string;
+  /** Destino do voltar. Ausente, o botão vira ação e o script decide. */
+  backHref?: string;
+  backLabel: string;
+  /** Ganchos de script no botão voltar. */
+  [key: `data-${string}`]: string | undefined;
+}
+
+const { title, intro, backHref, backLabel, ...rest } = Astro.props;
+---
+
+<header class="heading">
+  {/* Slot `end`: saída do fluxo à direita do voltar, como o "Fazer depois" da configuração inicial. */}
+  <div class="heading__top">
+    <IconButton href={backHref} label={backLabel} icon="chevron-left" {...rest} />
+    <slot name="end" />
+  </div>
+
+  <div class="heading__text">
+    <h1 class="heading__title">{title}</h1>
+    {intro && <p class="heading__intro">{intro}</p>}
+  </div>
+</header>
+
+<style>
+  .heading {
+    margin-bottom: 24px;
+  }
+
+  .heading__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .heading__text {
+    text-align: center;
+    margin-top: 20px;
+  }
+
+  .heading__title {
+    font-family: var(--site-font-display);
+    font-weight: 600;
+    font-size: clamp(1.875rem, 8vw, 2.5rem);
+    line-height: 1.1;
+    color: var(--site-color-brand);
+  }
+
+  .heading__intro {
+    max-width: 40ch;
+    margin: 10px auto 0;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    color: var(--site-color-text-muted);
+  }
+</style>

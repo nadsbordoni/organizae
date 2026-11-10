@@ -1,0 +1,202 @@
+---
+import { weekdayInitials } from '@/lib/agenda';
+
+/**
+ * Moldura do calendário do mês. As células nascem no navegador (`lib/booking-ui.ts`), por
+ * dependerem do serviço e da hora no fuso do negócio; por isso o CSS usa `:global()`.
+ * CONTRATO: mudar `calendar__day` aqui sem mudar lá apaga o estilo do calendário inteiro.
+ */
+
+interface Props {
+  /** Rótulo acessível da grade. */
+  label: string;
+}
+
+const { label }: Props = Astro.props;
+const initials = weekdayInitials();
+---
+
+<div class="calendar" data-calendar>
+  <div class="calendar__bar">
+    <button class="calendar__nav" type="button" data-month-step="-1" aria-label="Mês anterior">
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M10 3.5 5 8l5 4.5" />
+      </svg>
+    </button>
+
+    {/* `aria-live` avisa a troca de mês a quem não vê a grade mudar. */}
+    <p class="calendar__month" data-month-label aria-live="polite"></p>
+
+    <button class="calendar__nav" type="button" data-month-step="1" aria-label="Próximo mês">
+      <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="m6 3.5 5 4.5-5 4.5" />
+      </svg>
+    </button>
+  </div>
+
+  {/* Decorativas porque se repetem (S, Q): cada célula leva a data por extenso no `aria-label`. */}
+  <div class="calendar__weekdays" aria-hidden="true">
+    {initials.map((initial) => <span>{initial}</span>)}
+  </div>
+
+  <div class="calendar__grid" data-calendar-grid role="group" aria-label={label}></div>
+</div>
+
+<style>
+  .calendar {
+    padding: 14px;
+    border-radius: var(--site-radius-card);
+    border: 1.5px solid var(--site-color-border);
+    background: var(--site-color-surface);
+    box-shadow: var(--site-shadow-resting);
+  }
+
+  .calendar__bar {
+    display: grid;
+    grid-template-columns: 40px 1fr 40px;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .calendar__month {
+    text-align: center;
+    font-size: 1.0625rem;
+    font-weight: 600;
+    color: var(--site-color-brand);
+  }
+
+  .calendar__nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: none;
+    color: var(--site-color-brand);
+
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 0.16s ease;
+  }
+
+  .calendar__nav:hover:not(:disabled) {
+    background: var(--site-color-brand-soft);
+  }
+
+  .calendar__nav:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .calendar__nav:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  .calendar__weekdays,
+  .calendar__grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+  }
+
+  .calendar__weekdays {
+    margin-bottom: 4px;
+  }
+
+  .calendar__weekdays span {
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--site-color-text-muted);
+  }
+
+  .calendar__grid :global(.calendar__day) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    /* ~42px em 320px: abaixo dos 48px recomendados porque o mês não cabe de outro
+       jeito; o espaçamento de 2px entre células compensa o toque errado. */
+    aspect-ratio: 1;
+    width: 100%;
+    border: 1.5px solid transparent;
+    border-radius: 50%;
+    background: none;
+
+    font-family: inherit;
+    font-size: 0.9375rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--site-color-text);
+
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      background-color 0.16s ease,
+      color 0.16s ease;
+  }
+
+  .calendar__grid :global(.calendar__blank) {
+    aspect-ratio: 1;
+  }
+
+  /* NÃO tire o `:not([aria-pressed='true'])`: o hover vence o selecionado por especificidade
+     e deixava o número do dia escolhido a 1,2:1. Trocar a ordem das regras não resolve. */
+  .calendar__grid :global(.calendar__day:hover:not(:disabled, [aria-pressed='true'])) {
+    background: var(--site-color-brand-soft);
+  }
+
+  .calendar__grid :global(.calendar__day:focus-visible) {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 1px;
+  }
+
+  /* Sem tarja nem vermelho: a maior parte do mês costuma estar indisponível. */
+  .calendar__grid :global(.calendar__day:disabled) {
+    color: var(--site-color-text-muted);
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  /* O ponto diferencia "disponível" de "escolhido" sem depender de cor. */
+  .calendar__grid :global(.calendar__day[data-free])::after {
+    content: '';
+    position: absolute;
+    bottom: 5px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.55;
+  }
+
+  .calendar__grid :global(.calendar__day[data-free]) {
+    position: relative;
+    font-weight: 500;
+    color: var(--site-color-brand-deep);
+  }
+
+  .calendar__grid :global(.calendar__day[aria-pressed='true']) {
+    background: var(--site-color-brand);
+    color: var(--site-color-on-brand);
+    font-weight: 600;
+  }
+
+  .calendar__grid :global(.calendar__day[aria-pressed='true'])::after {
+    opacity: 0.9;
+  }
+
+  .calendar__grid :global(.calendar__day[data-today]:not([aria-pressed='true'])) {
+    border-color: var(--site-color-brand);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .calendar__nav,
+    .calendar__grid :global(.calendar__day) {
+      transition: none;
+    }
+  }
+</style>

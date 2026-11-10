@@ -1,0 +1,58 @@
+---
+import Icon from './Icon.astro';
+import type { IconName } from '@/types/blocks';
+
+/** Caixa de aviso com título: azul para orientação, verde para confirmação. */
+interface Props {
+  tone: 'info' | 'success';
+  icon: IconName;
+  title: string;
+}
+
+const { tone, icon, title } = Astro.props;
+---
+
+<aside class="callout" data-tone={tone}>
+  <Icon name={icon} size={20} />
+  <div>
+    <strong>{title}</strong>
+    <p><slot /></p>
+  </div>
+</aside>
+
+<style>
+  .callout {
+    /* O cinza do tema cai para 4,3:1 sobre estes fundos tingidos: aqui ele escurece. */
+    --muted: color-mix(in srgb, var(--site-color-text-muted) 80%, var(--site-color-text));
+    --tint: var(--site-accent-blue-soft);
+    --tone: var(--site-accent-blue-deep);
+
+    display: flex;
+    gap: 12px;
+    padding: 18px 20px;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--tint) 25%, var(--site-color-surface));
+    color: var(--site-color-text);
+  }
+
+  .callout[data-tone='success'] {
+    --tint: var(--site-accent-green);
+    --tone: var(--site-accent-green-deep);
+  }
+
+  .callout :global(svg) {
+    flex: none;
+    color: var(--tone);
+  }
+
+  .callout strong {
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .callout p {
+    margin-top: 4px;
+    font-size: 0.8125rem;
+    color: var(--muted);
+  }
+</style>
