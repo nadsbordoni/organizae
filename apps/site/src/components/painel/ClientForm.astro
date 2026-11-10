@@ -1,0 +1,200 @@
+---
+import ActionButton from '@/components/ActionButton.astro';
+import TextField from '@/components/TextField.astro';
+import Initials from './Initials.astro';
+import PanelSection from './PanelSection.astro';
+import { formatPhone } from '@/lib/painel';
+import type { ClientRow } from '@/types/painel';
+
+/**
+ * Cadastro de cliente, novo ou edição. Nome, telefone, e-mail e observações são os campos de
+ * `POST/PATCH /clients`; nascimento, origem e permissão ainda não existem no back.
+ * PROTÓTIPO: só valida e avança, sem guardar nada.
+ */
+interface Props {
+  action: string;
+  cancelHref: string;
+  submitLabel: string;
+  businessName: string;
+  client?: ClientRow;
+}
+
+const { action, cancelHref, submitLabel, businessName, client } = Astro.props;
+
+const REFERRALS = ['Não informado', 'Instagram', 'Indicação', 'Google', 'WhatsApp', 'Outro'];
+---
+
+<div class="client-form">
+  <PanelSection title="Dados de contato" id="titulo-dados">
+    {/* `autocomplete="off"`: os dados são de outra pessoa, e o navegador ofereceria os da dona do negócio. */}
+    <form class="form" method="post" action={action} data-prototype="transient">
+      <TextField
+        id="nome"
+        label="Nome completo"
+        autocomplete="off"
+        maxlength={120}
+        value={client?.name}
+        required
+        autofocus={!client}
+      />
+      <div class="form__row">
+        <TextField
+          id="telefone"
+          label="Telefone / WhatsApp"
+          type="tel"
+          autocomplete="off"
+          placeholder="(00) 00000-0000"
+          pattern="[0-9\(\)+ \-]{10,20}"
+          title="Só números, com DDD. Ex.: (81) 99999-9999"
+          value={client && formatPhone(client.phone)}
+          required
+        />
+        <TextField
+          id="email"
+          label="E-mail"
+          type="email"
+          autocomplete="off"
+          placeholder="nome@email.com"
+          maxlength={255}
+          value={client?.email ?? undefined}
+          optional
+        />
+      </div>
+      <div class="form__row">
+        <TextField id="nascimento" label="Data de nascimento" type="date" value={client?.birth_date ?? undefined} optional />
+        <TextField
+          id="origem"
+          label={`Como conheceu ${businessName}?`}
+          options={REFERRALS}
+          value={client?.referral ?? undefined}
+        />
+      </div>
+      <TextField
+        id="observacoes"
+        label="Observações de atendimento"
+        rows={4}
+        maxlength={2000}
+        placeholder="Ex.: prefere horários à tarde, alergia a algum produto."
+        value={client?.notes ?? undefined}
+        optional
+      />
+      <label class="form__check">
+        <input type="checkbox" name="whatsapp" checked={client?.whatsapp_opt_in} />
+        Aceita receber mensagens de retorno pelo WhatsApp
+      </label>
+
+      <div class="form__actions">
+        <ActionButton label="Cancelar" variant="secondary" href={cancelHref} full={false} />
+        <ActionButton label={submitLabel} type="submit" full={false} />
+      </div>
+    </form>
+  </PanelSection>
+
+  <aside class="care" aria-labelledby="titulo-cuidado">
+    <h2 class="care__title" id="titulo-cuidado">Relacionamento com cuidado</h2>
+    <Initials name={client?.name ?? ''} large />
+    <p>Este cadastro pertence à carteira de clientes de {businessName}, não à lista de empresas que usam o Organizaê.</p>
+    <small>O histórico começa com os atendimentos desta pessoa.</small>
+  </aside>
+</div>
+
+<script>
+  import { initials, toneFor } from '@/lib/painel';
+  import { wirePrototypeForms } from '@/lib/prototype-form';
+
+  wirePrototypeForms();
+
+  const name = document.querySelector<HTMLInputElement>('#nome');
+  const badge = document.querySelector<HTMLElement>('.care [data-initials]');
+  name?.addEventListener('input', () => {
+    if (!badge) return;
+    const value = name.value.trim();
+    badge.textContent = initials(value);
+    badge.style.setProperty('--tone', `var(--site-accent-${toneFor(value)})`);
+  });
+</script>
+
+<style>
+  .client-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 24px;
+    margin-top: 32px;
+  }
+
+  .form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .form__row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .form__check {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+
+  .form__check input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--site-color-brand);
+  }
+
+  .form__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 12px;
+    padding-top: 20px;
+    border-top: 1px solid var(--site-color-border);
+  }
+
+  .care {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 28px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .care__title {
+    font-size: 1.1875rem;
+    font-weight: 600;
+  }
+
+  .care p {
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+
+  .care small {
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  @media (max-width: 1099px) {
+    .client-form {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 599px) {
+    .form__row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

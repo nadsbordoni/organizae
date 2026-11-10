@@ -1,0 +1,22 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import ClientForm from '@/components/painel/ClientForm.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import { getSite } from '@/config';
+import { usuarioExemplo } from '@/lib/dados-exemplo';
+import { tenantNotConfigured } from '@/lib/painel';
+
+/** Novo cliente (quadro 06). Com a API: `POST /clients`. */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const business = site.profile.name;
+---
+
+<PanelLayout site={site} user={user} current="clientes" title="Novo cliente">
+  <PanelHeading eyebrow="Relacionamento · Clientes" title="Novo cliente" intro={`Cadastre a pessoa atendida por ${business}.`} />
+  <ClientForm action="/painel/clientes?novo" cancelHref="/painel/clientes" submitLabel="Salvar cliente" businessName={business} />
+</PanelLayout>

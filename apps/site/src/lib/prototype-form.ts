@@ -2,6 +2,8 @@
  * PROTÓTIPO, até a API existir: formulários `data-prototype` só validam e avançam, e guardam os
  * campos na sessão do navegador para o passo seguinte mostrar o que já foi digitado. NUNCA guarda
  * senha nem arquivo. Trocar pelo envio à API.
+ * `data-prototype="transient"` só valida e avança: o cadastro de um cliente não pode sobrescrever o
+ * telefone e o nome da conta, que usam os mesmos nomes de campo.
  */
 
 const KEY = 'organizae:conta';
@@ -32,7 +34,10 @@ export function wirePrototypeForms() {
   const stored = readAccount();
 
   for (const form of document.querySelectorAll<HTMLFormElement>('form[data-prototype]')) {
-    const fields = [...form.elements].filter((el): el is Field => 'name' in el && Boolean((el as Field).name));
+    const transient = form.dataset.prototype === 'transient';
+    const fields = transient
+      ? []
+      : [...form.elements].filter((el): el is Field => 'name' in el && Boolean((el as Field).name));
 
     for (const field of fields) {
       if (isSecret(field) || !(field.name in stored)) continue;
@@ -45,12 +50,14 @@ export function wirePrototypeForms() {
 
     form.addEventListener('submit', (event) => {
       event.preventDefault();
-      const data = readAccount();
-      for (const field of fields) {
-        if (isSecret(field)) continue;
-        data[field.name] = isCheck(field) ? field.checked : field.value;
+      if (fields.length) {
+        const data = readAccount();
+        for (const field of fields) {
+          if (isSecret(field)) continue;
+          data[field.name] = isCheck(field) ? field.checked : field.value;
+        }
+        writeAccount(data);
       }
-      writeAccount(data);
       location.assign(form.getAttribute('action') ?? '/painel');
     });
   }

@@ -7,6 +7,7 @@ import AppointmentDetails from '@/components/painel/AppointmentDetails.astro';
 import NotificationCard from '@/components/painel/NotificationCard.astro';
 import PanelHeading from '@/components/painel/PanelHeading.astro';
 import PanelSection from '@/components/painel/PanelSection.astro';
+import PanelTable from '@/components/painel/PanelTable.astro';
 import StatCard from '@/components/painel/StatCard.astro';
 import { getSite } from '@/config';
 import { addDays, nowInBusinessTime, toMinutes } from '@/lib/agenda';
@@ -91,35 +92,33 @@ const proximos = (await dados.appointmentsBetween(hoje, addDays(hoje, 7)))
       </div>
 
       <PanelSection title="Próximos atendimentos" subtitle={`${site.profile.name} · Visão de gestão`} id="titulo-proximos">
-        <div class="next">
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">Cliente</th>
-                <th scope="col">Serviço</th>
-                <th scope="col">Data / hora</th>
-              </tr>
-            </thead>
-            <tbody>
-              {
-                proximos.map((m) => (
-                  <tr>
-                    <td>
-                      <button class="next__who" type="button" popovertarget={`det-proximo-${m.id}`}>
-                        {m.client_name}
-                      </button>
-                      <AppointmentDetails id={`det-proximo-${m.id}`} row={m} agenda={agenda} />
-                    </td>
-                    <td>{serviceNames(m, agenda)}</td>
-                    <td>
-                      {numericDate(m.date, false)} · {m.start_time}
-                    </td>
-                  </tr>
-                ))
-              }
-            </tbody>
-          </table>
-        </div>
+        <PanelTable label="Próximos atendimentos">
+          <thead>
+            <tr>
+              <th scope="col">Cliente</th>
+              <th scope="col">Serviço</th>
+              <th scope="col">Data / hora</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              proximos.map((m) => (
+                <tr>
+                  <td>
+                    <button class="next__who" type="button" popovertarget={`det-proximo-${m.id}`}>
+                      {m.client_name}
+                    </button>
+                    <AppointmentDetails id={`det-proximo-${m.id}`} row={m} agenda={agenda} />
+                  </td>
+                  <td>{serviceNames(m, agenda)}</td>
+                  <td>
+                    {numericDate(m.date, false)} · {m.start_time}
+                  </td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </PanelTable>
       </PanelSection>
 
       <Callout tone="info" icon="info" title="Tudo no seu contexto">
@@ -132,9 +131,6 @@ const proximos = (await dados.appointmentsBetween(hoje, addDays(hoje, 7)))
 <style>
   /* Notificações à esquerda e mais estreitas; números e próximos à direita, 1 para 1,45 como no protótipo. */
   .layout {
-    /* O cinza do tema cai para 4,3:1 sobre o bege do cabeçalho da tabela: aqui ele escurece. */
-    --muted-on-tint: color-mix(in srgb, var(--site-color-text-muted) 80%, var(--site-color-text));
-
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr);
     align-items: start;
@@ -190,39 +186,10 @@ const proximos = (await dados.appointmentsBetween(hoje, addDays(hoje, 7)))
     list-style: none;
   }
 
-
   .stats {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
-  }
-
-  .next {
-    border-radius: 16px;
-    border: 1px solid var(--site-color-border);
-    overflow: hidden;
-  }
-
-  .next table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.875rem;
-  }
-
-  .next th {
-    padding: 14px 18px;
-    background: var(--site-color-brand-soft);
-    font-size: 0.6875rem;
-    font-weight: 500;
-    letter-spacing: 0.06em;
-    text-align: left;
-    text-transform: uppercase;
-    color: var(--muted-on-tint);
-  }
-
-  .next td {
-    padding: 12px 18px;
-    border-top: 1px solid var(--site-color-border);
   }
 
   .next__who {
@@ -242,7 +209,6 @@ const proximos = (await dados.appointmentsBetween(hoje, addDays(hoje, 7)))
     text-underline-offset: 3px;
   }
 
-
   @media (max-width: 1099px) {
     .layout {
       grid-template-columns: minmax(0, 1fr);
@@ -252,11 +218,6 @@ const proximos = (await dados.appointmentsBetween(hoje, addDays(hoje, 7)))
   @media (max-width: 599px) {
     .stats {
       grid-template-columns: minmax(0, 1fr);
-    }
-
-    .next th,
-    .next td {
-      padding-inline: 12px;
     }
   }
 </style>

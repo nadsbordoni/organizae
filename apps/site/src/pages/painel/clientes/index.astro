@@ -1,0 +1,410 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import Callout from '@/components/Callout.astro';
+import EmptyState from '@/components/EmptyState.astro';
+import Icon from '@/components/Icon.astro';
+import Initials from '@/components/painel/Initials.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import PanelTable from '@/components/painel/PanelTable.astro';
+import StatCard from '@/components/painel/StatCard.astro';
+import StatusBadge from '@/components/painel/StatusBadge.astro';
+import { getSite } from '@/config';
+import { formatPrice, nowInBusinessTime } from '@/lib/agenda';
+import { AWAY_AFTER_DAYS, CLIENT_STATUS, clientsCsv, matchesSearch, summarize } from '@/lib/clients';
+import type { ClientStatus } from '@/lib/clients';
+import { forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
+import { whatsappUrl } from '@/lib/links';
+import { compactPrice, formatPhone, tenantNotConfigured } from '@/lib/painel';
+
+/**
+ * Clientes (quadro 06). Busca e situação vivem na URL (`?q=` e `?situacao=`), como o filtro das
+ * notificações: funcionam sem JavaScript e viram os parâmetros de `GET /clients`.
+ */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const agenda = site.agenda;
+const hoje = nowInBusinessTime(agenda?.timezone ?? 'America/Sao_Paulo').date;
+const dados = forTenant(user.tenantSlug);
+
+// Com a API, isto seria uma chamada por cliente: o ideal é `GET /clients` já trazer atendimentos, total e última visita.
+const all = await Promise.all(
+  (await dados.clients()).map(async (c) => summarize(c, await dados.clientAppointments(c.id), hoje, agenda)),
+);
+
+const FILTERS: Array<{ value: string; label: string; status?: ClientStatus }> = [
+  { value: '', label: 'Todos os clientes' },
+  { value: 'em-dia', label: 'Em dia', status: 'regular' },
+  { value: 'recentes', label: 'Recentes', status: 'new' },
+  { value: 'ausentes', label: 'Ausentes', status: 'away' },
+];
+const query = (Astro.url.searchParams.get('q') ?? '').slice(0, 80);
+const filter = FILTERS.find((f) => f.value === Astro.url.searchParams.get('situacao')) ?? FILTERS[0]!;
+const shown = all.filter((s) => matchesSearch(s.client, query) && (!filter.status || s.status === filter.status));
+
+const visited = all.filter((s) => s.visits > 0);
+const returnRate = visited.length ? Math.round((visited.filter((s) => s.visits > 1).length / visited.length) * 100) : 0;
+const active = all.filter((s) => s.status !== 'away').length;
+const away = all.length - active;
+const newThisMonth = all.filter((s) => s.client.created_at.startsWith(hoje.slice(0, 7))).length;
+
+// PROTÓTIPO: o formulário de novo cliente volta para cá com `?novo`, sem gravar nada.
+const created = Astro.url.searchParams.has('novo');
+const csv = `data:text/csv;charset=utf-8,${encodeURIComponent(clientsCsv(shown))}`;
+---
+
+<PanelLayout site={site} user={user} current="clientes" title="Clientes">
+  <PanelHeading eyebrow="Relacionamento" title="Clientes" intro="Conheça melhor quem faz parte do seu negócio.">
+    <ActionButton
+      label="Exportar"
+      variant="secondary"
+      icon="download"
+      iconPosition="end"
+      href={csv}
+      download="clientes.csv"
+      full={false}
+    />
+    <ActionButton label="Novo cliente" icon="plus" iconPosition="end" href="/painel/clientes/novo" full={false} />
+  </PanelHeading>
+
+  {
+    created && (
+      <div class="notice">
+        <Callout tone="success" icon="check-circle" title="Cliente cadastrado">
+          Os dados de contato foram salvos.
+        </Callout>
+      </div>
+    )
+  }
+
+  <div class="stats">
+    <StatCard label="Total de clientes" value={String(all.length)} note={`+${newThisMonth} neste mês`} tone="pink" />
+    <StatCard label="Taxa de retorno" value={`${returnRate}%`} note="Voltaram depois da primeira visita" tone="yellow" />
+    <StatCard
+      label="Clientes ativos"
+      value={String(active)}
+      note={`${all.length ? Math.round((active / all.length) * 100) : 0}% da base`}
+      tone="blue"
+    />
+  </div>
+
+  {
+    away > 0 && (
+      <div class="notice">
+        <Callout
+          tone="info"
+          icon="clock"
+          title={`${away} ${away === 1 ? 'cliente está' : 'clientes estão'} há mais de ${AWAY_AFTER_DAYS} dias sem atendimento`}
+        >
+          <a href="/painel/clientes/inativos">Veja quem são e como trazer de volta</a>
+        </Callout>
+      </div>
+    )
+  }
+
+  <section class="list" aria-labelledby="titulo-lista">
+    <h2 class="sr-only" id="titulo-lista">Lista de clientes</h2>
+
+    <form class="filters" method="get" role="search">
+      <label class="search">
+        <Icon name="search" size={18} />
+        <span class="sr-only">Buscar por nome ou telefone</span>
+        <input type="search" name="q" value={query} maxlength="80" placeholder="Buscar por nome ou telefone" />
+      </label>
+      <label class="sr-only" for="situacao">Situação</label>
+      <select class="status-filter" id="situacao" name="situacao" data-autosubmit>
+        {
+          FILTERS.map((f) => (
+            <option value={f.value} selected={f === filter}>
+              {f.label}
+            </option>
+          ))
+        }
+      </select>
+    </form>
+
+    {
+      shown.length ? (
+        <PanelTable label="Clientes">
+          <thead>
+            <tr>
+              <th scope="col">Cliente</th>
+              <th scope="col" data-wide>
+                Contato
+              </th>
+              <th scope="col" data-wide>
+                Histórico
+              </th>
+              <th scope="col" data-wide>
+                Valor total
+              </th>
+              <th scope="col">Situação</th>
+              <th scope="col">
+                <span class="sr-only">Ações</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((s) => {
+              const profile = `/painel/clientes/${s.client.id}`;
+              const menu = `menu-${s.client.id}`;
+              return (
+                <tr>
+                  <td>
+                    <a class="who" href={profile}>
+                      <Initials name={s.client.name} />
+                      {s.client.name}
+                    </a>
+                  </td>
+                  <td data-wide>{formatPhone(s.client.phone)}</td>
+                  <td data-wide>
+                    {s.visits} {s.visits === 1 ? 'atendimento' : 'atendimentos'}
+                  </td>
+                  <td class="money" data-wide>
+                    {s.spentCents === undefined ? '—' : compactPrice(formatPrice(s.spentCents))}
+                  </td>
+                  <td>
+                    <StatusBadge {...CLIENT_STATUS[s.status]} />
+                  </td>
+                  <td class="actions">
+                    <button
+                      class="more"
+                      type="button"
+                      popovertarget={menu}
+                      aria-label={`Ações para ${s.client.name}`}
+                      style={`anchor-name: --${menu}`}
+                    >
+                      <Icon name="more" size={20} />
+                    </button>
+                    <div class="menu" id={menu} popover style={`position-anchor: --${menu}`}>
+                      <a href={profile}>Ver perfil</a>
+                      <a href={`${profile}/editar`}>Editar cadastro</a>
+                      <a href={whatsappUrl(s.client.phone)} target="_blank" rel="noopener noreferrer">
+                        Conversar no WhatsApp
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </PanelTable>
+      ) : (
+        <EmptyState
+          level={3}
+          mascot="lupa"
+          title="Nenhum cliente encontrado"
+          text={query ? `Nada para “${query}”. Confira a grafia ou busque pelo telefone.` : 'Ninguém nesta situação agora.'}
+        >
+          <ActionButton label="Ver todos os clientes" variant="secondary" href="/painel/clientes" full={false} />
+        </EmptyState>
+      )
+    }
+  </section>
+</PanelLayout>
+
+<script>
+  import { wireAutoSubmit } from '@/lib/filters';
+
+  wireAutoSubmit();
+</script>
+
+<style>
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 36px;
+  }
+
+  .notice {
+    margin-top: 16px;
+  }
+
+  .notice :global(a) {
+    color: var(--site-color-text);
+    font-weight: 600;
+    text-underline-offset: 3px;
+  }
+
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin-top: 24px;
+    padding: 24px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .search {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 12px;
+    max-width: 460px;
+    color: var(--site-color-text-muted);
+  }
+
+  .search input,
+  .status-filter {
+    min-height: 48px;
+    border-radius: var(--site-radius-field);
+    border: 1px solid var(--site-color-border-strong);
+    background: var(--site-color-surface);
+    font: inherit;
+    /* 16px é o mínimo que impede o iOS de dar zoom ao focar o campo. */
+    font-size: 1rem;
+    color: var(--site-color-text);
+  }
+
+  .search input {
+    flex: 1;
+    min-width: 0;
+    padding: 0 16px;
+  }
+
+  .search input::placeholder {
+    color: var(--site-color-text-muted);
+    opacity: 1;
+  }
+
+  .status-filter {
+    appearance: none;
+    padding: 0 44px 0 18px;
+    font-weight: 600;
+    background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+      linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position:
+      calc(100% - 22px) 50%,
+      calc(100% - 17px) 50%;
+    background-size: 5px 5px;
+    background-repeat: no-repeat;
+    cursor: pointer;
+  }
+
+  .search input:hover,
+  .status-filter:hover {
+    border-color: var(--site-color-brand);
+  }
+
+  .search input:focus-visible,
+  .status-filter:focus-visible,
+  .who:focus-visible,
+  .more:focus-visible,
+  .menu a:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  .who {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+    font-weight: 600;
+    color: var(--site-color-text);
+    text-decoration: none;
+  }
+
+  .who:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .money {
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .actions {
+    width: 1%;
+    text-align: right;
+  }
+
+  .more {
+    display: inline-grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 0;
+    border-radius: 12px;
+    background: none;
+    color: var(--site-color-text);
+    cursor: pointer;
+  }
+
+  .more:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  .menu {
+    min-width: 220px;
+    padding: 6px;
+    border-radius: 14px;
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+    box-shadow: 0 16px 40px rgba(31, 31, 31, 0.14);
+  }
+
+  .menu a {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 10px;
+    color: var(--site-color-text);
+    font-size: 0.9375rem;
+    text-align: left;
+    text-decoration: none;
+  }
+
+  .menu a:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  /* Abre colado no ⋯ onde há posicionamento por âncora; nos outros navegadores, no meio da tela. */
+  @supports (position-area: bottom) {
+    .menu {
+      inset: auto;
+      margin: 4px 0;
+      position-area: bottom span-left;
+      position-try-fallbacks: flip-block;
+    }
+  }
+
+  @supports not (position-area: bottom) {
+    .menu::backdrop {
+      background: rgba(31, 31, 31, 0.32);
+    }
+  }
+
+  @media (max-width: 719px) {
+    .stats {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .list {
+      padding: 16px;
+    }
+
+    .search {
+      max-width: none;
+      flex-basis: 100%;
+    }
+  }
+</style>

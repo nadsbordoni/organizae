@@ -64,6 +64,17 @@ export function longDateLabel(date: IsoDate): string {
   return new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(at(date));
 }
 
+/** '04 jun'. */
+export function dayMonthLabel(date: IsoDate): string {
+  const month = new Intl.DateTimeFormat('pt-BR', { month: 'short', timeZone: 'UTC' }).format(at(date));
+  return `${date.slice(8, 10)} ${month.replace('.', '')}`;
+}
+
+/** '12 de agosto', sem o ano. */
+export function birthdayLabel(date: IsoDate): string {
+  return new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(at(date));
+}
+
 /** '28 set.' */
 export function shortDayLabel(date: IsoDate): string {
   return new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(at(date));
@@ -94,8 +105,8 @@ export function serviceNames(row: AppointmentRow, agenda: Agenda | undefined): s
   return ids.map((id) => names.get(id) ?? id).join(' + ');
 }
 
-/** `undefined` se algum serviço não tem preço legível: total errado que parece completo é pior que nenhum. */
-export function catalogTotal(rows: AppointmentRow[], agenda: Agenda | undefined): string | undefined {
+/** Em centavos. `undefined` se algum serviço não tem preço legível: total errado que parece completo é pior que nenhum. */
+export function catalogCents(rows: AppointmentRow[], agenda: Agenda | undefined): number | undefined {
   const prices = new Map(
     (agenda?.categories ?? []).flatMap((category) =>
       category.services.map((service) => [service.id, service.price] as const),
@@ -112,7 +123,12 @@ export function catalogTotal(rows: AppointmentRow[], agenda: Agenda | undefined)
       cents += value;
     }
   }
-  return formatPrice(cents);
+  return cents;
+}
+
+export function catalogTotal(rows: AppointmentRow[], agenda: Agenda | undefined): string | undefined {
+  const cents = catalogCents(rows, agenda);
+  return cents === undefined ? undefined : formatPrice(cents);
 }
 
 /** 'R$ 8.460,00' → 'R$ 8.460': no resumo os centavos redondos só ocupam espaço. */

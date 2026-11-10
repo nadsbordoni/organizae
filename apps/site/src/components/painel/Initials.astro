@@ -1,16 +1,26 @@
 ---
 import { initials, toneFor } from '@/lib/painel';
 
-/** Inicial de uma pessoa num círculo colorido, como no protótipo. Decorativa: o nome está sempre ao lado. */
+/**
+ * Iniciais de uma pessoa num selo colorido, como no protótipo. Decorativas: o nome está sempre ao lado.
+ * Nas listas, uma letra num círculo; `large` é o quadrado com duas letras da ficha do cliente.
+ */
 interface Props {
   name: string;
+  large?: boolean;
 }
 
-const { name } = Astro.props;
+const { name, large = false } = Astro.props;
 ---
 
-<span class="initials" style={`--tone: var(--site-accent-${toneFor(name)})`} aria-hidden="true">
-  {initials(name).charAt(0)}
+<span
+  class="initials"
+  data-large={large ? '' : undefined}
+  style={`--tone: var(--site-accent-${toneFor(name)})`}
+  aria-hidden="true"
+  data-initials
+>
+  {large ? initials(name) : initials(name).charAt(0)}
 </span>
 
 <style>
@@ -26,5 +36,12 @@ const { name } = Astro.props;
     font-size: 0.8125rem;
     font-weight: 600;
     letter-spacing: 0.02em;
+  }
+
+  .initials[data-large] {
+    width: 72px;
+    height: 72px;
+    border-radius: 14px;
+    font-size: 1.0625rem;
   }
 </style>

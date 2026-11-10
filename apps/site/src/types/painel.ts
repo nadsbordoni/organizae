@@ -20,6 +20,22 @@ export interface AgendaNotification {
   row: AppointmentRow;
 }
 
+/** Cliente da carteira do negócio, no formato de `GET /clients`. */
+export interface ClientRow {
+  id: string;
+  name: string;
+  /** Só dígitos, com DDD. Único por negócio; é por ele que a API acha o histórico. */
+  phone: string;
+  email: string | null;
+  notes: string | null;
+  created_at: string;
+  /** Os três abaixo ainda NÃO existem no back. */
+  birth_date: string | null;
+  referral: string | null;
+  /** Autorizou mensagens de retorno pelo WhatsApp. Sem isso, a pessoa fica fora das campanhas. */
+  whatsapp_opt_in: boolean;
+}
+
 export interface AppointmentRow {
   id: number;
   tenant_slug: string;

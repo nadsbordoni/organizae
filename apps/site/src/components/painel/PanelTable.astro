@@ -1,0 +1,65 @@
+---
+/**
+ * Tabela do painel: cabeçalho bege e fio entre as linhas. Coluna com `data-wide` some abaixo de 720px;
+ * o que ainda não couber rola na horizontal em vez de espremer.
+ */
+interface Props {
+  /** Vira a legenda da tabela, só para o leitor de tela. */
+  label: string;
+}
+
+const { label } = Astro.props;
+---
+
+<div class="table">
+  <table>
+    <caption class="sr-only">{label}</caption>
+    <slot />
+  </table>
+</div>
+
+<style>
+  .table {
+    /* O cinza do tema cai para 4,3:1 sobre o bege do cabeçalho: aqui ele escurece. */
+    --muted-on-tint: color-mix(in srgb, var(--site-color-text-muted) 80%, var(--site-color-text));
+
+    border-radius: 16px;
+    border: 1px solid var(--site-color-border);
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+
+  .table :global(th) {
+    padding: 14px 18px;
+    background: var(--site-color-brand-soft);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-align: left;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--muted-on-tint);
+  }
+
+  .table :global(td) {
+    padding: 12px 18px;
+    border-top: 1px solid var(--site-color-border);
+    vertical-align: middle;
+  }
+
+  @media (max-width: 719px) {
+    .table :global([data-wide]) {
+      display: none;
+    }
+
+    .table :global(th),
+    .table :global(td) {
+      padding-inline: 12px;
+    }
+  }
+</style>

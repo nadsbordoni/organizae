@@ -1,0 +1,31 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import ClientForm from '@/components/painel/ClientForm.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import { getSite } from '@/config';
+import { forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
+import { tenantNotConfigured } from '@/lib/painel';
+
+/** Edição do cadastro, aberta pela ficha. Com a API: `PATCH /clients/{id}`. */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const client = await forTenant(user.tenantSlug).client(Astro.params.id ?? '');
+if (!client) return new Response(null, { status: 404 });
+
+const profile = `/painel/clientes/${client.id}`;
+---
+
+<PanelLayout site={site} user={user} current="clientes" title={`Editar ${client.name}`}>
+  <PanelHeading eyebrow="Clientes · Editar cadastro" title={client.name} intro="Atualize os dados de contato e as preferências." />
+  <ClientForm
+    action={`${profile}?salvo`}
+    cancelHref={profile}
+    submitLabel="Salvar alterações"
+    businessName={site.profile.name}
+    client={client}
+  />
+</PanelLayout>

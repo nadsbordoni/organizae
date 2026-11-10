@@ -21,6 +21,8 @@ interface Props {
   /** Ocupa a largura da coluna. */
   full?: boolean;
   download?: string;
+  /** Link para fora do painel (WhatsApp): abre em outra aba para a pessoa não perder a tela. */
+  newTab?: boolean;
   ariaLabel?: string;
   /** Ganchos do script do fluxo: `data-next`, `data-submit`, etc. */
   [key: `data-${string}`]: string | undefined;
@@ -36,6 +38,7 @@ const {
   disabled = false,
   full = true,
   download,
+  newTab = false,
   ariaLabel,
   ...rest
 } = Astro.props;
@@ -45,7 +48,12 @@ const Tag = href ? 'a' : 'button';
 // `aria-disabled` no `<a>`: âncora não conhece `disabled`, e o link desligado
 // precisa continuar sendo anunciado como tal.
 const stateProps = href
-  ? { href, download, ...(disabled ? { 'aria-disabled': true, tabindex: -1 } : {}) }
+  ? {
+      href,
+      download,
+      ...(newTab ? { target: '_blank', rel: 'noopener noreferrer' } : {}),
+      ...(disabled ? { 'aria-disabled': true, tabindex: -1 } : {}),
+    }
   : { type, disabled };
 ---
 

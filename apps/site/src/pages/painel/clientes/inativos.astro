@@ -1,0 +1,243 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import EmptyState from '@/components/EmptyState.astro';
+import TextField from '@/components/TextField.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import PanelSection from '@/components/painel/PanelSection.astro';
+import PanelTable from '@/components/painel/PanelTable.astro';
+import StatCard from '@/components/painel/StatCard.astro';
+import { getSite } from '@/config';
+import { addDays, formatPrice, nowInBusinessTime } from '@/lib/agenda';
+import { AWAY_AFTER_DAYS, summarize } from '@/lib/clients';
+import { forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
+import { compactPrice, longDateLabel, numericDate, tenantNotConfigured } from '@/lib/painel';
+
+/**
+ * Recuperar clientes (quadro 06): quem está sem atendimento há mais de N dias. Corte e canal vivem na
+ * URL (`?dias=` e `?canal=`). Só entra na seleção quem autorizou mensagens pelo WhatsApp.
+ * PROTÓTIPO: "Recuperar clientes" ainda não leva à revisão da campanha (quadro 17).
+ */
+export const prerender = false;
+
+const DAYS = [30, 60, 90];
+const CHANNELS = [
+  { value: 'whatsapp', label: 'WhatsApp com permissão' },
+  { value: 'todos', label: 'Todos os ausentes' },
+];
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const agenda = site.agenda;
+const hoje = nowInBusinessTime(agenda?.timezone ?? 'America/Sao_Paulo').date;
+const dados = forTenant(user.tenantSlug);
+const all = await Promise.all(
+  (await dados.clients()).map(async (c) => summarize(c, await dados.clientAppointments(c.id), hoje, agenda)),
+);
+
+const days = DAYS.find((d) => String(d) === Astro.url.searchParams.get('dias')) ?? AWAY_AFTER_DAYS;
+const channel = CHANNELS.find((c) => c.value === Astro.url.searchParams.get('canal')) ?? CHANNELS[0]!;
+
+// Cadastro recente fica de fora: ainda não teve tempo de voltar.
+const away = all
+  .filter((s) => s.status !== 'new' && (s.daysAway === undefined || s.daysAway > days))
+  .sort((a, b) => (a.daysAway ?? Infinity) - (b.daysAway ?? Infinity));
+const eligible = away.filter((s) => s.client.whatsapp_opt_in);
+const shown = channel.value === 'whatsapp' ? eligible : away;
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+---
+
+<PanelLayout site={site} user={user} current="clientes" title="Recuperar clientes">
+  <PanelHeading
+    eyebrow="Relacionamento · Segmentos"
+    title="Vamos trazer seus clientes de volta?"
+    intro={`Encontre quem está há mais de ${days} dias sem atendimento.`}
+  >
+    <ActionButton label="Recuperar clientes" disabled={!eligible.length} full={false} data-recover="" />
+  </PanelHeading>
+
+  <div class="stats">
+    <StatCard
+      label="Clientes ausentes"
+      value={String(away.length)}
+      note={`Mais de ${days} dias desde o último atendimento`}
+      tone="pink"
+    />
+    <StatCard
+      label="Com WhatsApp e permissão"
+      value={String(eligible.length)}
+      note="Podem receber a mensagem de retorno"
+      tone="yellow"
+    />
+    <StatCard
+      label="Sem permissão"
+      value={String(away.length - eligible.length)}
+      note="Não entram na seleção de destinatários"
+      tone="blue"
+    />
+  </div>
+
+  <div class="section">
+    <PanelSection
+      title="Filtro de inatividade"
+      subtitle={`Referência: ${longDateLabel(hoje)}. Último atendimento antes de ${numericDate(addDays(hoje, -days))}.`}
+      id="titulo-filtro"
+    >
+      <form class="filters" method="get">
+        <TextField
+          id="dias"
+          label="Dias sem atendimento"
+          options={DAYS.map((d) => ({ value: String(d), label: `Mais de ${d} dias` }))}
+          value={String(days)}
+          data-autosubmit=""
+        />
+        <TextField id="canal" label="Canal para recuperação" options={CHANNELS} value={channel.value} data-autosubmit="" />
+        <noscript>
+          <ActionButton label="Aplicar filtro" type="submit" variant="secondary" full={false} />
+        </noscript>
+      </form>
+
+      {
+        shown.length ? (
+          <>
+            <PanelTable label="Clientes ausentes">
+              <thead>
+                <tr>
+                  <th scope="col">Cliente</th>
+                  <th scope="col" data-wide>
+                    Último atendimento
+                  </th>
+                  <th scope="col">Tempo sem visita</th>
+                  <th scope="col" data-wide>
+                    Total gasto
+                  </th>
+                  <th scope="col">Seleção</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((s) => (
+                  <tr>
+                    <td>
+                      <label class="pick">
+                        <input
+                          type="checkbox"
+                          value={s.client.id}
+                          checked={s.client.whatsapp_opt_in}
+                          disabled={!s.client.whatsapp_opt_in}
+                          data-recipient
+                        />
+                        {s.client.name}
+                      </label>
+                    </td>
+                    <td data-wide>{s.lastVisit ? numericDate(s.lastVisit) : '—'}</td>
+                    <td>{s.daysAway === undefined ? 'Nunca veio' : plural(s.daysAway, 'dia', 'dias')}</td>
+                    <td data-wide>{s.spentCents === undefined ? '—' : compactPrice(formatPrice(s.spentCents))}</td>
+                    <td>{s.client.whatsapp_opt_in ? 'Elegível' : 'Sem permissão'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </PanelTable>
+            <p class="foot">
+              {plural(eligible.length, 'cliente elegível', 'clientes elegíveis')} · Revisão e aprovação obrigatórias antes do
+              envio.
+            </p>
+          </>
+        ) : away.length ? (
+          <EmptyState
+            level={3}
+            icon="whatsapp"
+            title="Ninguém com permissão para mensagens"
+            text={`${plural(away.length, 'cliente ausente não autorizou', 'clientes ausentes não autorizaram')} mensagens pelo WhatsApp.`}
+          >
+            <ActionButton
+              label="Ver todos os ausentes"
+              variant="secondary"
+              href={`/painel/clientes/inativos?dias=${days}&canal=todos`}
+              full={false}
+            />
+          </EmptyState>
+        ) : (
+          <EmptyState
+            level={3}
+            mascot="joinha"
+            title="Ninguém para recuperar"
+            text={`Todos os clientes foram atendidos nos últimos ${days} dias.`}
+          />
+        )
+      }
+    </PanelSection>
+  </div>
+</PanelLayout>
+
+<script>
+  import { wireAutoSubmit } from '@/lib/filters';
+
+  wireAutoSubmit();
+
+  // O botão diz quantas pessoas vão receber e desliga sem ninguém marcado.
+  const button = document.querySelector<HTMLButtonElement>('[data-recover]');
+  const label = button?.querySelector('.action__label');
+  const boxes = [...document.querySelectorAll<HTMLInputElement>('[data-recipient]')];
+  const sync = () => {
+    const count = boxes.filter((box) => box.checked).length;
+    if (label) label.textContent = count ? `Recuperar ${count} ${count === 1 ? 'cliente' : 'clientes'}` : 'Recuperar clientes';
+    if (button) button.disabled = count === 0;
+  };
+  for (const box of boxes) box.addEventListener('change', sync);
+  sync();
+</script>
+
+<style>
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 36px;
+  }
+
+  .section {
+    margin-top: 24px;
+  }
+
+  .filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+    gap: 16px;
+  }
+
+  .pick {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .pick input {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--site-color-brand);
+  }
+
+  .pick:has(input:disabled) {
+    cursor: default;
+  }
+
+  .foot {
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  @media (max-width: 719px) {
+    .stats,
+    .filters {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>
