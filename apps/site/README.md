@@ -14,13 +14,20 @@ npm run build   # confere o lockfile, os tipos e gera dist/
 | Rota | Tela |
 |---|---|
 | `/` e `/exemplo` | Página de links do estúdio, montada a partir de um arquivo de configuração |
+| `/{slug}` | Página publicada no painel, buscada na API a cada acesso. Sem página publicada, "Página não encontrada" |
 | `/exemplo/produtos` | Vitrine de produtos do estúdio |
 | `/exemplo/agendar` | Escolha de serviço, dia e horário, revisão e envio do pedido |
 | `/painel` | Visão geral: números do mês, movimento financeiro e agenda de hoje |
 | `/painel/agenda` | Grade da semana no computador; no celular, os 7 dias e o dia escolhido. Tocar numa marcação abre os detalhes |
 | `/painel/login` | Entrada do painel |
 
-Cada estúdio é um arquivo em `src/config/sites/`. Para ver o formato, comece por `_exemplo.ts`. O visual vem de um tema em `src/themes/`: `base.ts` é a identidade do Organizaê, e `indigo.ts` mostra como fazer um tema próprio.
+Cada estúdio é um arquivo em `src/config/sites/`. Se o slug não estiver lá, o site procura a página publicada na API (`apps/api`), no endereço de `ORGANIZAE_API_URL` (padrão `http://localhost:8000`):
+
+```bash
+ORGANIZAE_API_URL=http://localhost:8000 npm run dev
+```
+
+Para ver o formato dos arquivos de estúdio, comece por `_exemplo.ts`. O visual vem de um tema em `src/themes/`: `base.ts` é a identidade do Organizaê, e `indigo.ts` mostra como fazer um tema próprio.
 
 ## O que ainda é provisório
 
