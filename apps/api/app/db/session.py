@@ -15,6 +15,7 @@ from app.modules.clients.models import Client  # noqa: F401
 from app.modules.financial_categories.models import FinancialCategory  # noqa: F401
 from app.modules.financial_entries.models import FinancialEntry  # noqa: F401
 from app.modules.professionals.models import Professional  # noqa: F401
+from app.modules.recurring_entries.models import RecurringEntry  # noqa: F401
 from app.modules.services.models import Service  # noqa: F401
 from app.modules.users.models import User  # noqa: F401
 

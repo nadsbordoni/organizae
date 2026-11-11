@@ -9,6 +9,7 @@ from app.modules.financial_categories.schemas import (
     FinancialCategoryUpdate,
 )
 from app.modules.financial_entries.models import FinancialEntry
+from app.modules.recurring_entries.models import RecurringEntry
 
 
 class FinancialCategoryRepository:
@@ -80,6 +81,19 @@ class FinancialCategoryRepository:
                 .where(
                     FinancialEntry.category_id == category_id,
                     FinancialEntry.business_id == business_id,
+                )
+                .limit(1)
+            )
+            is not None
+        )
+
+    def has_recurring_entries(self, category_id: UUID, *, business_id: UUID) -> bool:
+        return (
+            self.session.scalar(
+                select(RecurringEntry.id)
+                .where(
+                    RecurringEntry.category_id == category_id,
+                    RecurringEntry.business_id == business_id,
                 )
                 .limit(1)
             )

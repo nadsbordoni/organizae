@@ -66,3 +66,7 @@ uv run pytest tests/test_financial_categories.py tests/test_financial_entries.py
 ```
 
 Os testes de concorrência em `tests/test_financial_concurrency.py` exigem `TEST_POSTGRES_URL` apontando para um banco descartável chamado `organizae_test*`, com a extensão `btree_gist`. Usam schemas temporários, removidos ao concluir. Nunca aponte esse parâmetro para um banco de produção.
+
+## Recorrências mensais
+
+A Etapa 2 está documentada em [recurring_entries.md](recurring_entries.md). As respostas de lançamentos incluem também `recurring_entry_id` e `competence`, ambos null para lançamentos manuais.
