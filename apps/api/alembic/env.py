@@ -11,6 +11,8 @@ from app.modules.business_categories.models import BusinessCategory  # noqa: F40
 from app.modules.businesses.models import Business  # noqa: F401
 from app.modules.categories.models import Category  # noqa: F401
 from app.modules.clients.models import Client  # noqa: F401
+from app.modules.financial_categories.models import FinancialCategory  # noqa: F401
+from app.modules.financial_entries.models import FinancialEntry  # noqa: F401
 from app.modules.professionals.models import Professional  # noqa: F401
 from app.modules.services.models import Service  # noqa: F401
 from app.modules.users.models import User  # noqa: F401

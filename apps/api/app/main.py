@@ -28,6 +28,12 @@ from app.modules.categories.route import router as categories_router
 from app.modules.clients.exceptions import ClientError
 from app.modules.clients.route import client_error_handler
 from app.modules.clients.route import router as clients_router
+from app.modules.financial_categories.exceptions import FinancialCategoryError
+from app.modules.financial_categories.route import financial_category_error_handler
+from app.modules.financial_categories.route import router as financial_categories_router
+from app.modules.financial_entries.exceptions import FinancialEntryError
+from app.modules.financial_entries.route import financial_entry_error_handler
+from app.modules.financial_entries.route import router as financial_entries_router
 from app.modules.professionals.exceptions import ProfessionalError
 from app.modules.professionals.route import professional_error_handler
 from app.modules.professionals.route import router as professionals_router
@@ -55,6 +61,10 @@ app.include_router(appointments_router, prefix="/api/v1")
 app.include_router(online_booking_router, prefix="/api/v1")
 app.include_router(clients_router, prefix="/api/v1")
 app.include_router(categories_router, prefix="/api/v1")
+app.include_router(financial_categories_router, prefix="/api/v1")
+app.include_router(financial_entries_router, prefix="/api/v1")
+app.add_exception_handler(FinancialCategoryError, financial_category_error_handler)
+app.add_exception_handler(FinancialEntryError, financial_entry_error_handler)
 app.add_exception_handler(CategoryError, category_error_handler)
 app.add_exception_handler(ClientError, client_error_handler)
 app.add_exception_handler(AppointmentError, appointment_error_handler)

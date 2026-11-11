@@ -11,6 +11,7 @@ from sqlalchemy import (
     String,
     Text,
     Time,
+    UniqueConstraint,
     Uuid,
     func,
     text,
@@ -60,6 +61,7 @@ class Appointment(Base):
 
     __tablename__ = "appointments"
     __table_args__ = (
+        UniqueConstraint("id", "business_id", name="uq_appointments_id_business"),
         CheckConstraint("ends_at > starts_at", name="ck_appointments_range"),
         CheckConstraint(
             "status = 'BLOCKED' OR (professional_id IS NOT NULL"
