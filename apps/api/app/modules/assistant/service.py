@@ -30,7 +30,11 @@ from app.modules.assistant.exceptions import (
     AssistantWriteDisabledError,
 )
 from app.modules.assistant.history_service import ConversationService
-from app.modules.assistant.prompts.system import SYSTEM_PROMPT, TOOLS_PROMPT
+from app.modules.assistant.prompts.system import (
+    FINANCIAL_PROMPT,
+    SYSTEM_PROMPT,
+    TOOLS_PROMPT,
+)
 from app.modules.assistant.providers.base import AssistantProvider, ContextMessage
 from app.modules.assistant.schemas import ChatRequest, ChatResponse
 from app.modules.assistant.tools import AssistantTools
@@ -147,7 +151,8 @@ class AssistantService:
         )
         with self.provider.conversation(
             message,
-            system_prompt=f"{SYSTEM_PROMPT}\n\n{TOOLS_PROMPT}\n\n{temporal_context}",
+            system_prompt=f"{SYSTEM_PROMPT}\n\n{TOOLS_PROMPT}\n\n{temporal_context}"
+            + (f"\n\n{FINANCIAL_PROMPT}" if tools.financial_tools is not None else ""),
             declarations=tools.declarations(),
             **({"history": context} if context is not None else {}),
         ) as conversation:
