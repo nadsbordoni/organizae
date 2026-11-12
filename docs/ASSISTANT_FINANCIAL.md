@@ -69,6 +69,10 @@ As novas ferramentas só possuem métodos de leitura. O fluxo de confirmação d
 
 Sem dados, os relatórios retornam zeros ou listas vazias e `has_data=false`, sem inventar causas. Erros de período/filtros e categorias produzem erros estruturados na resposta da ferramenta, para que a assistente peça correção. Argumentos que violam o schema são recusados pelo tratamento existente `assistant_invalid_tool_call`. Falhas SQLAlchemy encerram a requisição com `assistant_database_unavailable` e rollback, sem expor SQL ou detalhes internos.
 
+## Dados fictícios para testes
+
+O [seed financeiro manual](FINANCIAL_SEED.md) cria 182 lançamentos de maio a novembro de 2026 em uma empresa de testes, com totais mensais documentados, recorrências, pendências e meses negativos. O seed é opcional e pode usar o próprio banco principal `organizae` quando ele for local e de desenvolvimento, informando uma empresa exclusiva para testes; criar um banco separado também é opcional. A execução é manual e idempotente, com bloqueio em produção.
+
 ## Validação
 
 Em `apps/api/`:
