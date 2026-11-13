@@ -87,3 +87,7 @@ uv run pytest tests/test_financial_reports.py tests/test_financial_reports_postg
 ```
 
 Os testes PostgreSQL exigem `TEST_POSTGRES_URL` apontando para um banco descartável `organizae_test*`, com extensão `btree_gist`. Utilizam schema temporário, removido ao terminar, sem executar migrations.
+
+## Análise de rentabilidade financeira
+
+A Etapa 4 acrescenta o endpoint de rentabilidade, evolução mensal e comparação entre períodos, documentado em [financial_profitability.md](financial_profitability.md). Os três endpoints desta etapa mantêm seus contratos.

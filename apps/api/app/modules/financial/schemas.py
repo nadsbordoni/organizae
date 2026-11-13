@@ -50,3 +50,36 @@ class CategoryReportItem(BaseModel):
 
 class CategoryReportResponse(FinancialTotals):
     items: list[CategoryReportItem]
+
+
+class ProfitabilityMetrics(BaseModel):
+    paid_income: Decimal
+    paid_expenses: Decimal
+    financial_result: Decimal
+    financial_margin_percentage: Decimal | None
+
+
+class ProfitabilityPeriod(ProfitabilityMetrics):
+    start_date: date
+    end_date: date
+
+
+class ProfitabilityMonth(ProfitabilityMetrics):
+    period: date
+
+
+class ProfitabilityComparison(BaseModel):
+    paid_income_change: Decimal
+    paid_income_change_percentage: Decimal | None
+    paid_expenses_change: Decimal
+    paid_expenses_change_percentage: Decimal | None
+    financial_result_change: Decimal
+    financial_result_change_percentage: Decimal | None
+    financial_margin_change_percentage_points: Decimal | None
+
+
+class ProfitabilityResponse(BaseModel):
+    current_period: ProfitabilityPeriod
+    previous_period: ProfitabilityPeriod
+    comparison: ProfitabilityComparison
+    monthly_evolution: list[ProfitabilityMonth]

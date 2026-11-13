@@ -20,6 +20,7 @@ from app.modules.financial.schemas import (
     CashFlowResponse,
     CategoryReportResponse,
     FinancialSummaryResponse,
+    ProfitabilityResponse,
 )
 from app.modules.financial.service import FinancialReportService
 from app.modules.financial_categories.models import FinancialType
@@ -102,4 +103,16 @@ def categories_report(
         end_date=end_date,
         category_id=category_id,
         entry_type=entry_type,
+    )
+
+
+@router.get("/reports/profitability", response_model=ProfitabilityResponse)
+def profitability_report(
+    business_id: CurrentBusinessId,
+    service: FinancialReportServiceDep,
+    start_date: date,
+    end_date: date,
+) -> ProfitabilityResponse:
+    return service.profitability(
+        business_id=business_id, start_date=start_date, end_date=end_date
     )
