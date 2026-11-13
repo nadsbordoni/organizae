@@ -70,3 +70,7 @@ Os testes de concorrência em `tests/test_financial_concurrency.py` exigem `TEST
 ## Recorrências mensais
 
 A Etapa 2 está documentada em [recurring_entries.md](recurring_entries.md). As respostas de lançamentos incluem também `recurring_entry_id` e `competence`, ambos null para lançamentos manuais.
+
+## Dashboard e relatórios
+
+A Etapa 3 está documentada em [financial_reports.md](financial_reports.md), com resumo financeiro, fluxo de caixa realizado por dia/mês e totais por categoria.
