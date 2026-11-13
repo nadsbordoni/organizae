@@ -20,6 +20,7 @@ from app.modules.assistant.appointment_schemas import (
     AvailabilityArguments,
 )
 from app.modules.assistant.exceptions import AssistantToolCallError
+from app.modules.assistant.financial_schemas import FINANCIAL_TOOL_SCHEMAS
 from app.modules.assistant.providers.base import ToolCall, ToolResult
 from app.modules.assistant.tools.appointments import (
     check_availability,
@@ -28,6 +29,7 @@ from app.modules.assistant.tools.appointments import (
 )
 from app.modules.assistant.tools.businesses import get_business_info
 from app.modules.assistant.tools.clients import get_client, list_clients
+from app.modules.assistant.tools.financial import FinancialTools
 from app.modules.assistant.tools.professionals import (
     get_professional_services,
     get_service_previews,
@@ -142,8 +144,10 @@ class AssistantTools:
         user_id: UUID,
         client_service: ClientService | None = None,
         appointment_service: AppointmentService | None = None,
+        financial_tools: FinancialTools | None = None,
     ) -> None:
         self.appointment_service = appointment_service
+        self.financial_tools = financial_tools
         self.client_service = client_service
         self.business_id = business_id
         self.user_id = user_id
@@ -153,6 +157,8 @@ class AssistantTools:
 
     def declarations(self) -> list[dict[str, Any]]:
         schemas = dict(TOOL_SCHEMAS)
+        if self.financial_tools is not None:
+            schemas.update(FINANCIAL_TOOL_SCHEMAS)
         from app.core.config import settings
 
         if settings.APP_ENV == "development" and settings.ASSISTANT_WRITES_ENABLED:
@@ -182,10 +188,17 @@ class AssistantTools:
             if call.name in WRITE_SCHEMAS:
                 require_write_enabled()
                 continue
-            if call.name not in TOOL_SCHEMAS:
+            schemas = (
+                FINANCIAL_TOOL_SCHEMAS
+                if call.name in FINANCIAL_TOOL_SCHEMAS
+                else TOOL_SCHEMAS
+            )
+            if call.name not in schemas or (
+                call.name in FINANCIAL_TOOL_SCHEMAS and self.financial_tools is None
+            ):
                 raise AssistantToolCallError()
             try:
-                TOOL_SCHEMAS[call.name][0].model_validate(call.arguments)
+                schemas[call.name][0].model_validate(call.arguments)
             except ValidationError as exc:
                 raise AssistantToolCallError() from exc
 
@@ -193,6 +206,18 @@ class AssistantTools:
         self.validate_calls([call])
         if call.name in WRITE_SCHEMAS:
             return self.prepare_write(call)
+        if call.name in FINANCIAL_TOOL_SCHEMAS:
+            assert self.financial_tools is not None
+            arguments = FINANCIAL_TOOL_SCHEMAS[call.name][0].model_validate(
+                call.arguments
+            )
+            return ToolResult(
+                call.name,
+                self.financial_tools.execute(
+                    call.name, arguments, business_id=self.business_id
+                ),
+                call.id,
+            )
         arguments = TOOL_SCHEMAS[call.name][0].model_validate(call.arguments)
         if call.name == "get_business_info":
             result = get_business_info(self.business_service, self.business_id)
