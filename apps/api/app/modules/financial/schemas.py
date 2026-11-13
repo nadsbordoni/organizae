@@ -83,3 +83,9 @@ class ProfitabilityResponse(BaseModel):
     previous_period: ProfitabilityPeriod
     comparison: ProfitabilityComparison
     monthly_evolution: list[ProfitabilityMonth]
+
+
+class OverdueExpensesResponse(BaseModel):
+    pending_amount: Decimal
+    entry_count: int
+    oldest_due_date: date | None

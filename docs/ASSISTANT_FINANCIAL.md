@@ -1,6 +1,6 @@
 # US-027 — Consultas financeiras pela assistente
 
-A assistente consulta o módulo financeiro por Function Calling nativo. Não há Text-to-SQL, cálculos financeiros duplicados, escrita financeira ou insights automáticos. As ferramentas chamam os mesmos Services dos endpoints financeiros.
+A assistente consulta o módulo financeiro por Function Calling nativo. As ferramentas de consulta não utilizam Text-to-SQL, não duplicam cálculos e não executam escrita financeira. Os [insights automáticos da US-029](FINANCIAL_INSIGHTS.md) são consultados por um endpoint próprio. As ferramentas chamam os mesmos Services dos endpoints financeiros.
 
 ## Ferramentas de leitura
 

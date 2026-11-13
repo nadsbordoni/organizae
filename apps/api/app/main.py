@@ -37,6 +37,7 @@ from app.modules.financial_categories.route import router as financial_categorie
 from app.modules.financial_entries.exceptions import FinancialEntryError
 from app.modules.financial_entries.route import financial_entry_error_handler
 from app.modules.financial_entries.route import router as financial_entries_router
+from app.modules.financial_insights.route import router as financial_insights_router
 from app.modules.professionals.exceptions import ProfessionalError
 from app.modules.professionals.route import professional_error_handler
 from app.modules.professionals.route import router as professionals_router
@@ -71,6 +72,7 @@ app.include_router(financial_categories_router, prefix="/api/v1")
 app.include_router(financial_entries_router, prefix="/api/v1")
 app.include_router(recurring_entries_router, prefix="/api/v1")
 app.include_router(financial_router, prefix="/api/v1")
+app.include_router(financial_insights_router, prefix="/api/v1")
 app.add_exception_handler(FinancialReportError, financial_report_error_handler)
 app.add_exception_handler(RecurringEntryError, recurring_entry_error_handler)
 app.add_exception_handler(FinancialCategoryError, financial_category_error_handler)

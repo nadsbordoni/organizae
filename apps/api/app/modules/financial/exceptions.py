@@ -4,3 +4,7 @@ class FinancialReportError(Exception):
 
 class InvalidFinancialReportError(FinancialReportError):
     pass
+
+
+class FinancialInsightsUnavailableError(FinancialReportError):
+    pass

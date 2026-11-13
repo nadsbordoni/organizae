@@ -153,6 +153,27 @@ class FinancialReportRepository:
         )
         return [tuple(row) for row in self.session.execute(statement)]
 
+    def overdue_expenses(
+        self, *, business_id: UUID, reference_date: date
+    ) -> tuple[Decimal, int, date | None]:
+        statement = select(
+            self._total(FinancialType.EXPENSE, FinancialEntryStatus.PENDING),
+            func.count(FinancialEntry.id),
+            func.min(FinancialEntry.due_date),
+        ).where(
+            *self._filters(
+                business_id=business_id,
+                report_date=FinancialEntry.due_date,
+                start_date=None,
+                end_date=None,
+                category_id=None,
+                entry_type=FinancialType.EXPENSE,
+            ),
+            FinancialEntry.status == FinancialEntryStatus.PENDING,
+            FinancialEntry.due_date < reference_date,
+        )
+        return tuple(self.session.execute(statement).one())
+
     def _paid_date(self) -> ColumnElement[date]:
         return func.date(func.timezone(self.tz.key, FinancialEntry.paid_at), type_=Date)
 

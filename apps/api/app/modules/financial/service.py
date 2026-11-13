@@ -15,6 +15,7 @@ from app.modules.financial.schemas import (
     CategoryReportItem,
     CategoryReportResponse,
     FinancialSummaryResponse,
+    OverdueExpensesResponse,
     ProfitabilityComparison,
     ProfitabilityMetrics,
     ProfitabilityMonth,
@@ -155,9 +156,17 @@ class FinancialReportService:
         business_id: UUID,
         start_date: date,
         end_date: date,
+        comparison_period: tuple[date, date] | None = None,
     ) -> ProfitabilityResponse:
         self._validate_period(start_date, end_date)
-        previous_start, previous_end = self._previous_period(start_date, end_date)
+        previous_start, previous_end = comparison_period or self._previous_period(
+            start_date, end_date
+        )
+        self._validate_period(previous_start, previous_end)
+        if previous_end >= start_date:
+            raise InvalidFinancialReportError(
+                "Comparison period must precede the analyzed period"
+            )
         current_cash = self.cash_flow(
             business_id=business_id,
             group_by=CashFlowGrouping.MONTH,
@@ -229,6 +238,16 @@ class FinancialReportService:
             previous_period=previous,
             comparison=comparison,
             monthly_evolution=evolution,
+        )
+
+    def overdue_expenses(
+        self, *, business_id: UUID, reference_date: date
+    ) -> OverdueExpensesResponse:
+        amount, count, oldest_due_date = self.repository.overdue_expenses(
+            business_id=business_id, reference_date=reference_date
+        )
+        return OverdueExpensesResponse(
+            pending_amount=amount, entry_count=count, oldest_due_date=oldest_due_date
         )
 
     @staticmethod

@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.modules.auth.dependencies import get_current_business_id
 from app.modules.financial.exceptions import (
+    FinancialInsightsUnavailableError,
     FinancialReportError,
     InvalidFinancialReportError,
 )
@@ -37,6 +38,14 @@ def get_financial_report_service(
 async def financial_report_error_handler(
     request: Request, exc: FinancialReportError
 ) -> JSONResponse:
+    if isinstance(exc, FinancialInsightsUnavailableError):
+        return JSONResponse(
+            status_code=503,
+            content={
+                "code": "financial_insights_unavailable",
+                "detail": "Os dados financeiros estão temporariamente indisponíveis.",
+            },
+        )
     status_code = (
         status.HTTP_422_UNPROCESSABLE_CONTENT
         if isinstance(exc, InvalidFinancialReportError)
