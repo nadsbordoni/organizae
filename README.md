@@ -44,4 +44,7 @@ A API inclui uma assistente de texto integrada ao Google Gemini para orientar o 
 
 ## Como contribuir
 
+Para executar API, frontend e PostgreSQL em containers, consulte o
+[guia de Docker e Alembic](docs/DOCKER.md).
+
 Antes de subir código, leia o `.env.example` e nunca envie o arquivo `.env`.
