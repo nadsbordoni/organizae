@@ -388,7 +388,10 @@ def test_migration_adds_public_page_columns_and_constraints() -> None:
     scripts = ScriptDirectory.from_config(config)
     revision = scripts.get_revision("7c3e9a1f5b28")
     assert revision.down_revision == "f6a2b91c408e"
-    assert scripts.get_current_head() == "7c3e9a1f5b28"
+    assert revision.revision in {
+        item.revision
+        for item in scripts.iterate_revisions("head", revision.down_revision)
+    }
 
     output = StringIO()
     context = MigrationContext.configure(
