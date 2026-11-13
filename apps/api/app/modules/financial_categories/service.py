@@ -69,11 +69,14 @@ class FinancialCategoryService:
         with self._transaction():
             category = self.get_by_id(category_id, business_id=business_id)
             target_type = data.type if data.type is not None else category.type
-            if target_type != category.type and self.repository.has_entries(
-                category.id, business_id=business_id
+            if target_type != category.type and (
+                self.repository.has_entries(category.id, business_id=business_id)
+                or self.repository.has_recurring_entries(
+                    category.id, business_id=business_id
+                )
             ):
                 raise FinancialCategoryConflictError(
-                    "Cannot change the type of a category linked to entries"
+                    "Cannot change the type of a category linked to entries or recurrences"
                 )
             self._ensure_unique(
                 data.name if data.name is not None else category.name,
@@ -89,9 +92,13 @@ class FinancialCategoryService:
     def delete(self, category_id: UUID, *, business_id: UUID) -> None:
         with self._transaction():
             category = self.get_by_id(category_id, business_id=business_id)
-            if self.repository.has_entries(category.id, business_id=business_id):
+            if self.repository.has_entries(
+                category.id, business_id=business_id
+            ) or self.repository.has_recurring_entries(
+                category.id, business_id=business_id
+            ):
                 raise FinancialCategoryConflictError(
-                    "Financial category is linked to entries"
+                    "Financial category is linked to entries or recurrences"
                 )
             self.repository.delete(category)
             self.session.commit()

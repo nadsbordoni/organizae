@@ -108,6 +108,10 @@ class FinancialEntryService:
         with self._transaction():
             entry = self.get_by_id(entry_id, business_id=business_id, lock=True)
             self._ensure_editable(entry)
+            if entry.recurring_entry_id is not None:
+                raise FinancialEntryConflictError(
+                    "Recurring entries must be cancelled instead of deleted to preserve competence history"
+                )
             self.repository.delete(entry)
             self.session.commit()
 

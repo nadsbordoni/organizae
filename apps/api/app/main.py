@@ -37,6 +37,9 @@ from app.modules.financial_entries.route import router as financial_entries_rout
 from app.modules.professionals.exceptions import ProfessionalError
 from app.modules.professionals.route import professional_error_handler
 from app.modules.professionals.route import router as professionals_router
+from app.modules.recurring_entries.exceptions import RecurringEntryError
+from app.modules.recurring_entries.route import recurring_entry_error_handler
+from app.modules.recurring_entries.route import router as recurring_entries_router
 from app.modules.services.exceptions import ServiceError
 from app.modules.services.route import router as services_router
 from app.modules.services.route import service_error_handler
@@ -63,6 +66,8 @@ app.include_router(clients_router, prefix="/api/v1")
 app.include_router(categories_router, prefix="/api/v1")
 app.include_router(financial_categories_router, prefix="/api/v1")
 app.include_router(financial_entries_router, prefix="/api/v1")
+app.include_router(recurring_entries_router, prefix="/api/v1")
+app.add_exception_handler(RecurringEntryError, recurring_entry_error_handler)
 app.add_exception_handler(FinancialCategoryError, financial_category_error_handler)
 app.add_exception_handler(FinancialEntryError, financial_entry_error_handler)
 app.add_exception_handler(CategoryError, category_error_handler)

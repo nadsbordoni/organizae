@@ -19,9 +19,19 @@ class FinancialEntryRepository:
         self.session = session
 
     def create(
-        self, data: FinancialEntryCreate, *, business_id: UUID
+        self,
+        data: FinancialEntryCreate,
+        *,
+        business_id: UUID,
+        recurring_entry_id: UUID | None = None,
+        competence: date | None = None,
     ) -> FinancialEntry:
-        entry = FinancialEntry(**data.model_dump(), business_id=business_id)
+        entry = FinancialEntry(
+            **data.model_dump(),
+            business_id=business_id,
+            recurring_entry_id=recurring_entry_id,
+            competence=competence,
+        )
         self.session.add(entry)
         self.session.flush()
         return entry

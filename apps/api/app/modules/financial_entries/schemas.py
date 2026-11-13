@@ -85,3 +85,5 @@ class FinancialEntryResponse(BaseModel):
     status: FinancialEntryStatus
     appointment_id: UUID4 | None
     created_at: datetime
+    recurring_entry_id: UUID4 | None
+    competence: date | None

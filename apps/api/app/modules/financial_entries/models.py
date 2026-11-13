@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -12,7 +13,10 @@ from sqlalchemy import (
     Index,
     Numeric,
     String,
+    UniqueConstraint,
     Uuid,
+    column,
+    extract,
     func,
     text,
 )
@@ -22,6 +26,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.modules.appointments.models import Appointment
 from app.modules.financial_categories.models import FinancialCategory, FinancialType
+
+if TYPE_CHECKING:
+    from app.modules.recurring_entries.models import RecurringEntry
 
 
 class FinancialEntryStatus(str, Enum):
@@ -33,6 +40,25 @@ class FinancialEntryStatus(str, Enum):
 class FinancialEntry(Base):
     __tablename__ = "financial_entries"
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["recurring_entry_id", "business_id"],
+            ["recurring_entries.id", "recurring_entries.business_id"],
+            name="fk_financial_entries_recurrence_business",
+        ),
+        UniqueConstraint(
+            "recurring_entry_id",
+            "competence",
+            name="uq_financial_entries_recurrence_competence",
+        ),
+        CheckConstraint(
+            "(recurring_entry_id IS NULL AND competence IS NULL) OR "
+            "(recurring_entry_id IS NOT NULL AND competence IS NOT NULL)",
+            name="ck_financial_entries_recurrence_pair",
+        ),
+        CheckConstraint(
+            extract("day", column("competence")) == 1,
+            name="ck_financial_entries_competence_month",
+        ),
         ForeignKeyConstraint(
             ["category_id", "business_id", "type"],
             [
@@ -107,10 +133,18 @@ class FinancialEntry(Base):
         server_default=text("'PENDING'"),
     )
     appointment_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
+    recurring_entry_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
+    competence: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
+    recurring_entry: Mapped["RecurringEntry | None"] = relationship(
+        "RecurringEntry",
+        back_populates="entries",
+        primaryjoin="and_(FinancialEntry.recurring_entry_id == RecurringEntry.id, FinancialEntry.business_id == RecurringEntry.business_id)",
+        foreign_keys=[recurring_entry_id],
+    )
     category: Mapped[FinancialCategory] = relationship(
         FinancialCategory,
         back_populates="entries",
