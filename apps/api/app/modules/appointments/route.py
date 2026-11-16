@@ -29,6 +29,7 @@ from app.modules.appointments.schemas import (
     BusinessHoursUpdate,
     OnlineBookingRequest,
     OnlineBookingResponse,
+    ProfessionalAgendaItem,
     ProfessionalBlockCreate,
     PublicProfessionalResponse,
     PublicServiceResponse,
@@ -162,6 +163,21 @@ def update_appointment_status(
 
 
 CurrentProfessional = Annotated[Professional, Depends(get_current_professional)]
+
+
+@professional_router.get("", response_model=list[ProfessionalAgendaItem])
+def get_professional_agenda(
+    starts_at: AwareDatetime,
+    ends_at: AwareDatetime,
+    professional: CurrentProfessional,
+    service: ServiceDep,
+) -> list[ProfessionalAgendaItem]:
+    return service.professional_agenda(
+        business_id=professional.business_id,
+        professional_id=professional.id,
+        starts_at=starts_at,
+        ends_at=ends_at,
+    )
 
 
 @professional_router.post(
