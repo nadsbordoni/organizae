@@ -28,6 +28,9 @@ export function firstName(name: string | undefined): string | undefined {
   return first && !first.includes('@') ? first : undefined;
 }
 
+/** Para comparar textos na busca: sem acento, sem caixa e sem espaço nas pontas. */
+export const foldText = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
+
 /** 'Marina Costa' → 'MC'; 'Bia' → 'BI'. */
 export function initials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);

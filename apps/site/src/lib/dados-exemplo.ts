@@ -1,7 +1,15 @@
+import type { AstroCookies } from 'astro';
 import { addDays, nowInBusinessTime, weekdayOf } from './agenda';
 import type { AppointmentStatus } from './dashboard-status';
 import type { AgendaException, IsoDate } from '@/types/agenda';
-import type { AgendaNotification, AppointmentRow, AuthenticatedUser, ClientRow } from '@/types/painel';
+import type {
+  AgendaNotification,
+  AppointmentRow,
+  AuthenticatedUser,
+  ClientRow,
+  ProfessionalRow,
+  TimeOffRow,
+} from '@/types/painel';
 
 /**
  * Dados FICTÍCIOS do painel, no lugar do back-end. Saem quando a API existir: `forTenant`
@@ -86,8 +94,14 @@ function doDia(date: IsoDate, hoje: IsoDate): AppointmentRow[] {
   }));
 }
 
-export function forTenant(_tenantSlug: string) {
+/** Cenário da equipe na demonstração: só a dona atende, ou a dona com mais gente. */
+export interface DemoOptions {
+  team?: boolean;
+}
+
+export function forTenant(_tenantSlug: string, demo: DemoOptions = {}) {
   const hoje = nowInBusinessTime('America/Sao_Paulo').date;
+  const team = demo.team ? TEAM : TEAM.filter((p) => p.role === 'owner');
 
   return {
     async appointmentsOn(date: IsoDate): Promise<AppointmentRow[]> {
@@ -118,8 +132,93 @@ export function forTenant(_tenantSlug: string) {
       const index = CLIENTS.findIndex((c) => c.id === id);
       return index < 0 ? [] : clientHistory(CLIENTS[index]!, index, hoje);
     },
+
+    async professionals(): Promise<ProfessionalRow[]> {
+      return team;
+    },
+
+    async professional(id: string): Promise<ProfessionalRow | undefined> {
+      return team.find((p) => p.id === id);
+    },
+
+    /** Com a API, os bloqueios de dia inteiro de `GET /appointments`. */
+    async timeOff(): Promise<TimeOffRow[]> {
+      return TIME_OFF.filter((t) => team.some((p) => p.id === t.professional_id)).map((t) => ({
+        id: t.id,
+        professional_id: t.professional_id,
+        starts_on: addDays(hoje, t.from),
+        ends_on: addDays(hoje, t.to),
+        reason: t.reason,
+      }));
+    },
   };
 }
+
+const DEMO_TEAM_COOKIE = 'organizae-demo-equipe';
+
+/**
+ * PROTÓTIPO: o cenário escolhido na tela de Equipe (`?demo=equipe` ou `?demo=solo`) fica num cookie
+ * para valer também em Serviços. Sai com a API, quando a equipe vier do banco.
+ */
+export function demoOptions(url: URL, cookies: AstroCookies): DemoOptions {
+  const choice = url.searchParams.get('demo');
+  if (choice === 'equipe' || choice === 'solo') {
+    cookies.set(DEMO_TEAM_COOKIE, choice, { path: '/painel', sameSite: 'lax', httpOnly: true });
+    return { team: choice === 'equipe' };
+  }
+  return { team: cookies.get(DEMO_TEAM_COOKIE)?.value !== 'solo' };
+}
+
+/** Ausências de DEMONSTRAÇÃO, em dias a partir de hoje: uma férias agora, uma marcada e uma folga da dona. */
+const TIME_OFF = [
+  { id: 'ferias-larissa', professional_id: 'larissa-alves', from: -3, to: 6, reason: 'Férias' },
+  { id: 'ferias-bianca', professional_id: 'bianca-reis', from: 35, to: 49, reason: 'Férias' },
+  { id: 'folga-joana', professional_id: 'joana', from: 16, to: 16, reason: 'Folga' },
+];
+
+/** Equipe de DEMONSTRAÇÃO. A dona também atende; no cenário "só a dona", só ela aparece. */
+const TEAM: ProfessionalRow[] = [
+  {
+    id: 'joana',
+    name: usuarioExemplo.name!,
+    phone: '5511988887777',
+    description: 'Alongamento e manutenção',
+    is_active: true,
+    service_ids: ['alongamento', 'manutencao', 'esmaltacao', 'pedicure'],
+    email: usuarioExemplo.email,
+    role: 'owner',
+  },
+  {
+    id: 'larissa-alves',
+    name: 'Larissa Alves',
+    phone: '5511995678902',
+    description: 'Esmaltação e manutenção',
+    is_active: true,
+    service_ids: ['manutencao', 'esmaltacao'],
+    email: 'larissa@exemplo.com',
+    role: 'professional',
+  },
+  {
+    id: 'bianca-reis',
+    name: 'Bianca Reis',
+    phone: '5511996781234',
+    description: 'Pés e spa',
+    is_active: true,
+    service_ids: ['pedicure', 'spa-dos-pes'],
+    email: 'bianca@exemplo.com',
+    role: 'professional',
+  },
+  {
+    id: 'tatiane-moura',
+    name: 'Tatiane Moura',
+    phone: '5511997894561',
+    description: 'Alongamento em gel',
+    is_active: false,
+    service_ids: ['alongamento'],
+    email: 'tatiane@exemplo.com',
+    role: 'professional',
+  },
+];
 
 interface DemoClient {
   id: string;

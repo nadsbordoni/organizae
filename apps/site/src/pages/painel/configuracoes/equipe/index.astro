@@ -1,0 +1,359 @@
+---
+import SettingsLayout from '@/layouts/SettingsLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import Callout from '@/components/Callout.astro';
+import EmptyState from '@/components/EmptyState.astro';
+import Icon from '@/components/Icon.astro';
+import TextField from '@/components/TextField.astro';
+import PanelSection from '@/components/painel/PanelSection.astro';
+import PanelTable from '@/components/painel/PanelTable.astro';
+import SectionHeader from '@/components/painel/SectionHeader.astro';
+import StatCard from '@/components/painel/StatCard.astro';
+import StatusBadge from '@/components/painel/StatusBadge.astro';
+import { getSite } from '@/config';
+import { nowInBusinessTime } from '@/lib/agenda';
+import { catalogServices, serviceState } from '@/lib/catalog';
+import { demoOptions, forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
+import { formatPhone, tenantNotConfigured } from '@/lib/painel';
+import { matchesProfessional, roleLabel, teamAgenda, timeOffLabel } from '@/lib/team';
+import type { AgendaState } from '@/lib/team';
+
+/**
+ * Equipe (quadro 04), dentro das Configurações. A coluna Agenda diz se a pessoa recebe agendamentos
+ * hoje: atendendo, de férias ou folga, ou com a agenda fechada. Com uma pessoa só, a dona que também
+ * atende, a tela troca os números e a busca por um convite para cadastrar mais gente.
+ */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const hoje = nowInBusinessTime(site.agenda?.timezone ?? 'America/Sao_Paulo').date;
+const demo = demoOptions(Astro.url, Astro.cookies);
+const dados = forTenant(user.tenantSlug, demo);
+const timeOff = await dados.timeOff();
+const people = (await dados.professionals()).map((p) => ({ ...p, agenda: teamAgenda(p, timeOff, hoje) }));
+const owner = people.find((p) => p.role === 'owner');
+const team = people.length > 1;
+
+const FILTERS: Array<{ value: string; label: string; state?: AgendaState }> = [
+  { value: '', label: 'Todos' },
+  { value: 'atendendo', label: 'Atendendo', state: 'open' },
+  { value: 'ausentes', label: 'De férias ou folga', state: 'away' },
+  { value: 'fechadas', label: 'Agenda fechada', state: 'closed' },
+];
+const query = (Astro.url.searchParams.get('q') ?? '').slice(0, 80);
+const filter = FILTERS.find((f) => f.value === Astro.url.searchParams.get('agenda')) ?? FILTERS[0]!;
+const shown = team
+  ? people.filter((p) => (!filter.state || p.agenda.state === filter.state) && matchesProfessional(p, query))
+  : people;
+
+const catalog = catalogServices(site.agenda);
+const names = new Map(catalog.map(({ service }) => [service.id, service.name]));
+const count = (state: AgendaState) => people.filter((p) => p.agenda.state === state).length;
+const covered = catalog.filter(
+  ({ service }) => serviceState(service) === 'active' && people.some((p) => p.is_active && p.service_ids.includes(service.id)),
+).length;
+
+// PROTÓTIPO: os formulários voltam para cá com `?novo` ou `?salvo`, sem gravar nada.
+const created = Astro.url.searchParams.has('novo');
+const saved = Astro.url.searchParams.has('salvo');
+---
+
+<SettingsLayout site={site} user={user} section="equipe" title="Equipe">
+  <SectionHeader title="Equipe" intro="Quem atende, os serviços de cada pessoa e as férias e folgas.">
+    <ActionButton
+      label="Adicionar profissional"
+      icon="plus"
+      iconPosition="end"
+      href="/painel/configuracoes/equipe/novo"
+      full={false}
+    />
+  </SectionHeader>
+
+  {/* PROTÓTIPO: escolhe o cenário da demonstração; sai quando a equipe vier da API. */}
+  <nav class="demo" aria-label="Cenário da demonstração">
+    <span class="demo__label">Demonstração</span>
+    <a class="demo__chip" href="?demo=equipe" aria-current={team ? 'page' : undefined}>{owner?.name} e equipe</a>
+    <a class="demo__chip" href="?demo=solo" aria-current={team ? undefined : 'page'}>Só {owner?.name}</a>
+  </nav>
+
+  {
+    (created || saved) && (
+      <Callout tone="success" icon="check-circle" title={created ? 'Profissional cadastrado' : 'Cadastro salvo'}>
+        {created ? 'A pessoa já aparece na equipe.' : 'As alterações já valem para os próximos agendamentos.'}
+      </Callout>
+    )
+  }
+
+  {
+    team ? (
+      <div class="stats">
+        <StatCard
+          label="Atendendo hoje"
+          value={String(count('open'))}
+          note={`De ${people.length} na equipe`}
+          tone="pink"
+        />
+        <StatCard
+          label="De férias ou folga"
+          value={String(count('away'))}
+          note={count('closed') ? `E ${count('closed')} com a agenda fechada` : 'Nenhuma agenda fechada'}
+          tone="yellow"
+        />
+        <StatCard label="Serviços cobertos" value={String(covered)} note="Com alguém da equipe para fazer" tone="blue" />
+      </div>
+    ) : (
+      <section class="solo" aria-labelledby="titulo-solo">
+        <span class="solo__icon" aria-hidden="true">
+          <Icon name="users" size={24} />
+        </span>
+        <div class="solo__text">
+          <h3 id="titulo-solo">Por enquanto, só você atende</h3>
+          <p>
+            Quando alguém começar a trabalhar com você, cadastre aqui. Cada profissional vê só a própria agenda, e a
+            gestão continua com você.
+          </p>
+        </div>
+      </section>
+    )
+  }
+
+  <PanelSection
+    title="Profissionais"
+    subtitle={team ? 'Abra um cadastro para editar serviços, férias e folgas.' : 'Você aparece aqui porque também atende. Marque suas férias no seu cadastro.'}
+    id="titulo-profissionais"
+  >
+    {
+      team && (
+        <form class="filters" method="get" role="search">
+          <TextField id="q" label="Buscar profissional" placeholder="Nome, telefone ou especialidade" maxlength={80} value={query} />
+          <TextField
+            id="agenda"
+            label="Agenda"
+            options={FILTERS.map(({ value, label }) => ({ value, label }))}
+            value={filter.value}
+            data-autosubmit=""
+          />
+        </form>
+      )
+    }
+
+    {
+      shown.length ? (
+        <PanelTable label="Profissionais">
+          <thead>
+            <tr>
+              <th scope="col">Profissional</th>
+              <th scope="col" data-wide>
+                Contato
+              </th>
+              <th scope="col" data-wide>
+                Serviços
+              </th>
+              <th scope="col">Agenda</th>
+              <th scope="col">
+                <span class="sr-only">Ações</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((p) => (
+              <tr>
+                <td>
+                  <span class="who">
+                    <strong>{p.name}</strong>
+                    {p.role === 'owner' && <span class="who__you">Você</span>}
+                  </span>
+                  <span class="who__detail">
+                    {roleLabel(p)}
+                    {p.description && ` · ${p.description}`}
+                  </span>
+                </td>
+                <td data-wide>{p.phone ? formatPhone(p.phone) : '—'}</td>
+                <td data-wide>
+                  <ul class="services">
+                    {p.service_ids.map((id) => (
+                      <li>{names.get(id) ?? id}</li>
+                    ))}
+                  </ul>
+                </td>
+                <td>
+                  <StatusBadge {...p.agenda.badge} />
+                  {p.agenda.next && <span class="next">{timeOffLabel(p.agenda.next)}</span>}
+                </td>
+                <td class="actions">
+                  <a class="edit" href={`/painel/configuracoes/equipe/${p.id}/editar`} aria-label={`Editar cadastro de ${p.name}`}>
+                    Editar cadastro
+                    <Icon name="chevron-right" size={16} />
+                  </a>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </PanelTable>
+      ) : (
+        <EmptyState
+          level={3}
+          mascot="lupa"
+          title="Ninguém encontrado"
+          text={query ? `Nada para “${query}” nesta situação.` : 'Ninguém nesta situação agora.'}
+        >
+          <ActionButton label="Ver toda a equipe" variant="secondary" href="/painel/configuracoes/equipe" full={false} />
+        </EmptyState>
+      )
+    }
+  </PanelSection>
+</SettingsLayout>
+
+<script>
+  import { wireAutoSubmit } from '@/lib/filters';
+
+  wireAutoSubmit();
+</script>
+
+<style>
+  .demo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 14px;
+    border: 1px dashed var(--site-color-border-strong);
+  }
+
+  .demo__label {
+    margin-right: 4px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--site-color-eyebrow);
+  }
+
+  .demo__chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    background: var(--site-color-brand-soft);
+    color: var(--site-color-text);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .demo__chip[aria-current='page'] {
+    background: var(--site-accent-yellow-soft);
+  }
+
+  .demo__chip:focus-visible,
+  .edit:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+  }
+
+  .solo {
+    display: flex;
+    align-items: flex-start;
+    gap: 18px;
+    padding: 24px 28px;
+    border-radius: var(--site-radius-card);
+    background: color-mix(in srgb, var(--site-accent-yellow-soft) 30%, var(--site-color-surface));
+  }
+
+  .solo__icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--site-accent-yellow-soft);
+  }
+
+  .solo__text h3 {
+    font-size: 1.1875rem;
+    font-weight: 600;
+  }
+
+  .solo__text p {
+    margin-top: 6px;
+    max-width: 62ch;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+
+  .filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    align-items: end;
+    gap: 16px;
+  }
+
+  .who {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .who strong {
+    font-weight: 600;
+  }
+
+  .who__you {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--site-accent-yellow-soft);
+    font-size: 0.6875rem;
+    font-weight: 600;
+  }
+
+  .who__detail,
+  .next {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .services {
+    list-style: none;
+    line-height: 1.5;
+  }
+
+  .actions {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .edit {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 44px;
+    color: var(--site-color-text);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .edit:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  @media (max-width: 599px) {
+    .solo {
+      padding: 20px;
+    }
+  }
+</style>

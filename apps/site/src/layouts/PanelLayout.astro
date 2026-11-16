@@ -14,7 +14,7 @@ import type { SiteConfig } from '@/types/site';
  * PROTÓTIPO: busca e "Conversar" aparecem como no desenho, sem ação.
  */
 
-export type PanelPage = 'home' | 'agenda' | 'clientes' | 'notificacoes';
+export type PanelPage = 'home' | 'agenda' | 'clientes' | 'servicos' | 'configuracoes' | 'notificacoes';
 
 interface Props {
   site: SiteConfig;
@@ -29,10 +29,10 @@ const NAV: Array<{ page?: PanelPage; label: string; href?: string; icon: IconNam
   { page: 'home', label: 'Visão geral', href: '/painel', icon: 'home' },
   { page: 'agenda', label: 'Agenda', href: '/painel/agenda', icon: 'calendar' },
   { page: 'clientes', label: 'Clientes', href: '/painel/clientes', icon: 'users' },
-  { label: 'Serviços', icon: 'briefcase' },
+  { page: 'servicos', label: 'Serviços', href: '/painel/servicos', icon: 'briefcase' },
   { label: 'Financeiro', icon: 'wallet' },
   { label: 'Relatórios', icon: 'chart' },
-  { label: 'Configurações', icon: 'settings' },
+  { page: 'configuracoes', label: 'Configurações', href: '/painel/configuracoes', icon: 'settings' },
 ];
 
 const { profile } = site;
