@@ -154,3 +154,16 @@ class AppointmentResponse(BaseModel):
     status: AppointmentStatus
     source: AppointmentSource
     created_at: datetime
+
+
+class ProfessionalAgendaItem(BaseModel):
+    """What a professional sees of their own agenda. No customer phone or email:
+    the client base belongs to the business (Figma 04.02, "sem acesso à carteira")."""
+
+    id: UUID4
+    starts_at: datetime
+    ends_at: datetime
+    status: AppointmentStatus
+    service_name: str | None
+    customer_name: str | None
+    notes: str | None

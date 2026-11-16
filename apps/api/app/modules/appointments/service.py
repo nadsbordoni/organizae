@@ -24,6 +24,7 @@ from app.modules.appointments.schemas import (
     BlockCreateRequest,
     BusinessHoursUpdate,
     OnlineBookingRequest,
+    ProfessionalAgendaItem,
 )
 from app.modules.businesses.exceptions import BusinessNotFoundError
 from app.modules.businesses.repository import BusinessRepository
@@ -179,6 +180,35 @@ class AppointmentService:
             self.session.commit()
             self.session.refresh(appointment)
         return appointment
+
+    def professional_agenda(
+        self,
+        *,
+        business_id: UUID,
+        professional_id: UUID,
+        starts_at: datetime,
+        ends_at: datetime,
+    ) -> list[ProfessionalAgendaItem]:
+        if ends_at <= starts_at or ends_at - starts_at > MAX_LISTING_RANGE:
+            raise InvalidBookingError("Range must be positive and at most 31 days")
+        rows = self.repository.list_professional_agenda(
+            business_id=business_id,
+            professional_id=professional_id,
+            starts_at=starts_at,
+            ends_at=ends_at,
+        )
+        return [
+            ProfessionalAgendaItem(
+                id=appointment.id,
+                starts_at=appointment.starts_at,
+                ends_at=appointment.ends_at,
+                status=appointment.status,
+                service_name=service_name,
+                customer_name=appointment.customer_name,
+                notes=appointment.notes,
+            )
+            for appointment, service_name in rows
+        ]
 
     def list_appointments(
         self,

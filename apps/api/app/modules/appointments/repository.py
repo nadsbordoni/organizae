@@ -201,3 +201,25 @@ class AppointmentRepository:
         if limit is not None:
             statement = statement.limit(limit)
         return list(self.session.scalars(statement).all())
+
+    def list_professional_agenda(
+        self,
+        *,
+        business_id: UUID,
+        professional_id: UUID,
+        starts_at: datetime,
+        ends_at: datetime,
+    ) -> list[tuple[Appointment, str | None]]:
+        statement = (
+            select(Appointment, Service.name)
+            .outerjoin(Service, Service.id == Appointment.service_id)
+            .where(
+                Appointment.business_id == business_id,
+                Appointment.professional_id == professional_id,
+                Appointment.status != AppointmentStatus.CANCELLED,
+                Appointment.starts_at < ends_at,
+                Appointment.ends_at > starts_at,
+            )
+            .order_by(Appointment.starts_at, Appointment.id)
+        )
+        return [(appointment, name) for appointment, name in self.session.execute(statement)]
