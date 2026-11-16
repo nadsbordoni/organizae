@@ -1,0 +1,105 @@
+---
+/** Lista numerada com uma barra por item, como o ranking de serviços do protótipo. */
+interface Props {
+  items: Array<{ name: string; detail: string; /** De 0 a 1. */ fill: number; value: string }>;
+  label: string;
+}
+
+const { items, label } = Astro.props;
+---
+
+<ol class="rank" aria-label={label}>
+  {
+    items.map((item, i) => (
+      <li class="rank__row">
+        <span class="rank__pos" aria-hidden="true">
+          {i + 1}
+        </span>
+        <span class="rank__who">
+          <strong>{item.name}</strong>
+          <span>{item.detail}</span>
+        </span>
+        <span class="rank__bar" aria-hidden="true">
+          <span style={`width: ${Math.round(Math.max(0, Math.min(1, item.fill)) * 100)}%`} />
+        </span>
+        <span class="rank__value">{item.value}</span>
+      </li>
+    ))
+  }
+</ol>
+
+<style>
+  .rank {
+    display: flex;
+    flex-direction: column;
+    list-style: none;
+  }
+
+  .rank__row {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) minmax(60px, 2fr) auto;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--site-color-border);
+  }
+
+  .rank__pos {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--site-color-brand-soft);
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .rank__who {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.3;
+  }
+
+  .rank__who strong {
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+
+  .rank__who span {
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .rank__bar {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--site-color-brand-soft);
+    overflow: hidden;
+  }
+
+  .rank__bar span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--site-accent-green);
+  }
+
+  .rank__value {
+    min-width: 3.5ch;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-align: right;
+  }
+
+  @media (max-width: 599px) {
+    .rank__row {
+      grid-template-columns: 28px minmax(0, 1fr) auto;
+    }
+
+    .rank__bar {
+      display: none;
+    }
+  }
+</style>

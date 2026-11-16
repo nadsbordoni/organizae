@@ -87,7 +87,7 @@ export function endTime(row: Pick<AppointmentRow, 'start_time' | 'duration_min'>
   return toClock(toMinutes(row.start_time) + row.duration_min);
 }
 
-function serviceIds(row: AppointmentRow): string[] | undefined {
+export function serviceIds(row: AppointmentRow): string[] | undefined {
   try {
     const ids = JSON.parse(row.service_ids) as unknown;
     return Array.isArray(ids) ? ids.map(String) : undefined;
@@ -203,17 +203,6 @@ export function tenantNotConfigured(tenantSlug: string): Response {
   return new Response(`Conta ligada ao negócio "${tenantSlug}", que não está configurado.`, {
     status: 500,
     headers: { 'content-type': 'text/plain; charset=utf-8' },
-  });
-}
-
-/** Os últimos `count` meses até o de `today`, do mais antigo ao atual: `{ short: 'Dez', long: 'dezembro' }`. */
-export function lastMonths(today: IsoDate, count: number): Array<{ short: string; long: string }> {
-  const [year, month] = today.split('-').map(Number) as [number, number];
-  return Array.from({ length: count }, (_, i) => {
-    const date = new Date(Date.UTC(year, month - 1 - (count - 1 - i), 1));
-    const short = new Intl.DateTimeFormat('pt-BR', { month: 'short', timeZone: 'UTC' }).format(date);
-    const long = new Intl.DateTimeFormat('pt-BR', { month: 'long', timeZone: 'UTC' }).format(date);
-    return { short: capitalize(short.replace('.', '')), long };
   });
 }
 

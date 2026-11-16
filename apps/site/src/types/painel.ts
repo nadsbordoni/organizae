@@ -65,6 +65,45 @@ export interface TimeOffRow {
   reason: string;
 }
 
+export type FinancialType = 'INCOME' | 'EXPENSE';
+
+/**
+ * Categoria financeira, no formato de `GET /financial-categories`. `group` ainda NÃO existe no back:
+ * separa a origem da receita (serviços, produtos, outras) e as despesas em custo fixo, variável e imposto.
+ */
+export interface FinancialCategoryRow {
+  id: string;
+  name: string;
+  type: FinancialType;
+  group: 'services' | 'products' | 'other' | 'fixed' | 'variable' | 'tax';
+}
+
+export type PaymentMethod = 'pix' | 'card' | 'cash' | 'boleto' | 'debit';
+
+/** Lançamento, no formato de `GET /financial-entries`. */
+export interface FinancialEntryRow {
+  id: string;
+  category_id: string;
+  type: FinancialType;
+  description: string;
+  /** Em centavos; a API manda `Decimal` em texto. */
+  amount_cents: number;
+  /** Vencimento: quando entra ou sai do caixa, se ainda não foi pago. */
+  due_date: string;
+  /** Dia do pagamento, na hora de parede do negócio; a API guarda o instante em `paid_at`. */
+  paid_on: string | null;
+  status: 'PENDING' | 'PAID' | 'CANCELLED';
+  appointment_id: number | null;
+  /** Os campos abaixo ainda NÃO existem no back (a API só tem `competence` em recorrências). */
+  /** Mês do resultado: o atendimento de hoje pago no cartão em 30 dias é receita de hoje. */
+  competence: string;
+  payment_method: PaymentMethod | null;
+  /** Número da nota fiscal emitida ou recebida. */
+  invoice: string | null;
+  /** Pagamento já programado (débito automático). */
+  scheduled: boolean;
+}
+
 export interface AppointmentRow {
   id: number;
   tenant_slug: string;

@@ -14,7 +14,15 @@ import type { SiteConfig } from '@/types/site';
  * PROTÓTIPO: busca e "Conversar" aparecem como no desenho, sem ação.
  */
 
-export type PanelPage = 'home' | 'agenda' | 'clientes' | 'servicos' | 'configuracoes' | 'notificacoes';
+export type PanelPage =
+  | 'home'
+  | 'agenda'
+  | 'clientes'
+  | 'servicos'
+  | 'financeiro'
+  | 'relatorios'
+  | 'configuracoes'
+  | 'notificacoes';
 
 interface Props {
   site: SiteConfig;
@@ -30,8 +38,8 @@ const NAV: Array<{ page?: PanelPage; label: string; href?: string; icon: IconNam
   { page: 'agenda', label: 'Agenda', href: '/painel/agenda', icon: 'calendar' },
   { page: 'clientes', label: 'Clientes', href: '/painel/clientes', icon: 'users' },
   { page: 'servicos', label: 'Serviços', href: '/painel/servicos', icon: 'briefcase' },
-  { label: 'Financeiro', icon: 'wallet' },
-  { label: 'Relatórios', icon: 'chart' },
+  { page: 'financeiro', label: 'Financeiro', href: '/painel/financeiro', icon: 'wallet' },
+  { page: 'relatorios', label: 'Relatórios', href: '/painel/relatorios', icon: 'chart' },
   { page: 'configuracoes', label: 'Configurações', href: '/painel/configuracoes', icon: 'settings' },
 ];
 
@@ -707,6 +715,24 @@ const seo = { title: `${title} • ${profile.name}`, description: 'Painel do neg
   @media (max-height: 760px) and (min-width: 720px) {
     .side__help {
       display: none;
+    }
+  }
+
+  /* Impressão (o "Baixar PDF" dos relatórios): só o conteúdo, sem menu nem barra do topo. */
+  @media print {
+    .panel {
+      display: block;
+      background: none;
+    }
+
+    .side,
+    .top {
+      display: none;
+    }
+
+    .main {
+      max-width: none;
+      padding: 0;
     }
   }
 

@@ -2,20 +2,28 @@
 import Icon from '@/components/Icon.astro';
 
 /**
- * Menu ⋯ de uma linha ou cartão, num popover nativo: fecha com Esc ou tocando fora, sem JavaScript.
- * Os itens são links passados no slot.
+ * Menu num popover nativo: fecha com Esc ou tocando fora, sem JavaScript. Os itens são links
+ * passados no slot. Sem `trigger`, o botão é o ⋯ de uma linha ou cartão.
  */
 interface Props {
   id: string;
   /** Nome do botão para o leitor de tela: "Ações para Marina Costa". */
   label: string;
+  /** Texto visível no lugar do ⋯, como "Alterar período". */
+  trigger?: string;
 }
 
-const { id, label } = Astro.props;
+const { id, label, trigger } = Astro.props;
 ---
 
-<button class="more" type="button" popovertarget={id} aria-label={label} style={`anchor-name: --${id}`}>
-  <Icon name="more" size={20} />
+<button
+  class={trigger ? 'trigger' : 'more'}
+  type="button"
+  popovertarget={id}
+  aria-label={trigger ? undefined : label}
+  style={`anchor-name: --${id}`}
+>
+  {trigger ?? <Icon name="more" size={20} />}
 </button>
 <div class="menu" id={id} popover style={`position-anchor: --${id}`}>
   <slot />
@@ -37,6 +45,24 @@ const { id, label } = Astro.props;
   }
 
   .more:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  .trigger {
+    min-height: 44px;
+    padding: 0 18px;
+    border-radius: var(--site-radius-button);
+    border: 1px solid var(--site-color-border-strong);
+    background: var(--site-color-surface);
+    color: var(--site-color-text);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .trigger:hover {
     background: var(--site-color-brand-soft);
   }
 
@@ -65,7 +91,13 @@ const { id, label } = Astro.props;
     background: var(--site-color-brand-soft);
   }
 
+  .menu :global(a[aria-current]) {
+    font-weight: 600;
+    background: var(--site-accent-yellow-soft);
+  }
+
   .more:focus-visible,
+  .trigger:focus-visible,
   .menu :global(a:focus-visible) {
     outline: 3px solid var(--site-color-brand-deep);
     outline-offset: 2px;

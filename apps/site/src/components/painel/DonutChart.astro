@@ -1,0 +1,137 @@
+---
+import { percent } from '@/lib/finance';
+
+/**
+ * Partes de um total num anel, com a legenda em texto ao lado: a cor nunca é a única pista.
+ * O anel é decorativo; o leitor de tela lê a legenda.
+ */
+interface Props {
+  items: Array<{ label: string; value: number; tone: 'pink-soft' | 'yellow-soft' | 'blue-soft' | 'green' }>;
+  /** Texto grande no meio, como "R$ 9,2k". */
+  center: string;
+  centerNote: string;
+  label: string;
+}
+
+const { items, center, centerNote, label } = Astro.props;
+
+const total = items.reduce((sum, item) => sum + item.value, 0) || 1;
+let start = 0;
+const slices = items.map((item) => {
+  const share = (item.value / total) * 100;
+  const slice = { ...item, share, offset: start };
+  start += share;
+  return slice;
+});
+---
+
+<figure class="donut">
+  <div class="donut__ring" aria-hidden="true">
+    <svg viewBox="0 0 200 200" focusable="false">
+      {
+        slices.map((s) => (
+          <circle
+            cx="100"
+            cy="100"
+            r="78"
+            pathLength="100"
+            stroke={`var(--site-accent-${s.tone})`}
+            stroke-dasharray={`${s.share} ${100 - s.share}`}
+            stroke-dashoffset={-s.offset}
+          />
+        ))
+      }
+    </svg>
+    <span class="donut__center">
+      <strong>{center}</strong>
+      <span>{centerNote}</span>
+    </span>
+  </div>
+
+  <ul class="donut__legend" aria-label={label}>
+    {
+      slices.map((s) => (
+        <li>
+          <span class="donut__dot" style={`--tone: var(--site-accent-${s.tone})`} aria-hidden="true" />
+          {s.label}
+          <strong>{percent(s.share, 0)}</strong>
+        </li>
+      ))
+    }
+  </ul>
+</figure>
+
+<style>
+  .donut {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    margin: 0;
+  }
+
+  .donut__ring {
+    position: relative;
+    width: min(220px, 100%);
+    aspect-ratio: 1;
+  }
+
+  /* Começa no topo, como um relógio. */
+  .donut__ring svg {
+    width: 100%;
+    height: 100%;
+    rotate: -90deg;
+  }
+
+  .donut__ring circle {
+    fill: none;
+    stroke-width: 30;
+  }
+
+  .donut__center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+  }
+
+  .donut__center strong {
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+
+  .donut__center span {
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .donut__legend {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    list-style: none;
+    font-size: 0.875rem;
+  }
+
+  .donut__legend li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .donut__legend strong {
+    margin-left: auto;
+    font-weight: 600;
+  }
+
+  .donut__dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--tone);
+  }
+</style>

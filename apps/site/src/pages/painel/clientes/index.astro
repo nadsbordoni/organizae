@@ -12,7 +12,8 @@ import StatCard from '@/components/painel/StatCard.astro';
 import StatusBadge from '@/components/painel/StatusBadge.astro';
 import { getSite } from '@/config';
 import { formatPrice, nowInBusinessTime } from '@/lib/agenda';
-import { AWAY_AFTER_DAYS, CLIENT_STATUS, clientsCsv, matchesSearch, summarize } from '@/lib/clients';
+import { AWAY_AFTER_DAYS, CLIENT_STATUS, clientsSheet, matchesSearch, summarize } from '@/lib/clients';
+import { csvHref } from '@/lib/csv';
 import type { ClientStatus } from '@/lib/clients';
 import { forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
 import { whatsappUrl } from '@/lib/links';
@@ -55,7 +56,7 @@ const newThisMonth = all.filter((s) => s.client.created_at.startsWith(hoje.slice
 
 // PROTÓTIPO: o formulário de novo cliente volta para cá com `?novo`, sem gravar nada.
 const created = Astro.url.searchParams.has('novo');
-const csv = `data:text/csv;charset=utf-8,${encodeURIComponent(clientsCsv(shown))}`;
+const csv = csvHref(clientsSheet(shown));
 ---
 
 <PanelLayout site={site} user={user} current="clientes" title="Clientes">

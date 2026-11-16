@@ -1,0 +1,64 @@
+---
+/** Abas do Financeiro. São links: cada aba tem endereço próprio e o voltar do navegador funciona. */
+interface Props {
+  current: 'visao-geral' | 'despesas' | 'rentabilidade';
+  /** Repassado entre as abas, para o mês escolhido não se perder. */
+  month?: string;
+}
+
+const { current, month } = Astro.props;
+
+const TABS = [
+  { key: 'visao-geral', label: 'Visão geral', href: '/painel/financeiro' },
+  { key: 'despesas', label: 'Despesas e notas', href: '/painel/financeiro/despesas' },
+  { key: 'rentabilidade', label: 'Rentabilidade', href: '/painel/financeiro/rentabilidade' },
+];
+const query = month ? `?mes=${month}` : '';
+---
+
+<nav class="tabs" aria-label="Áreas do financeiro">
+  {
+    TABS.map((tab) => (
+      <a class="tabs__item" href={`${tab.href}${query}`} aria-current={tab.key === current ? 'page' : undefined}>
+        {tab.label}
+      </a>
+    ))
+  }
+</nav>
+
+<style>
+  .tabs {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 6px;
+    border-radius: 14px;
+    background: var(--site-color-brand-soft);
+  }
+
+  .tabs__item {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 0 16px;
+    border-radius: 10px;
+    color: var(--site-color-text);
+    font-size: 0.875rem;
+    text-decoration: none;
+  }
+
+  .tabs__item:hover {
+    background: color-mix(in srgb, var(--site-color-surface) 60%, transparent);
+  }
+
+  .tabs__item[aria-current='page'] {
+    background: var(--site-color-surface);
+    font-weight: 600;
+    box-shadow: var(--site-shadow-resting);
+  }
+
+  .tabs__item:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+</style>

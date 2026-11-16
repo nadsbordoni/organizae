@@ -1,0 +1,229 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import Icon from '@/components/Icon.astro';
+import BarChart from '@/components/painel/BarChart.astro';
+import DonutChart from '@/components/painel/DonutChart.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import PanelSection from '@/components/painel/PanelSection.astro';
+import PeriodBar from '@/components/painel/PeriodBar.astro';
+import StatCard from '@/components/painel/StatCard.astro';
+import { getSite } from '@/config';
+import { nowInBusinessTime } from '@/lib/agenda';
+import { csvHref } from '@/lib/csv';
+import { usuarioExemplo } from '@/lib/dados-exemplo';
+import { change, flowBy, money, monthName, monthTitle, percent, resultOf, slices, totalsByGroup } from '@/lib/finance';
+import type { Range } from '@/lib/finance';
+import { loadFinance } from '@/lib/finance-page';
+import { tenantNotConfigured } from '@/lib/painel';
+
+/**
+ * Balanço mensal (quadro 07), no item Relatórios. A "Leitura do Organizaê" é uma frase montada com os
+ * números do mês; quando a assistente tiver tela, "Ver recomendações" abre a conversa com ela.
+ */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const hoje = nowInBusinessTime(site.agenda?.timezone ?? 'America/Sao_Paulo').date;
+const { dados, entries, groups, months, period } = await loadFinance(Astro.url, user.tenantSlug, hoje);
+
+const now = resultOf(entries, period, groups);
+const before = resultOf(entries, period.previous, groups);
+const prev = monthName(period.previous.from);
+const current = period.to === hoje;
+
+const appointments = async (range: Range) =>
+  (await dados.appointmentsBetween(range.from, range.to)).filter((a) => a.status !== 'cancelled');
+const bookedNow = await appointments(period);
+const bookedBefore = await appointments(period.previous);
+const services = (range: Range) => totalsByGroup(entries, range, groups).get('services') ?? 0;
+const average = (range: Range, count: number) => (count ? Math.round(services(range) / count) : 0);
+const avgNow = average(period, bookedNow.length);
+const avgBefore = average(period.previous, bookedBefore.length);
+
+const weeks = flowBy(entries, slices(period, 7), 'result').map((w, i) => ({ ...w, label: `Semana ${i + 1}` }));
+const origin = totalsByGroup(entries, period, groups);
+const thousands = (cents: number) => `R$ ${(cents / 100_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}k`;
+
+const incomeChange = change(now.income, before.income);
+const reading = [
+  `Receita de ${money(now.income)}, lucro de ${money(now.result)}, ticket médio de ${money(avgNow)} e ${bookedNow.length} agendamentos.`,
+  incomeChange &&
+    (Math.abs(now.income - before.income) < before.income * 0.01
+      ? `A receita ficou estável em relação a ${prev}.`
+      : `A receita está ${incomeChange.slice(1)} ${now.income > before.income ? 'acima' : 'abaixo'} de ${prev}${current ? ' no mesmo trecho' : ''}.`),
+  now.margin !== undefined && `A margem ficou em ${percent(now.margin)}.`,
+]
+  .filter(Boolean)
+  .join(' ');
+
+const csv = csvHref([
+  ['Indicador', monthTitle(period.key), monthTitle(period.previous.from.slice(0, 7))],
+  ['Receita total', money(now.income), money(before.income)],
+  ['Lucro líquido', money(now.result), money(before.result)],
+  ['Agendamentos', String(bookedNow.length), String(bookedBefore.length)],
+  ['Valor médio por agendamento', money(avgNow), money(avgBefore)],
+  ['Receita de serviços', money(origin.get('services') ?? 0), ''],
+  ['Receita de produtos', money(origin.get('products') ?? 0), ''],
+  ['Outras receitas', money(origin.get('other') ?? 0), ''],
+]);
+---
+
+<PanelLayout site={site} user={user} current="relatorios" title="Balanço mensal">
+  <PanelHeading
+    eyebrow="Inteligência do negócio"
+    title="Balanço mensal"
+    intro={`Uma leitura clara do desempenho de ${site.profile.name}.`}
+  >
+    <ActionButton
+      label="Planilha"
+      variant="secondary"
+      icon="download"
+      iconPosition="end"
+      href={csv}
+      download={`balanco-${period.key}.csv`}
+      full={false}
+    />
+    {/* A impressão do navegador salva em PDF; o estilo de impressão do painel esconde menu e topo. */}
+    <ActionButton label="Baixar PDF" icon="download" iconPosition="end" full={false} data-print="" />
+  </PanelHeading>
+
+  <div class="block">
+    <PeriodBar
+      title={current ? `${monthTitle(period.key)}, até hoje` : monthTitle(period.key)}
+      compare={current ? `Comparado ao mesmo trecho de ${prev}` : 'Comparado ao mês anterior'}
+      months={months}
+      current={period.key}
+      chips={['Todos os serviços']}
+    />
+  </div>
+
+  <div class="stats">
+    <StatCard label="Receita total" value={money(now.income)} note={`${incomeChange ?? '—'} vs. ${prev}`} tone="pink" />
+    <StatCard label="Lucro líquido" value={money(now.result)} note={`${change(now.result, before.result) ?? '—'} vs. ${prev}`} tone="green" />
+    <StatCard
+      label="Agendamentos"
+      value={String(bookedNow.length)}
+      note={`${bookedNow.filter((a) => a.status === 'done').length} já atendidos`}
+      tone="yellow"
+    />
+    <StatCard label="Valor médio por agendamento" value={money(avgNow)} note={`${change(avgNow, avgBefore) ?? '—'} vs. ${prev}`} tone="blue" />
+  </div>
+
+  <div class="grid">
+    <PanelSection title="Evolução financeira" subtitle="Receitas e despesas por semana" id="titulo-evolucao">
+      <BarChart groups={weeks} label="Receitas e despesas por semana" series={['Receitas', 'Despesas']} />
+    </PanelSection>
+
+    <PanelSection title="Origem da receita" subtitle="Receita reconhecida" id="titulo-origem">
+      <DonutChart
+        label="Origem da receita"
+        center={thousands(now.income)}
+        centerNote="receita"
+        items={[
+          { label: 'Serviços', value: origin.get('services') ?? 0, tone: 'pink-soft' },
+          { label: 'Produtos', value: origin.get('products') ?? 0, tone: 'yellow-soft' },
+          { label: 'Outros', value: origin.get('other') ?? 0, tone: 'blue-soft' },
+        ]}
+      />
+    </PanelSection>
+  </div>
+
+  <section class="reading" aria-labelledby="titulo-leitura">
+    <span class="reading__icon" aria-hidden="true">
+      <Icon name="sparkles" size={20} />
+    </span>
+    <div>
+      <h2 id="titulo-leitura">Leitura do Organizaê</h2>
+      <p>{reading}</p>
+    </div>
+    {/* PROTÓTIPO: sem ação até a assistente ter tela. */}
+    <ActionButton label="Ver recomendações" variant="secondary" full={false} />
+  </section>
+</PanelLayout>
+
+<script>
+  document.querySelector('[data-print]')?.addEventListener('click', () => print());
+</script>
+
+<style>
+  .block {
+    margin-top: 32px;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.94fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 16px;
+    margin-top: 16px;
+  }
+
+  .reading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px 20px;
+    margin-top: 16px;
+    padding: 22px 28px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: color-mix(in srgb, var(--site-color-brand-soft) 60%, var(--site-color-surface));
+  }
+
+  .reading > div {
+    flex: 1;
+    min-width: 240px;
+  }
+
+  .reading__icon {
+    color: var(--site-color-eyebrow);
+  }
+
+  .reading h2 {
+    font-size: 1.0625rem;
+    font-weight: 600;
+  }
+
+  .reading p {
+    margin-top: 4px;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: color-mix(in srgb, var(--site-color-text-muted) 80%, var(--site-color-text));
+  }
+
+  @media (max-width: 1299px) {
+    .stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 1099px) {
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 599px) {
+    .stats {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media print {
+    .block :global(.trigger),
+    .reading :global(.action) {
+      display: none;
+    }
+  }
+</style>
