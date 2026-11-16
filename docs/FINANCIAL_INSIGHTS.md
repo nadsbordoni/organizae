@@ -9,11 +9,11 @@ Exige JWT de usuário ativo vinculado à empresa. O escopo vem exclusivamente da
 | Parâmetro | Padrão | Uso |
 | --- | --- | --- |
 | `month` | Mês atual | Data ISO do primeiro dia do mês, por exemplo `2026-10-01`. Aceita o mês atual e meses anteriores. |
-| `explain` | `true` | Permite explicações pelo Gemini quando configurado. `false` usa somente orientações determinísticas. |
+| `explain` | `true` | Gera explicações contextualizadas pelo Gemini quando configurado, reutilizando o cache para fatos idênticos. `false` usa as orientações padrão, sem chamar a IA. |
 
 Exemplo: `GET /api/v1/financial/insights?month=2026-10-01&explain=false`.
 
-A atualização acontece a cada consulta ao endpoint. Não há tarefas periódicas, notificações por e-mail ou WhatsApp nem execução automática de operações financeiras.
+A detecção e os valores são atualizados a cada consulta ao endpoint, sem precisar enviar uma pergunta à assistente. A interface deve consultar esse endpoint ao carregar ou atualizar seus indicadores; essa integração de frontend não faz parte deste módulo. Não há tarefas periódicas, notificações por e-mail ou WhatsApp nem execução automática de operações financeiras.
 
 ## Períodos e pagamentos
 
@@ -53,19 +53,23 @@ O serviço reutiliza `FinancialReportService.profitability`, incluindo os cálcu
 
 São três consultas agregadas por análise: fluxo realizado atual, anterior e despesas vencidas. A agregação de vencidas usa os filtros e somatórios do Repository financeiro existente. Nenhuma lista completa de lançamentos é carregada e nenhuma escrita financeira é executada.
 
-A integração usa o `GeminiProvider` existente, inclusive timeout, retries e monitoramento de tokens. Para garantir que a IA não invente valores ou causas, o Gemini **seleciona códigos de explicações e ações de um catálogo aprovado**, em vez de produzir texto livre. Recebe somente tipos, severidades, identificadores opacos e opções de orientação; valores, datas, mensagens do usuário e dados pessoais não são enviados. Códigos não permitidos, campos extras, identificadores desconhecidos e respostas incompletas ou repetidas são rejeitados.
+A integração reutiliza o `GeminiProvider`, incluindo timeout, retries e monitoramento de tokens. Com `explain=true` (padrão), o Gemini **gera explicações e sugestões contextualizadas**, em vez de selecionar textos de um catálogo. Recebe somente os fatos agregados dos alertas da empresa autenticada: tipo, severidade, valores já calculados, períodos, variação, referência, fuso e indicação de mês parcial. Identificadores de usuário/empresa, nomes, descrições de lançamentos e mensagens do usuário não são enviados.
 
-Fatos ficam em `description` e `values`; as ações são sugestões para avaliação do empreendedor. O catálogo não afirma causas nem transforma hipóteses em fatos. Não há ferramentas de escrita disponíveis nessa geração.
+O backend continua responsável pela detecção e por todos os cálculos. O Gemini recebe instruções para explicar fatos e implicações, distinguir receitas recebidas de pendentes e resultado realizado de lucro contábil, não atribuir causas sem evidência e formular sugestões de investigação de maneira condicional. Não há ferramentas de escrita nessa geração.
 
-Sem chave Gemini, com `explain=false`, sem alertas ou em falhas/respostas inválidas da IA, a consulta mantém os insights e as orientações determinísticas. Indisponibilidade do Gemini não transforma a resposta em erro HTTP.
+Para citar valores, percentuais, contagens e datas, o modelo deve usar marcadores, como `{{paid_income}}` e `{{period}}`, que o backend substitui pelos fatos corretos. A validação rejeita números literais, marcadores desconhecidos ou de outro alerta, HTML, URLs, campos extras, identificadores desconhecidos, respostas incompletas, ações repetidas e textos fora dos limites. A explicação precisa referenciar um fato financeiro e uma data/período. O lote inteiro é validado antes de alterar a resposta.
+
+Fatos permanecem em `description` e `values`; somente `explanation`, `suggested_actions` e `explanation_source` podem ser enriquecidos. A validação estrutural e de marcadores reduz o risco de valores inventados, mas não comprova semanticamente toda frase gerada. As sugestões devem ser avaliadas pelo empreendedor e nenhuma ação é executada.
+
+Sem chave Gemini, com `explain=false`, sem alertas ou em falhas/respostas inválidas da IA, a consulta mantém os insights e as orientações determinísticas do catálogo existente. Indisponibilidade do Gemini não transforma a resposta em erro HTTP.
 
 ## Consumo e limitações
 
-Somente as escolhas de orientações são armazenadas em cache de memória: até 256 entradas por processo, válidas por uma hora, com espera de 60 segundos antes de tentar novamente após uma falha. A chave separa empresa, modelo, conjunto de alertas e versão do catálogo. Solicitações simultâneas iguais não duplicam a geração; enquanto ela está em andamento, outra consulta recebe a orientação determinística.
+Os textos gerados com marcadores são armazenados no cache de memória existente: até 256 entradas por processo, válidas por uma hora, com espera de 60 segundos antes de tentar novamente após uma falha. A chave separa empresa, modelo e versão da geração, e inclui um hash de todos os fatos enviados: valores, períodos, referência, tipo, severidade, fuso e indicação de mês parcial.
 
-Valores financeiros, períodos e presença dos alertas **não são armazenados nesse cache**: são recalculados a cada consulta. Mudanças de valores com os mesmos tipos/severidades podem reutilizar orientações genéricas enquanto os fatos retornados são atualizados normalmente.
+Consultas com os mesmos fatos reutilizam a explicação, sem nova chamada ao Gemini. Uma mudança nos fatos invalida a reutilização e solicita nova explicação, mesmo que o identificador do alerta seja igual. Se essa geração falhar, retorna a orientação padrão com os dados financeiros atuais, sem reaproveitar uma explicação de valores anteriores. Solicitações simultâneas iguais não duplicam a geração; enquanto ela está em andamento, outra consulta recebe a orientação determinística.
 
-O cache não é compartilhado entre workers e desaparece ao reiniciar. A primeira explicação não armazenada é síncrona e segue os limites do provider. Não há memória de longo prazo, RAG, notificações ou armazenamento persistente de insights. As explicações se limitam ao catálogo aprovado e não atribuem causalidade.
+Os dados financeiros e a presença dos alertas são consultados novamente a cada requisição. O cache não é compartilhado entre workers e desaparece ao reiniciar. A primeira explicação não armazenada é síncrona e segue os limites do provider; uma resposta truncada ou fora do formato exigido aciona o fallback. Não há memória de longo prazo, RAG, notificações ou armazenamento persistente de insights.
 
 Erros: `401` para autenticação ausente/inválida ou usuário inativo; `403` para usuário sem empresa; `422` para mês/parâmetros inválidos; `503` com código `financial_insights_unavailable` para falha de consulta financeira, sem expor SQL ou credenciais.
 
@@ -75,7 +79,7 @@ Em `apps/api/`:
 
 ```powershell
 uv run pytest tests/test_financial_insights.py tests/test_insight_explanations.py tests/test_financial_reports.py tests/test_financial_profitability.py -p no:cacheprovider
-uv run ruff check app/modules/financial_insights app/modules/financial app/main.py tests/test_financial_insights.py tests/test_insight_explanations.py
+uv run ruff check app/modules/financial_insights tests/test_financial_insights.py tests/test_insight_explanations.py
 ```
 
 Os testes exercitam os Services e Repositories reais com SQLite descartável e o adaptador de fuso já utilizado pelo financeiro; o Gemini é simulado. Cobrem limites, ausência de dados, pagamentos, períodos, isolamento, atualização, IDs, ausência de duplicatas, fallback, validação das orientações, cache limitado e chamadas simultâneas. Não utilizam o banco configurado nem a API real do Gemini.

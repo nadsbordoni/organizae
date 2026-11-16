@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from unittest.mock import Mock
@@ -528,3 +529,97 @@ def test_same_overdue_interval_keeps_id_across_selected_months(database):
     assert len(current.insights) == len(historical.insights) == 1
     assert current.insights[0].period == historical.insights[0].period
     assert current.insights[0].id == historical.insights[0].id
+
+
+def contextual_model_reply(message, **kwargs):
+    return json.dumps(
+        {
+            "explanations": [
+                {
+                    "insight_id": item["insight_id"],
+                    "explanation": (
+                        "Em {{period}}, foram recebidos {{paid_income}}, ante "
+                        "{{previous_paid_income}} em {{comparison_period}}. "
+                        "A variação apurada é {{variation_percentage}}."
+                    ),
+                    "suggested_actions": [
+                        "Confira se os recebimentos do período foram registrados corretamente."
+                    ],
+                }
+                for item in json.loads(message)
+            ]
+        }
+    )
+
+
+def test_contextual_gemini_explanation_preserves_api_contract(client, database):
+    add(database, entry("100", "2026-10-05"), entry("70"))
+    provider = Mock()
+    provider.generate.side_effect = contextual_model_reply
+    app.dependency_overrides[get_insights_provider] = lambda: provider
+    deterministic = fetch(client, explain="false")
+    contextual = fetch(client)
+    item = contextual["insights"][0]
+    assert item["explanation_source"] == "gemini"
+    assert "R$ 70,00" in item["explanation"] and "-30,00%" in item["explanation"]
+    assert "01/10/2026 a 13/10/2026" in item["explanation"]
+    assert "{{" not in item["explanation"]
+    assert item["suggested_actions"]
+    for result in (deterministic, contextual):
+        for insight in result["insights"]:
+            for key in ("explanation", "suggested_actions", "explanation_source"):
+                insight.pop(key)
+    assert contextual == deterministic
+    provider.generate.assert_called_once()
+
+
+def test_contextual_explanation_refreshes_after_financial_changes(client, database):
+    add(database, entry("100", "2026-10-05"), entry("70"))
+    provider = Mock()
+    provider.generate.side_effect = contextual_model_reply
+    app.dependency_overrides[get_insights_provider] = lambda: provider
+    first = fetch(client)
+    assert fetch(client) == first
+    provider.generate.assert_called_once()
+    add(database, entry("1"))
+    second = fetch(client)
+    assert first["insights"][0]["id"] == second["insights"][0]["id"]
+    assert second["insights"][0]["values"]["paid_income"] == "71.00"
+    assert "R$ 71,00" in second["insights"][0]["explanation"]
+    assert "R$ 70,00" not in second["insights"][0]["explanation"]
+    assert provider.generate.call_count == 2
+    provider.generate.side_effect = AssistantUnavailableError()
+    add(database, entry("1"))
+    fallback = fetch(client)
+    assert fallback["insights"][0]["explanation_source"] == "deterministic"
+    assert fallback["insights"][0]["values"]["paid_income"] == "72.00"
+    assert "R$ 71,00" not in fallback["insights"][0]["explanation"]
+
+
+def test_gemini_only_receives_aggregates_of_authenticated_business(client, database):
+    add(
+        database,
+        entry("100", "2026-10-05"),
+        entry("70"),
+        entry("1000", "2026-10-05", business_id=business_b),
+        entry("700", business_id=business_b),
+    )
+    provider = Mock()
+    provider.generate.side_effect = contextual_model_reply
+    app.dependency_overrides[get_insights_provider] = lambda: provider
+    own = fetch(client)
+    foreign = client.get(ROOT, headers=auth_headers(owner_b))
+    assert foreign.status_code == 200
+    assert "R$ 70,00" in own["insights"][0]["explanation"]
+    assert "R$ 700,00" in foreign.json()["insights"][0]["explanation"]
+    own_payload, foreign_payload = [
+        json.loads(call.args[0]) for call in provider.generate.call_args_list
+    ]
+    assert own_payload[0]["facts"]["paid_income"] == "R$ 70,00"
+    assert own_payload[0]["facts"]["previous_paid_income"] == "R$ 100,00"
+    assert foreign_payload[0]["facts"]["paid_income"] == "R$ 700,00"
+    assert foreign_payload[0]["facts"]["previous_paid_income"] == "R$ 1.000,00"
+    for call in provider.generate.call_args_list:
+        assert str(business_a) not in call.args[0]
+        assert str(business_b) not in call.args[0]
+        assert "Fictitious test" not in call.args[0]

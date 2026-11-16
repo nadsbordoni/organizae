@@ -1,47 +1,127 @@
 import hashlib
 import json
 import logging
+import re
 import time
 from collections import OrderedDict
 from collections.abc import Callable
+from decimal import Decimal
 from threading import Lock
+from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.modules.assistant.exceptions import AssistantError
 from app.modules.assistant.providers.base import AssistantProvider
-from app.modules.financial_insights.guidance import GUIDANCE, GUIDANCE_VERSION
-from app.modules.financial_insights.schemas import FinancialInsightsResponse
+from app.modules.financial_insights.schemas import (
+    FinancialInsight,
+    FinancialInsightsResponse,
+)
+from app.modules.financial_insights.service import money
 
 logger = logging.getLogger(__name__)
-SELECTION_PROMPT = """Você explica alertas financeiros já detectados pelo backend.
-Escolha somente códigos de explicações e ações disponíveis para cada alerta.
-Não calcule valores, não produza texto livre nem invente causas ou hipóteses.
-Não há autorização para executar ações ou alterar dados.
-Retorne apenas JSON: {"selections":[{"insight_id":"UUID recebido","explanation_code":"código permitido","action_codes":["código permitido"]}]}.
-Inclua cada identificador exatamente uma vez, com uma explicação e de uma a três ações distintas."""
+EXPLANATION_VERSION = "2"
+PLACEHOLDER = re.compile(r"\{\{([a-z_]+)\}\}")
+DATE_FACTS = {"period", "comparison_period", "reference_date"}
+EXPLANATION_PROMPT = """Você explica alertas financeiros já identificados pelo backend.
+Receberá fatos autorizados de cada alerta: tipo, severidade, períodos, valores realizados,
+variação já calculada e data de referência. Escreva em português brasileiro, com clareza.
+Produza uma explicação de até duas frases e de uma a três sugestões práticas distintas.
+Use somente os fatos recebidos. Não calcule, estime, arredonde ou invente valores,
+percentuais, datas, causas ou características da empresa. Não confunda receitas recebidas
+com valores pendentes, nem resultado financeiro realizado com lucro contábil.
+Para receitas e despesas, considere os períodos comparados e se o mês está parcial.
+Despesas vencidas abrangem todas as datas anteriores à referência, independentemente
+do mês selecionado. Não presuma que uma pendência já foi paga fora do sistema.
+A explicação deve descrever fatos e suas implicações; nunca atribuir uma causa sem evidência.
+Sugestões para investigar causas devem ser condicionais: 'verifique se', 'confira se'.
+Não apresente hipóteses como fatos nem prometa resultados. Nenhuma ação será executada.
+Para mencionar qualquer valor, percentual, contagem ou período, use SOMENTE marcadores
+com nomes de facts, como {{paid_income}}, {{variation_percentage}} ou {{period}}.
+Os marcadores já incluem moeda, porcentagem e datas formatadas; não acrescente unidades.
+O backend substituirá os marcadores pelos dados corretos. Não escreva números literais,
+URLs, HTML ou marcadores que não existam nos fatos daquele alerta.
+Na explicação, inclua ao menos um marcador financeiro e um marcador de período ou data.
+Retorne apenas JSON no formato:
+{"explanations":[{"insight_id":"UUID recebido","explanation":"Texto com {{period}} e um marcador financeiro válido","suggested_actions":["Sugestão prática"]}]}.
+Inclua cada identificador recebido exatamente uma vez; não acrescente outros campos."""
+
+ExplanationText = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=10, max_length=1000)
+]
+ActionText = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=10, max_length=350)
+]
 
 
-class GuidanceSelection(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class GeneratedExplanation(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     insight_id: UUID
-    explanation_code: str = Field(min_length=1, max_length=64)
-    action_codes: list[str] = Field(min_length=1, max_length=3)
+    explanation: ExplanationText
+    suggested_actions: list[ActionText] = Field(min_length=1, max_length=3)
 
 
-class GuidanceBatch(BaseModel):
+class ExplanationBatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    selections: list[GuidanceSelection] = Field(min_length=1, max_length=4)
+    explanations: list[GeneratedExplanation] = Field(min_length=1, max_length=4)
+
+
+def insight_facts(insight: FinancialInsight) -> dict[str, str]:
+    facts = {
+        "period": (
+            f"{insight.period.start_date:%d/%m/%Y} a {insight.period.end_date:%d/%m/%Y}"
+        ),
+        "reference_date": f"{insight.reference_date:%d/%m/%Y}",
+    }
+    if insight.comparison_period is not None:
+        facts["comparison_period"] = (
+            f"{insight.comparison_period.start_date:%d/%m/%Y} a "
+            f"{insight.comparison_period.end_date:%d/%m/%Y}"
+        )
+    for name, value in insight.values.model_dump(exclude_none=True).items():
+        facts[name] = money(value) if isinstance(value, Decimal) else str(value)
+    if insight.variation_percentage is not None:
+        facts["variation_percentage"] = (
+            str(insight.variation_percentage).replace(".", ",") + "%"
+        )
+    return facts
+
+
+def render_text(template: str, facts: dict[str, str]) -> str:
+    references = set(PLACEHOLDER.findall(template))
+    if not references.issubset(facts):
+        raise ValueError("Unknown financial fact")
+    remaining = PLACEHOLDER.sub("", template)
+    # Only the backend may insert numbers; unknown braces and markup are invalid.
+    if re.search(r"[\d{}<>]|https?://|www\.", remaining, flags=re.IGNORECASE):
+        raise ValueError("Untrusted literal or markup")
+    return PLACEHOLDER.sub(lambda match: facts[match[1]], template)
+
+
+def render_explanation(
+    generated: GeneratedExplanation, facts: dict[str, str]
+) -> tuple[str, list[str]]:
+    references = set(PLACEHOLDER.findall(generated.explanation))
+    if not references.intersection(DATE_FACTS) or not references.difference(DATE_FACTS):
+        raise ValueError("Explanation must reference financial and period facts")
+    actions = generated.suggested_actions
+    if len({action.casefold() for action in actions}) != len(actions):
+        raise ValueError("Repeated actions")
+    explanation = render_text(generated.explanation, facts)
+    rendered_actions = [render_text(action, facts) for action in actions]
+    if len({action.casefold() for action in rendered_actions}) != len(rendered_actions):
+        raise ValueError("Repeated rendered actions")
+    return explanation, rendered_actions
 
 
 CacheKey = tuple[UUID, str, str]
 
 
 class ExplanationCache:
-    """Bounded, per-process cache of approved guidance codes, never financial totals."""
+    """Bounded per-process cache of validated templates, keyed by authorized facts."""
 
     def __init__(
         self,
@@ -56,12 +136,14 @@ class ExplanationCache:
         self.failure_ttl = failure_ttl
         self.clock = clock
         self.entries: OrderedDict[
-            CacheKey, tuple[float, dict[UUID, GuidanceSelection] | None]
+            CacheKey, tuple[float, dict[UUID, GeneratedExplanation] | None]
         ] = OrderedDict()
         self.inflight: set[CacheKey] = set()
         self.lock = Lock()
 
-    def claim(self, key: CacheKey) -> tuple[bool, dict[UUID, GuidanceSelection] | None]:
+    def claim(
+        self, key: CacheKey
+    ) -> tuple[bool, dict[UUID, GeneratedExplanation] | None]:
         with self.lock:
             if key in self.entries:
                 expires, result = self.entries[key]
@@ -75,7 +157,7 @@ class ExplanationCache:
             return False, None
 
     def finish(
-        self, key: CacheKey, result: dict[UUID, GuidanceSelection] | None
+        self, key: CacheKey, result: dict[UUID, GeneratedExplanation] | None
     ) -> None:
         with self.lock:
             self.inflight.discard(key)
@@ -107,64 +189,56 @@ class InsightExplainer:
     ) -> FinancialInsightsResponse:
         if self.provider is None or not response.insights:
             return response
-        # No amounts, dates, personal data or client-supplied descriptions go to the model.
+        # Send aggregates only, never business/user identifiers or record descriptions.
+        facts = {item.id: insight_facts(item) for item in response.insights}
         payload = [
             {
                 "insight_id": str(item.id),
                 "type": item.type.value,
                 "severity": item.severity.value,
-                "explanations": GUIDANCE[item.type]["explanations"],
-                "actions": GUIDANCE[item.type]["actions"],
+                "is_partial": response.is_partial,
+                "timezone": response.timezone,
+                "facts": facts[item.id],
             }
             for item in response.insights
         ]
         message = json.dumps(
             payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
         )
-        digest = hashlib.sha256((GUIDANCE_VERSION + message).encode()).hexdigest()
+        # Values and periods now affect the explanation: every fact must affect its key.
+        digest = hashlib.sha256((EXPLANATION_VERSION + message).encode()).hexdigest()
         key = (business_id, self.model, digest)
-        cached, selections = self.cache.claim(key)
+        cached, explanations = self.cache.claim(key)
         if not cached:
-            selections = None
+            explanations = None
             try:
-                raw = self.provider.generate(message, system_prompt=SELECTION_PROMPT)
-                batch = GuidanceBatch.model_validate_json(raw)
-                expected = {item.id: item for item in response.insights}
-                if len(batch.selections) != len(expected):
-                    raise ValueError("Incomplete insight selection")
+                raw = self.provider.generate(message, system_prompt=EXPLANATION_PROMPT)
+                batch = ExplanationBatch.model_validate_json(raw)
+                if len(batch.explanations) != len(facts):
+                    raise ValueError("Incomplete insight explanations")
                 validated = {}
-                for selection in batch.selections:
+                for generated in batch.explanations:
                     if (
-                        selection.insight_id not in expected
-                        or selection.insight_id in validated
+                        generated.insight_id not in facts
+                        or generated.insight_id in validated
                     ):
                         raise ValueError("Unexpected or repeated insight")
-                    options = GUIDANCE[expected[selection.insight_id].type]
-                    if selection.explanation_code not in options["explanations"]:
-                        raise ValueError("Invalid explanation")
-                    if len(selection.action_codes) != len(
-                        set(selection.action_codes)
-                    ) or any(
-                        code not in options["actions"]
-                        for code in selection.action_codes
-                    ):
-                        raise ValueError("Invalid actions")
-                    validated[selection.insight_id] = selection
-                selections = validated
+                    render_explanation(generated, facts[generated.insight_id])
+                    validated[generated.insight_id] = generated
+                explanations = validated
             except (AssistantError, ValueError, TypeError):
                 # Never log model text, prompts, amounts, exception messages or credentials.
                 logger.info(
-                    "Financial insight guidance unavailable; deterministic fallback"
+                    "Financial insight explanation unavailable; deterministic fallback"
                 )
             finally:
-                self.cache.finish(key, selections)
-        if selections is not None:
+                self.cache.finish(key, explanations)
+        if explanations is not None:
+            rendered = {
+                identifier: render_explanation(generated, facts[identifier])
+                for identifier, generated in explanations.items()
+            }
             for item in response.insights:
-                selected = selections[item.id]
-                options = GUIDANCE[item.type]
-                item.explanation = options["explanations"][selected.explanation_code]
-                item.suggested_actions = [
-                    options["actions"][code] for code in selected.action_codes
-                ]
+                item.explanation, item.suggested_actions = rendered[item.id]
                 item.explanation_source = "gemini"
         return response
