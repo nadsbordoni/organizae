@@ -77,11 +77,19 @@ def test_public_registration_is_registered_and_persists_safe_data(
     response = client.post("/api/v1/users", json=payload)
     assert response.status_code == 201
     result = response.json()
-    assert set(result) == {"id", "name", "email", "is_active", "business_id"}
+    assert set(result) == {
+        "id",
+        "name",
+        "email",
+        "is_active",
+        "business_id",
+        "professional_id",
+    }
     assert result["name"] == "User"
     assert result["email"] == "user@example.com"
     assert result["is_active"] is True
     assert result["business_id"] is None
+    assert result["professional_id"] is None
     with Session(database) as session:
         stored = session.scalar(select(User))
         assert str(stored.id) == result["id"]

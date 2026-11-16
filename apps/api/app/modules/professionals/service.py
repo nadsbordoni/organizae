@@ -7,9 +7,11 @@ from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.security import hash_password
 from app.modules.businesses.exceptions import BusinessNotFoundError
 from app.modules.businesses.repository import BusinessRepository
 from app.modules.professionals.exceptions import (
+    InvalidProfessionalAccessError,
     InvalidProfessionalPaginationError,
     InvalidProfessionalServicesError,
     ProfessionalConflictError,
@@ -18,11 +20,15 @@ from app.modules.professionals.exceptions import (
 from app.modules.professionals.models import Professional
 from app.modules.professionals.repository import ProfessionalRepository
 from app.modules.professionals.schemas import (
+    ProfessionalAccessCreate,
     ProfessionalCreate,
     ProfessionalServicesUpdate,
     ProfessionalUpdate,
 )
 from app.modules.services.repository import ServiceRepository
+from app.modules.users.models import User
+from app.modules.users.repository import UserRepository
+from app.modules.users.service import normalize_email
 
 
 class ProfessionalService:
@@ -31,6 +37,7 @@ class ProfessionalService:
         self.repository = ProfessionalRepository(session)
         self.business_repository = BusinessRepository(session)
         self.service_repository = ServiceRepository(session)
+        self.user_repository = UserRepository(session)
 
     def get_by_id(self, professional_id: UUID, *, business_id: UUID) -> Professional:
         professional = self.repository.get_by_id(
@@ -102,6 +109,34 @@ class ProfessionalService:
             professional = self.get_by_id(professional_id, business_id=business_id)
             self.repository.update(professional, ProfessionalUpdate(is_active=False))
             self.session.commit()
+
+    def grant_access(
+        self,
+        professional_id: UUID,
+        access_data: ProfessionalAccessCreate,
+        *,
+        business_id: UUID,
+    ) -> User:
+        with self._transaction():
+            professional = self.get_by_id(professional_id, business_id=business_id)
+            if not professional.is_active:
+                raise InvalidProfessionalAccessError(
+                    "Inactive professionals cannot receive access"
+                )
+            if self.user_repository.get_by_professional_id(professional.id) is not None:
+                raise ProfessionalConflictError("Professional already has access")
+            email = normalize_email(str(access_data.email))
+            if self.user_repository.get_by_email(email) is not None:
+                raise ProfessionalConflictError("Email is already registered")
+            user = self.user_repository.create(
+                name=professional.name,
+                email=email,
+                password_hash=hash_password(access_data.password),
+                professional_id=professional.id,
+            )
+            self.session.commit()
+            self.session.refresh(user)
+        return user
 
     def _validate_services(self, service_ids: list[UUID], *, business_id: UUID) -> None:
         if len(service_ids) != len(set(service_ids)):

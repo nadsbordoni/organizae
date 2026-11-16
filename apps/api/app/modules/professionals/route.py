@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.modules.auth.dependencies import get_current_business_id
 from app.modules.professionals.exceptions import (
+    InvalidProfessionalAccessError,
     InvalidProfessionalPaginationError,
     InvalidProfessionalServicesError,
     ProfessionalConflictError,
@@ -17,6 +18,8 @@ from app.modules.professionals.exceptions import (
 )
 from app.modules.professionals.models import Professional
 from app.modules.professionals.schemas import (
+    ProfessionalAccessCreate,
+    ProfessionalAccessResponse,
     ProfessionalCreate,
     ProfessionalCreateRequest,
     ProfessionalResponse,
@@ -42,6 +45,7 @@ async def professional_error_handler(
         ProfessionalConflictError: status.HTTP_409_CONFLICT,
         InvalidProfessionalServicesError: status.HTTP_422_UNPROCESSABLE_CONTENT,
         InvalidProfessionalPaginationError: status.HTTP_422_UNPROCESSABLE_CONTENT,
+        InvalidProfessionalAccessError: status.HTTP_422_UNPROCESSABLE_CONTENT,
     }
     status_code = next(
         (
@@ -131,3 +135,21 @@ def delete_professional(
 ) -> Response:
     service.delete(professional_id, business_id=business_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/{professional_id}/access",
+    response_model=ProfessionalAccessResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create the login a professional uses to manage their own agenda",
+)
+def grant_professional_access(
+    professional_id: UUID4,
+    access_data: ProfessionalAccessCreate,
+    business_id: Annotated[UUID, Depends(get_current_business_id)],
+    service: Annotated[ProfessionalService, Depends(get_professional_service)],
+) -> ProfessionalAccessResponse:
+    user = service.grant_access(professional_id, access_data, business_id=business_id)
+    return ProfessionalAccessResponse(
+        user_id=user.id, professional_id=professional_id, email=user.email
+    )

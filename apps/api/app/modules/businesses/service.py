@@ -82,6 +82,10 @@ class BusinessService:
                 raise InvalidAccessTokenError("Could not validate credentials")
             if user.business_id is not None:
                 raise BusinessConflictError("User already has a business")
+            if user.professional_id is not None:
+                raise BusinessConflictError(
+                    "Professional accounts cannot create a business"
+                )
             self._validate_category(business_data.category_id)
             business = self.repository.create(business_data)
             self.user_repository.update(user, business_id=business.id)

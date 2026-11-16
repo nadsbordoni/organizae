@@ -3,7 +3,7 @@ from typing import Annotated
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 from pydantic import UUID4, AwareDatetime
 from sqlalchemy.orm import Session
@@ -16,7 +16,11 @@ from app.modules.appointments.exceptions import (
     AppointmentNotFoundError,
     InvalidBookingError,
 )
-from app.modules.appointments.models import Appointment, BusinessHour
+from app.modules.appointments.models import (
+    Appointment,
+    AppointmentStatus,
+    BusinessHour,
+)
 from app.modules.appointments.schemas import (
     AppointmentResponse,
     AppointmentStatusUpdate,
@@ -25,11 +29,15 @@ from app.modules.appointments.schemas import (
     BusinessHoursUpdate,
     OnlineBookingRequest,
     OnlineBookingResponse,
+    ProfessionalBlockCreate,
     PublicProfessionalResponse,
     PublicServiceResponse,
 )
 from app.modules.appointments.service import AppointmentService
-from app.modules.auth.dependencies import get_current_business_id
+from app.modules.auth.dependencies import (
+    get_current_business_id,
+    get_current_professional,
+)
 from app.modules.professionals.models import Professional
 from app.modules.services.models import Service
 
@@ -38,6 +46,8 @@ public_router = APIRouter(
     prefix="/public/businesses/{business_id}", tags=["Online booking"]
 )
 router = APIRouter(tags=["Appointments"])
+# Logged-in professional, only their own agenda (Figma 16, "Agenda pessoal").
+professional_router = APIRouter(prefix="/me/agenda", tags=["Professional agenda"])
 
 
 def get_appointment_service(
@@ -149,3 +159,50 @@ def update_appointment_status(
     service: ServiceDep,
 ) -> Appointment:
     return service.update_status(appointment_id, status_data, business_id=business_id)
+
+
+CurrentProfessional = Annotated[Professional, Depends(get_current_professional)]
+
+
+@professional_router.post(
+    "/blocks",
+    response_model=AppointmentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_professional_block(
+    block: ProfessionalBlockCreate,
+    professional: CurrentProfessional,
+    service: ServiceDep,
+) -> Appointment:
+    return service.create_block(
+        BlockCreateRequest(professional_id=professional.id, **block.model_dump()),
+        business_id=professional.business_id,
+    )
+
+
+@professional_router.get("/blocks", response_model=list[AppointmentResponse])
+def list_professional_blocks(
+    starts_at: AwareDatetime,
+    ends_at: AwareDatetime,
+    professional: CurrentProfessional,
+    service: ServiceDep,
+) -> list[Appointment]:
+    return service.list_appointments(
+        business_id=professional.business_id,
+        starts_at=starts_at,
+        ends_at=ends_at,
+        professional_id=professional.id,
+        status=AppointmentStatus.BLOCKED,
+    )
+
+
+@professional_router.delete(
+    "/blocks/{block_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+def cancel_professional_block(
+    block_id: UUID4, professional: CurrentProfessional, service: ServiceDep
+) -> Response:
+    service.cancel_professional_block(
+        block_id, business_id=professional.business_id, professional_id=professional.id
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

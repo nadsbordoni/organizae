@@ -32,3 +32,4 @@ class UserResponse(BaseModel):
     email: EmailStr
     is_active: bool
     business_id: UUID | None
+    professional_id: UUID | None = None
