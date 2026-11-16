@@ -1,0 +1,120 @@
+---
+import BusinessMark from '@/components/BusinessMark.astro';
+import StatusBadge from '@/components/painel/StatusBadge.astro';
+import { describe } from '@/lib/portal-page';
+import { STATUS_BADGE, longDateLabel } from '@/lib/painel';
+import type { AppointmentRow } from '@/types/painel';
+import type { SiteConfig } from '@/types/site';
+
+/** Cartão com o resumo de um horário na área da cliente: negócio, situação e os detalhes em linhas. */
+interface Props {
+  site: SiteConfig;
+  row: AppointmentRow;
+  /** Força a situação mostrada, como "Cancelado" logo depois de cancelar. */
+  status?: AppointmentRow['status'];
+}
+
+const { site, row, status = row.status } = Astro.props;
+const info = describe(row, site.agenda!);
+const badge = STATUS_BADGE[status];
+---
+
+<section class="summary" aria-labelledby={`resumo-${row.id}`}>
+  <div class="summary__top">
+    <BusinessMark profile={site.profile} size={44} />
+    <span class="summary__who">
+      <strong id={`resumo-${row.id}`}>{site.profile.name}</strong>
+      {site.profile.nameSuffix && <small>{site.profile.nameSuffix}</small>}
+    </span>
+  </div>
+  <StatusBadge {...badge} label={status === 'done' ? 'Concluído' : badge.label} />
+  <dl class="summary__list">
+    <div>
+      <dt>Serviço</dt>
+      <dd>{info.service}</dd>
+    </div>
+    <div>
+      <dt>Com</dt>
+      <dd>{site.profile.name}</dd>
+    </div>
+    <div>
+      <dt>Data</dt>
+      <dd>{longDateLabel(row.date)}</dd>
+    </div>
+    <div>
+      <dt>Horário</dt>
+      <dd>
+        {row.start_time} – {info.end} · {info.duration}
+      </dd>
+    </div>
+    {
+      info.price && (
+        <div>
+          <dt>Total</dt>
+          <dd>{info.price}</dd>
+        </div>
+      )
+    }
+  </dl>
+</section>
+
+<style>
+  .summary {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 22px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .summary__top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .summary__top :global(.mark) {
+    box-shadow: none;
+  }
+
+  .summary__who {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .summary__who strong {
+    font-weight: 600;
+  }
+
+  .summary__who small {
+    font-size: 0.75rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .summary__list {
+    width: 100%;
+    margin: 0;
+  }
+
+  .summary__list > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 0;
+    border-top: 1px solid var(--site-color-border);
+    font-size: 0.875rem;
+  }
+
+  .summary__list dt {
+    color: var(--site-color-text-muted);
+  }
+
+  .summary__list dd {
+    margin: 0;
+    font-weight: 600;
+    text-align: right;
+  }
+</style>

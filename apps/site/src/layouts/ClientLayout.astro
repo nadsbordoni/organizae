@@ -1,0 +1,123 @@
+---
+import SiteLayout from './SiteLayout.astro';
+import BusinessMark from '@/components/BusinessMark.astro';
+import Footer from '@/components/Footer.astro';
+import PageContainer from '@/components/PageContainer.astro';
+import type { SiteConfig } from '@/types/site';
+
+/**
+ * Área da cliente, dentro da página do negócio: vale a marca e o tema do negócio, não os do
+ * Organizaê. A barra do topo leva de volta aos agendamentos de qualquer tela.
+ */
+interface Props {
+  site: SiteConfig;
+  title: string;
+  /** Nome da cliente, no canto da barra. */
+  clientName: string;
+  wide?: boolean;
+}
+
+const { site, title, clientName, wide = false } = Astro.props;
+const seo = { ...site.seo, title: `${title} • ${site.profile.name}`, description: `Seus agendamentos com ${site.profile.name}.`, noindex: true };
+const home = `/${site.slug}/meus-agendamentos`;
+const current = Astro.url.pathname.replace(/\/$/, '') === home;
+---
+
+<SiteLayout theme={site.theme} seo={seo} noindex>
+  <header class="bar">
+    <a class="bar__brand" href={`/${site.slug}`}>
+      <BusinessMark profile={site.profile} size={36} />
+      <span>{site.profile.name}</span>
+    </a>
+    <nav class="bar__nav" aria-label="Sua área">
+      <a href={home} aria-current={current ? 'page' : undefined}>Meus agendamentos</a>
+      <span aria-disabled="true" title="Minha fidelidade — em breve">
+        Minha fidelidade <small>Em breve</small>
+      </span>
+      <strong class="bar__who">{clientName}</strong>
+    </nav>
+  </header>
+
+  <PageContainer as="main" id="conteudo" wide={wide}>
+    <slot />
+    <Footer note={site.footerNote} />
+  </PageContainer>
+</SiteLayout>
+
+<style>
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    padding: 10px clamp(16px, 4vw, 40px);
+    border-bottom: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .bar__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    color: var(--site-color-text);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .bar__brand :global(.mark) {
+    box-shadow: none;
+  }
+
+  .bar__nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 18px;
+    font-size: 0.8125rem;
+  }
+
+  .bar__nav a,
+  .bar__nav span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    color: var(--site-color-text-muted);
+    text-decoration: none;
+  }
+
+  .bar__nav a:hover,
+  .bar__nav a[aria-current='page'] {
+    color: var(--site-color-text);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  .bar__nav small {
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--site-color-brand-soft);
+    color: var(--site-color-text);
+    font-size: 0.625rem;
+    font-weight: 600;
+  }
+
+  .bar__who {
+    font-weight: 600;
+  }
+
+  .bar__brand:focus-visible,
+  .bar__nav a:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  @media (max-width: 599px) {
+    .bar__nav span[aria-disabled] {
+      display: none;
+    }
+  }
+</style>

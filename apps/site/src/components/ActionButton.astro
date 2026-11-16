@@ -10,8 +10,9 @@ import type { IconName } from '@/types/blocks';
 
 interface Props {
   label: string;
-  /** `primary`: só UMA por tela; `secondary`: alternativa de mesmo peso; `ghost`: saída discreta. */
-  variant?: 'primary' | 'secondary' | 'ghost';
+  /** `primary`: só UMA por tela; `secondary`: alternativa de mesmo peso; `ghost`: saída discreta;
+      `danger`: confirma algo que não se desfaz, como cancelar um agendamento. */
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
   icon?: IconName;
   /** `end` é a seta de "seguir" do protótipo: "Entrar →". */
   iconPosition?: 'start' | 'end';
@@ -125,6 +126,17 @@ const stateProps = href
     color: var(--site-color-text);
     border-color: var(--site-color-border-strong);
     box-shadow: var(--site-shadow-resting);
+  }
+
+  /* 6,1:1 com o texto claro. */
+  .action[data-variant='danger'] {
+    background: var(--site-color-error);
+    color: var(--site-color-on-brand);
+    box-shadow: var(--site-shadow-resting);
+  }
+
+  .action[data-variant='danger']:hover:not(:disabled, [aria-disabled='true']) {
+    background: color-mix(in srgb, var(--site-color-error) 85%, black);
   }
 
   .action[data-variant='ghost'] {

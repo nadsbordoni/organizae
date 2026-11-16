@@ -5,8 +5,8 @@ import PageHeading from '@/components/PageHeading.astro';
 import Footer from '@/components/Footer.astro';
 import FlowStep from '@/components/FlowStep.astro';
 import StepProgress from '@/components/StepProgress.astro';
-import { BOOKING_PATH } from '@/lib/blocks';
-import type { BookingContext } from '@/lib/booking-ui';
+import BookingData from './BookingData.astro';
+import { bookingContext } from '@/lib/booking-context';
 import type { SiteConfig } from '@/types/site';
 
 /**
@@ -37,27 +37,7 @@ const seo = {
   noindex: true,
 };
 
-const agenda = site.agenda!;
-
-// Serviço escondido fica de fora: `readSelection()` valida a URL contra ESTE catálogo.
-const context: BookingContext = {
-  agenda: {
-    ...agenda,
-    categories: agenda.categories
-      .filter((category) => !category.hidden)
-      .map((category) => ({
-        ...category,
-        services: category.services.filter((service) => !service.hidden),
-      })),
-  },
-  business: {
-    name: site.profile.name,
-    base: `/${site.slug}/${BOOKING_PATH}`,
-    homeHref: `/${site.slug}`,
-    // Para o arquivo de calendário; vem do bloco de localização, sem redigitar.
-    address: site.blocks.find((block) => block.type === 'location')?.address.join(', '),
-  },
-};
+const context = bookingContext(site);
 ---
 
 <SiteLayout theme={site.theme} seo={seo} noindex>
@@ -80,14 +60,7 @@ const context: BookingContext = {
   </PageContainer>
 </SiteLayout>
 
-{/* O `<` escapado impede que um texto com `</script>` feche a tag.
-    NÃO tire quando o catálogo vier do banco. */}
-<script
-  type="application/json"
-  id="dados-agendamento"
-  set:html={JSON.stringify(context).replace(/</g, '\\u003c')}
-  is:inline
-></script>
+<BookingData context={context} />
 
 <style>
   .progress {

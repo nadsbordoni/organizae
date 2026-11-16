@@ -104,7 +104,12 @@ export function mountServices(root: HTMLElement, { agenda, business }: BookingCo
   sync();
 }
 
-export function mountSchedule(root: HTMLElement, { agenda, business }: BookingContext): void {
+export function mountSchedule(
+  root: HTMLElement,
+  { agenda, business }: BookingContext,
+  /** `keepBack`: o voltar da página já aponta para onde deve (o reagendamento volta para o agendamento). */
+  { keepBack = false }: { keepBack?: boolean } = {},
+): void {
   const now = nowInBusinessTime(agenda.timezone);
   const selection = readSelection(agenda, window.location.search, now);
 
@@ -127,9 +132,11 @@ export function mountSchedule(root: HTMLElement, { agenda, business }: BookingCo
   const next = must<HTMLAnchorElement>(root, '[data-next]');
 
   // O voltar sai do build sem query; aqui ganha a escolha para o passo 1 reabrir marcado.
-  must<HTMLAnchorElement>(document, '[data-back]').href = stepHref(business.base, '', {
-    services: selection.services,
-  });
+  if (!keepBack) {
+    must<HTMLAnchorElement>(document, '[data-back]').href = stepHref(business.base, '', {
+      services: selection.services,
+    });
+  }
 
   must<HTMLElement>(root, '[data-duration-note]').textContent =
     `${listNames(selection.services)} — ${formatDuration(minutes)} no total.`;

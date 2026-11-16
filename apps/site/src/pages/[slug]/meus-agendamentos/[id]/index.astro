@@ -1,0 +1,285 @@
+---
+import ClientLayout from '@/layouts/ClientLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import Callout from '@/components/Callout.astro';
+import Heading from '@/components/Heading.astro';
+import Icon from '@/components/Icon.astro';
+import AppointmentSummary from '@/components/agenda/AppointmentSummary.astro';
+import StatusBadge from '@/components/painel/StatusBadge.astro';
+import { BOOKING_PATH } from '@/lib/blocks';
+import { whatsappUrl } from '@/lib/links';
+import { STATUS_BADGE, formatPhone, longDateLabel, numericDate, weekdayLabel } from '@/lib/painel';
+import { cancelRule, isUpcoming } from '@/lib/portal';
+import { describe, loadPortal } from '@/lib/portal-page';
+
+/**
+ * Detalhes de um horário (quadro 13). Três estados: dá para cancelar (com a confirmação), o prazo de
+ * cancelamento já passou (sobra o WhatsApp), ou o atendimento já aconteceu (sobra agendar de novo).
+ */
+export const prerender = false;
+
+const portal = await loadPortal(Astro.params.slug);
+if (!portal) return new Response(null, { status: 404 });
+const { site, agenda, now, client, appointments } = portal;
+
+const row = appointments.find((a) => String(a.id) === Astro.params.id);
+if (!row) return new Response(null, { status: 404 });
+
+const info = describe(row, agenda);
+const upcoming = isUpcoming(row, now);
+const rule = cancelRule(row, agenda, now);
+const today = row.date === now.date;
+const base = `/${site.slug}/meus-agendamentos`;
+const details = `${base}/${row.id}`;
+const name = site.profile.name;
+const limitDay = rule.until.date === now.date ? 'de hoje' : `de ${numericDate(rule.until.date)}`;
+const title = !upcoming ? 'Seu atendimento' : rule.allowed ? `Seu horário com ${name}` : today ? 'Seu cuidado está chegando' : 'Seu horário está chegando';
+---
+
+<ClientLayout site={site} title={title} clientName={client.name}>
+  <div class="page">
+    <Heading eyebrow="Meus agendamentos · Detalhes" title={title} intro={`${info.service} com ${name}`} />
+
+    {
+      upcoming && !rule.allowed ? (
+        <section class="soon" aria-labelledby="titulo-quando">
+          <p class="soon__day" id="titulo-quando">
+            {today ? `Hoje, ${longDateLabel(row.date).replace(/ de \d{4}$/, '')}` : weekdayLabel(row.date)}
+          </p>
+          <StatusBadge {...STATUS_BADGE[row.status]} />
+          <div class="soon__row">
+            <p class="soon__time">
+              {row.start_time}–{info.end}
+            </p>
+            <ActionButton label="Cancelar agendamento" variant="secondary" disabled full={false} />
+          </div>
+          <p class="soon__detail">
+            {[info.service, name, info.duration, info.price].filter(Boolean).join(' · ')}
+          </p>
+          {site.profile.headline && <p class="soon__detail">{site.profile.headline}</p>}
+          <Callout tone="info" icon="info" title="O prazo de cancelamento pela sua área terminou">
+            Cancelamentos são permitidos até {rule.hours}h antes. O limite foi às {`${rule.until.time} ${limitDay}`}. Para conversar sobre
+            este atendimento, fale com {name}.
+          </Callout>
+          <div class="actions">
+            <ActionButton
+              label={`Falar com ${name} no WhatsApp`}
+              icon="whatsapp"
+              href={whatsappUrl(agenda.request.phone, `Oi, ${name}! Sobre meu horário de ${today ? 'hoje' : numericDate(row.date)}, às ${row.start_time}.`)}
+              newTab
+            />
+            <ActionButton label="Voltar aos agendamentos" variant="secondary" href={base} />
+          </div>
+        </section>
+      ) : (
+        <div class="grid">
+          <AppointmentSummary site={site} row={row} />
+
+          <section class="manage" aria-labelledby="titulo-gerenciar">
+            <h2 id="titulo-gerenciar">{upcoming ? 'Gerenciar meu agendamento' : 'Gostou?'}</h2>
+            {upcoming ? (
+              <>
+                <p>
+                  {client.name} · {formatPhone(client.phone)}. Cancelamento permitido até {numericDate(rule.until.date)}, às{' '}
+                  {rule.until.time}.
+                </p>
+                <ActionButton label="Reagendar" variant="secondary" href={`${details}/reagendar?${info.query}`} />
+                <ActionButton label="Cancelar agendamento" variant="secondary" data-open-cancel="" />
+              </>
+            ) : (
+              <>
+                <p>Marque de novo o mesmo serviço, no dia e horário que ficarem bons para você.</p>
+                <ActionButton label="Agendar de novo" href={`/${site.slug}/${BOOKING_PATH}?${info.query}`} />
+                <ActionButton label="Voltar aos agendamentos" variant="secondary" href={base} />
+              </>
+            )}
+          </section>
+        </div>
+      )
+    }
+  </div>
+
+  {
+    upcoming && rule.allowed && (
+      <dialog class="confirm" id="cancelar" aria-labelledby="titulo-cancelar">
+        <div class="confirm__top">
+          <h2 id="titulo-cancelar">Cancelar este agendamento?</h2>
+          <form method="dialog">
+            {/* Foco no fechar ao abrir: sem isso o navegador foca a caixa inteira e desenha a borda nela. */}
+            <button class="confirm__close" aria-label="Fechar" autofocus>
+              <Icon name="close" size={18} />
+            </button>
+          </form>
+        </div>
+        <p>
+          {info.service} com {name}, em {longDateLabel(row.date)}, às {row.start_time}.
+        </p>
+        <Callout tone="info" icon="info" title={`Cancelamento até ${rule.hours}h antes`}>
+          Você está dentro do prazo. Se confirmar, o horário das {row.start_time} às {info.end} fica livre na agenda de {name}.
+        </Callout>
+        <div class="confirm__actions">
+          <form method="dialog">
+            <ActionButton label="Manter agendamento" variant="secondary" type="submit" />
+          </form>
+          {/* PROTÓTIPO: só navega; com a API, `PATCH /appointments/{id}/status` com CANCELLED. */}
+          <ActionButton label="Confirmar cancelamento" variant="danger" href={`${details}/cancelado`} />
+        </div>
+      </dialog>
+    )
+  }
+</ClientLayout>
+
+<script>
+  const dialog = document.querySelector<HTMLDialogElement>('#cancelar');
+  for (const button of document.querySelectorAll('[data-open-cancel]')) {
+    button.addEventListener('click', () => dialog?.showModal());
+  }
+  // Veio do "Cancelar agendamento" da lista: a pergunta já abre.
+  if (location.hash === '#cancelar') dialog?.showModal();
+</script>
+
+<style>
+  .page {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    padding-top: 28px;
+  }
+
+  .grid {
+    display: grid;
+    gap: 16px;
+  }
+
+  .manage,
+  .soon {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 22px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .manage h2 {
+    font-size: 1.0625rem;
+    font-weight: 600;
+  }
+
+  .manage p {
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .soon {
+    align-items: flex-start;
+  }
+
+  .soon__day {
+    font-weight: 600;
+  }
+
+  .soon__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .soon__time {
+    font-family: var(--site-font-display);
+    font-size: 2rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  .soon__detail {
+    font-size: 0.875rem;
+    color: var(--site-color-text-muted);
+  }
+
+  /* Largura toda e um embaixo do outro, como as ações do agendamento. */
+  .actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+  }
+
+  /* `margin: auto` centraliza o diálogo: o reset do site zera a margem de tudo, inclusive a dele. */
+  .confirm {
+    width: min(480px, calc(100vw - 32px));
+    margin: auto;
+    padding: 24px;
+    border: 0;
+    border-radius: var(--site-radius-card);
+    background: var(--site-color-surface);
+    color: var(--site-color-text);
+    box-shadow: 0 24px 60px rgba(31, 31, 31, 0.2);
+  }
+
+  .confirm::backdrop {
+    background: rgba(31, 31, 31, 0.4);
+  }
+
+  .confirm[open] {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .confirm__top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .confirm h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+
+  .confirm > p {
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+
+  .confirm__close {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    margin: -8px -8px 0 0;
+    padding: 0;
+    border: 0;
+    border-radius: 12px;
+    background: none;
+    color: var(--site-color-text);
+    cursor: pointer;
+  }
+
+  .confirm__close:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  .confirm__close:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  .confirm__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  @media (max-width: 419px) {
+    .confirm__actions {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

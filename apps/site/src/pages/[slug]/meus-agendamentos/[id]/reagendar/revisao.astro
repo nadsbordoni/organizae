@@ -1,0 +1,111 @@
+---
+import ClientLayout from '@/layouts/ClientLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import FlowStep from '@/components/FlowStep.astro';
+import PageHeading from '@/components/PageHeading.astro';
+import StepProgress from '@/components/StepProgress.astro';
+import BeforeAfter from '@/components/agenda/BeforeAfter.astro';
+import { toClock, toMinutes } from '@/lib/agenda';
+import { readSelection } from '@/lib/booking-state';
+import { longDateLabel, numericDate, weekdayName } from '@/lib/painel';
+import { cancelRule, isUpcoming } from '@/lib/portal';
+import { describe, loadPortal } from '@/lib/portal-page';
+
+/** Reagendamento, passo 2 de 2 (quadro 14): antes e depois lado a lado. Nada muda até confirmar. */
+export const prerender = false;
+
+const portal = await loadPortal(Astro.params.slug);
+if (!portal) return new Response(null, { status: 404 });
+const { site, agenda, now, client, appointments } = portal;
+
+const row = appointments.find((a) => String(a.id) === Astro.params.id);
+if (!row || !isUpcoming(row, now)) return new Response(null, { status: 404 });
+const info = describe(row, agenda);
+const base = `/${site.slug}/meus-agendamentos/${row.id}/reagendar`;
+
+// A URL é editável: o horário precisa continuar livre e com antecedência, como no agendamento.
+const selection = readSelection(agenda, Astro.url.search, now);
+if (!selection.date || !selection.time) return Astro.redirect(`${base}?${info.query}`);
+
+const end = toClock(toMinutes(selection.time) + row.duration_min);
+const query = Astro.url.search;
+const newRule = cancelRule({ ...row, date: selection.date, start_time: selection.time }, agenda, now);
+const slot = (date: string, start: string, finish: string) => ({
+  date: longDateLabel(date).replace(/ de \d{4}$/, ''),
+  start,
+  end: finish,
+  weekday: `${weekdayName(date)}, ${date.slice(0, 4)}`,
+});
+---
+
+<ClientLayout site={site} title="Revisar reagendamento" clientName={client.name}>
+  <PageHeading title="Reagendamento" backHref={`${base}${query}`} backLabel="Voltar para a escolha do horário" />
+
+  <div class="progress">
+    <StepProgress steps={['Novo horário', 'Revisão']} current={2} />
+  </div>
+
+  <FlowStep title="Confira a troca de horário" intro="Nada muda até você confirmar.">
+    <BeforeAfter
+      before={slot(row.date, row.start_time, info.end)}
+      after={slot(selection.date, selection.time, end)}
+      service={info.service}
+      who={site.profile.name}
+      price={info.price}
+      minutes={row.duration_min}
+    />
+
+    <section class="same" aria-labelledby="titulo-mesmo">
+      <h2 id="titulo-mesmo">O cuidado continua o mesmo</h2>
+      <p>
+        {client.name} · {site.profile.name}{site.profile.headline && ` · ${site.profile.headline}`}. Serviço, duração e valor
+        continuam iguais.
+      </p>
+      <small>Cancelamento do novo horário até {numericDate(newRule.until.date)}, às {newRule.until.time}.</small>
+    </section>
+
+    <div class="actions">
+      {/* PROTÓTIPO: só navega; com a API, a rota de reagendar (ainda não existe). */}
+      <ActionButton label="Confirmar reagendamento" href={`${base}/confirmado${query}`} />
+      <ActionButton label="Voltar e ajustar" variant="secondary" href={`${base}${query}`} />
+    </div>
+  </FlowStep>
+</ClientLayout>
+
+<style>
+  .progress {
+    margin-bottom: 22px;
+  }
+
+  .same {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 18px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .same h2 {
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+
+  .same p {
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .same small {
+    font-size: 0.75rem;
+    color: var(--site-color-text-muted);
+  }
+
+  /* Largura toda, um embaixo do outro e a ação principal em cima, como no agendamento. */
+  .actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+</style>

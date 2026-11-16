@@ -1,0 +1,70 @@
+---
+import ClientLayout from '@/layouts/ClientLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import Callout from '@/components/Callout.astro';
+import Heading from '@/components/Heading.astro';
+import AppointmentSummary from '@/components/agenda/AppointmentSummary.astro';
+import { BOOKING_PATH } from '@/lib/blocks';
+import { numericDate } from '@/lib/painel';
+import { describe, loadPortal } from '@/lib/portal-page';
+
+/** Agendamento cancelado (quadro 13). PROTÓTIPO: chega aqui sem gravar nada. */
+export const prerender = false;
+
+const portal = await loadPortal(Astro.params.slug);
+if (!portal) return new Response(null, { status: 404 });
+const { site, agenda, client, appointments } = portal;
+
+const row = appointments.find((a) => String(a.id) === Astro.params.id);
+if (!row) return new Response(null, { status: 404 });
+const info = describe(row, agenda);
+---
+
+<ClientLayout site={site} title="Agendamento cancelado" clientName={client.name}>
+  <div class="page">
+    <Heading eyebrow="Meus agendamentos" title="Agendamento cancelado" intro="Você pode escolher um novo momento quando quiser." />
+
+    <Callout tone="success" icon="check-circle" title="Horário liberado na agenda">
+      {numericDate(row.date)} · {row.start_time}–{info.end} · {site.profile.name}. Ele não aparece mais nos seus próximos
+      agendamentos.
+    </Callout>
+
+    <AppointmentSummary site={site} row={row} status="cancelled" />
+
+    <section class="next" aria-labelledby="titulo-continue">
+      <h2 id="titulo-continue">Continue cuidando de você</h2>
+      <p>O registro fica no seu histórico. Nenhuma nova reserva foi criada.</p>
+      <ActionButton label="Agendar outro horário" href={`/${site.slug}/${BOOKING_PATH}?${info.query}`} />
+      <ActionButton label="Voltar aos meus agendamentos" variant="secondary" href={`/${site.slug}/meus-agendamentos`} />
+    </section>
+  </div>
+</ClientLayout>
+
+<style>
+  .page {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding-top: 28px;
+  }
+
+  .next {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 22px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .next h2 {
+    font-size: 1.0625rem;
+    font-weight: 600;
+  }
+
+  .next p {
+    font-size: 0.875rem;
+    color: var(--site-color-text-muted);
+  }
+</style>

@@ -161,6 +161,20 @@ export function forTenant(_tenantSlug: string, demo: DemoOptions = {}) {
       return demoFinancialEntries(hoje, between(demoFinanceStart(hoje), addDays(hoje, 21)));
     },
 
+    /**
+     * Área da cliente de DEMONSTRAÇÃO (Marina Costa): o histórico dela e dois horários marcados, um
+     * daqui a pouco (já sem cancelamento) e outro em alguns dias. Com a API, a cliente entra pelo
+     * próprio acesso e isto vira os agendamentos dela.
+     */
+    async clientPortal(): Promise<{ client: ClientRow; appointments: AppointmentRow[] }> {
+      const index = CLIENTS.findIndex((c) => c.id === 'marina-costa');
+      const demo = CLIENTS[index]!;
+      return {
+        client: toClientRow(demo, hoje),
+        appointments: [...portalUpcoming(demo, hoje), ...clientHistory(demo, index, hoje)],
+      };
+    },
+
     async professionals(): Promise<ProfessionalRow[]> {
       return team;
     },
@@ -524,4 +538,30 @@ export function avisosDemonstracao(hoje: IsoDate): AgendaNotification[] {
     { id: 'cancelado-1', kind: 'cancelled', at: '12:40', read: false, row: amanha[3]! },
     { id: 'novo-2', kind: 'created', at: '11:10', read: true, row: depois[1]! },
   ];
+}
+
+/** Os dois horários marcados da área da cliente, contados a partir de agora. */
+function portalUpcoming(c: DemoClient, today: IsoDate): AppointmentRow[] {
+  const now = nowInBusinessTime('America/Sao_Paulo');
+  // Daqui a uma hora e meia, na meia hora seguinte: dentro do prazo, o cancelamento já fechou.
+  const soonMinutes = Math.ceil((now.minutes + 90) / 30) * 30;
+  const soonDate = soonMinutes >= 24 * 60 ? addDays(today, 1) : today;
+  const soonTime = `${String(Math.floor((soonMinutes % (24 * 60)) / 60)).padStart(2, '0')}:${String(soonMinutes % 60).padStart(2, '0')}`;
+  const later = proximoDiaUtil(today, 4);
+  const row = (id: number, date: IsoDate, time: string, service: string): AppointmentRow => ({
+    id,
+    tenant_slug: usuarioExemplo.tenantSlug,
+    date,
+    start_time: time,
+    duration_min: DURATION[service] ?? 60,
+    service_ids: JSON.stringify([service]),
+    client_name: c.name,
+    client_phone: c.phone,
+    notes: null,
+    status: 'confirmed',
+    origin: 'site',
+    created_at: `${today}T08:00:00Z`,
+    updated_at: `${today}T08:00:00Z`,
+  });
+  return [row(900_001, soonDate, soonTime, 'esmaltacao'), row(900_002, later, '14:00', 'manutencao')];
 }
