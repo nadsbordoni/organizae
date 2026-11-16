@@ -38,6 +38,17 @@ organizae/
   AGENTS.md     Convenções de código do projeto
 ```
 
+## Assistente de IA
+
+A API inclui uma assistente de texto integrada ao Google Gemini para orientar o usuário sobre o Organizaê. Consulte o [guia da assistente](docs/ASSISTANT.md) para configuração, execução, arquitetura, testes e limitações atuais.
+
+## Dados de teste
+
+O [seed operacional manual](docs/OPERATIONAL_SEED.md) adiciona profissionais, serviços, clientes e agenda a uma empresa de testes existente, sem alterar dados financeiros. É opcional e pode usar o banco principal local de desenvolvimento ou um banco separado.
+
 ## Como contribuir
+
+Para executar API, frontend e PostgreSQL em containers, consulte o
+[guia de Docker e Alembic](docs/DOCKER.md).
 
 Antes de subir código, leia o `.env.example` e nunca envie o arquivo `.env`.

@@ -1,0 +1,92 @@
+from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+
+from app.core.exception_handlers import request_validation_error_handler
+from app.modules.appointments.exceptions import AppointmentError
+from app.modules.appointments.route import appointment_error_handler
+from app.modules.appointments.route import public_router as online_booking_router
+from app.modules.appointments.route import router as appointments_router
+from app.modules.assistant.exceptions import AssistantError
+from app.modules.assistant.router import assistant_error_handler
+from app.modules.assistant.router import router as assistant_router
+from app.modules.auth.exceptions import AuthError
+from app.modules.auth.route import auth_error_handler
+from app.modules.auth.route import router as auth_router
+from app.modules.businesses.exceptions import BusinessError
+from app.modules.businesses.router import (
+    business_error_handler,
+)
+from app.modules.businesses.router import (
+    public_router as public_pages_router,
+)
+from app.modules.businesses.router import (
+    router as businesses_router,
+)
+from app.modules.categories.exceptions import CategoryError
+from app.modules.categories.route import category_error_handler
+from app.modules.categories.route import router as categories_router
+from app.modules.clients.exceptions import ClientError
+from app.modules.clients.route import client_error_handler
+from app.modules.clients.route import router as clients_router
+from app.modules.financial.exceptions import FinancialReportError
+from app.modules.financial.route import financial_report_error_handler
+from app.modules.financial.route import router as financial_router
+from app.modules.financial_categories.exceptions import FinancialCategoryError
+from app.modules.financial_categories.route import financial_category_error_handler
+from app.modules.financial_categories.route import router as financial_categories_router
+from app.modules.financial_entries.exceptions import FinancialEntryError
+from app.modules.financial_entries.route import financial_entry_error_handler
+from app.modules.financial_entries.route import router as financial_entries_router
+from app.modules.professionals.exceptions import ProfessionalError
+from app.modules.professionals.route import professional_error_handler
+from app.modules.professionals.route import router as professionals_router
+from app.modules.recurring_entries.exceptions import RecurringEntryError
+from app.modules.recurring_entries.route import recurring_entry_error_handler
+from app.modules.recurring_entries.route import router as recurring_entries_router
+from app.modules.services.exceptions import ServiceError
+from app.modules.services.route import router as services_router
+from app.modules.services.route import service_error_handler
+from app.modules.users.exceptions import UserError
+from app.modules.users.route import router as users_router
+from app.modules.users.route import user_error_handler
+
+app = FastAPI(
+    title="Organizaê API",
+    description="API de gerenciamento e agendamentos",
+    version="0.1.0",
+)
+
+app.include_router(businesses_router, prefix="/api/v1")
+app.include_router(public_pages_router, prefix="/api/v1")
+app.include_router(services_router, prefix="/api/v1")
+app.include_router(professionals_router, prefix="/api/v1")
+app.include_router(assistant_router, prefix="/api/v1")
+app.include_router(users_router, prefix="/api/v1")
+app.include_router(auth_router, prefix="/api/v1")
+app.include_router(appointments_router, prefix="/api/v1")
+app.include_router(online_booking_router, prefix="/api/v1")
+app.include_router(clients_router, prefix="/api/v1")
+app.include_router(categories_router, prefix="/api/v1")
+app.include_router(financial_categories_router, prefix="/api/v1")
+app.include_router(financial_entries_router, prefix="/api/v1")
+app.include_router(recurring_entries_router, prefix="/api/v1")
+app.include_router(financial_router, prefix="/api/v1")
+app.add_exception_handler(FinancialReportError, financial_report_error_handler)
+app.add_exception_handler(RecurringEntryError, recurring_entry_error_handler)
+app.add_exception_handler(FinancialCategoryError, financial_category_error_handler)
+app.add_exception_handler(FinancialEntryError, financial_entry_error_handler)
+app.add_exception_handler(CategoryError, category_error_handler)
+app.add_exception_handler(ClientError, client_error_handler)
+app.add_exception_handler(AppointmentError, appointment_error_handler)
+app.add_exception_handler(AssistantError, assistant_error_handler)
+app.add_exception_handler(BusinessError, business_error_handler)
+app.add_exception_handler(ServiceError, service_error_handler)
+app.add_exception_handler(ProfessionalError, professional_error_handler)
+app.add_exception_handler(UserError, user_error_handler)
+app.add_exception_handler(AuthError, auth_error_handler)
+app.add_exception_handler(RequestValidationError, request_validation_error_handler)
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
