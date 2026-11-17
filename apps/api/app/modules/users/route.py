@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.modules.auth.dependencies import get_current_user
 from app.modules.users.exceptions import (
     InvalidUserDataError,
     UserConflictError,
@@ -48,3 +49,10 @@ def create_user(
     service: Annotated[UserService, Depends(get_user_service)],
 ) -> User:
     return service.create(user_data)
+
+
+@router.get("/me", response_model=UserResponse)
+def read_current_user(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    return current_user

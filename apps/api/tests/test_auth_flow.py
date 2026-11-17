@@ -232,6 +232,7 @@ protected_requests = [
     ("PATCH", f"/professionals/{professional_a}", {"name": "Changed"}),
     ("PUT", f"/professionals/{professional_a}/services", {"service_ids": []}),
     ("DELETE", f"/professionals/{professional_a}", None),
+    ("GET", "/users/me", None),
 ]
 
 
@@ -544,6 +545,26 @@ def test_deleting_owned_empty_business_preserves_user(
         assert session.get(Business, identifier) is None
 
 
+def test_current_user_returns_own_profile_without_secrets(client: TestClient) -> None:
+    response = client.get("/api/v1/users/me", headers=headers_for(user_a))
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "id": str(user_a),
+        "name": "a",
+        "email": "a@example.com",
+        "is_active": True,
+        "business_id": str(business_a),
+    }
+
+
+def test_current_user_without_business_has_no_business_id(client: TestClient) -> None:
+    response = client.get("/api/v1/users/me", headers=headers_for(new_user))
+
+    assert response.status_code == 200
+    assert response.json()["business_id"] is None
+
+
 def test_protected_openapi_contract_has_no_client_business_id(
     client: TestClient,
 ) -> None:
@@ -568,3 +589,4 @@ def test_protected_openapi_contract_has_no_client_business_id(
     )
     assert not schema["paths"]["/api/v1/auth/login"]["post"].get("security")
     assert not schema["paths"]["/api/v1/users"]["post"].get("security")
+    assert schema["paths"]["/api/v1/users/me"]["get"]["security"]
