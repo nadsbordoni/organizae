@@ -1,0 +1,529 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import Callout from '@/components/Callout.astro';
+import Icon from '@/components/Icon.astro';
+import RobotName from '@/components/RobotName.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import ReportTabs from '@/components/painel/ReportTabs.astro';
+import { getSite } from '@/config';
+import { nowInBusinessTime } from '@/lib/agenda';
+import { usuarioExemplo } from '@/lib/dados-exemplo';
+import { ROBOT_NAME, ROBOT_SPOKEN } from '@/lib/robot';
+import { DEMO_SERVICE_COSTS, DEMO_TAX_RATE } from '@/lib/demo-finance';
+import { change, inPeriod, money, moneyChange, monthName, monthShort, percent, resultOf, serviceShares } from '@/lib/finance';
+import { highValue, quietestDay, recoveryAudience } from '@/lib/insights';
+import { loadIntelligence } from '@/lib/intelligence-page';
+import { firstName, longDateLabel, numericDate, tenantNotConfigured, weekdayName } from '@/lib/painel';
+
+/**
+ * Assistente (quadro 17). PROTÓTIPO: a conversa de abertura e as respostas às perguntas sugeridas saem
+ * dos dados de exemplo, montadas aqui; com a API, cada pergunta vai para `POST /assistant/chat`.
+ * Ação sensível (campanha, publicação) só sai com a aprovação da dona do negócio.
+ */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const hoje = nowInBusinessTime(site.agenda?.timezone ?? 'America/Sao_Paulo').date;
+const { dados, entries, categories, groups, period, summaries, nextWeek } = await loadIntelligence(Astro.url, site, hoje);
+const owner = firstName(user.name) ?? 'você';
+const fresh = Astro.url.searchParams.has('nova');
+
+const now = resultOf(entries, period, groups);
+const before = resultOf(entries, period.previous, groups);
+// '01–16 nov'.
+const range = (r: { from: string; to: string }) => `${r.from.slice(8, 10)}–${r.to.slice(8, 10)} ${monthShort(r.to).toLowerCase()}`;
+const { away, eligible } = recoveryAudience(summaries);
+const recoverHref = '/painel/relatorios/marketing/recuperar';
+
+// Respostas das perguntas sugeridas, com os números do exemplo.
+const shares = serviceShares(await dados.appointmentsBetween(period.from, period.to), site.agenda, DEMO_SERVICE_COSTS, DEMO_TAX_RATE);
+const names = new Map(categories.map((c) => [c.id, c.name]));
+const costByCategory = new Map<string, number>();
+for (const e of inPeriod(entries, period)) {
+  if (e.type !== 'EXPENSE' || e.status === 'CANCELLED') continue;
+  costByCategory.set(e.category_id, (costByCategory.get(e.category_id) ?? 0) + e.amount_cents);
+}
+const topCosts = [...costByCategory.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2);
+const quiet = site.agenda ? quietestDay(site.agenda, nextWeek, hoje) : undefined;
+const top = highValue(summaries);
+
+const ANSWERS: Record<string, { text: string; action?: { label: string; href: string } }> = {
+  'Quais serviços mais faturaram?': {
+    text: shares.length
+      ? `De ${range(period)}, os serviços que mais faturaram foram ${shares
+          .slice(0, 3)
+          .map((s, i) => `${i + 1}º ${s.name}, ${money(s.cents)} em ${s.count} atendimentos`)
+          .join('; ')}.`
+      : 'Ainda não há atendimentos no período.',
+    action: { label: 'Ver rentabilidade', href: '/painel/financeiro/rentabilidade' },
+  },
+  'Como estão meus custos?': {
+    text: `As despesas de ${range(period)} somam ${money(now.expenses)}, ${now.income ? percent((now.expenses / now.income) * 100) : '—'} da receita${
+      topCosts.length ? `. As maiores são ${topCosts.map(([id, cents]) => `${names.get(id)} (${money(cents)})`).join(' e ')}` : ''
+    }. No mesmo trecho de ${monthName(period.previous.from)} foram ${money(before.expenses)}.`,
+    action: { label: 'Ver despesas', href: '/painel/financeiro/despesas' },
+  },
+  'Quais horários estão ociosos?': {
+    text: quiet
+      ? `${weekdayName(quiet.date)}, ${numericDate(quiet.date, false)}, está com ${quiet.occupancy}% de ocupação. Horários livres: ${quiet.windows.map((w) => `${w.from}–${w.to}`).join(', ')}.`
+      : 'A semana que vem está cheia.',
+    action: { label: 'Ver oportunidades', href: '/painel/relatorios/insights' },
+  },
+  'Quem vale a pena reter?': {
+    text: `Quem mais gastou com você: ${top
+      .map((s) => `${s.client.name} (${money(s.spentCents ?? 0)}${s.status === 'away' ? `, há ${s.daysAway} dias sem vir` : ''})`)
+      .join(', ')}. Um convite de retorno personalizado costuma funcionar com quem já é fiel.`,
+    action: { label: 'Ver clientes', href: '/painel/clientes' },
+  },
+};
+const FALLBACK =
+  'Nesta demonstração, eu respondo às perguntas sugeridas ao lado. Com a assistente ligada, respondo qualquer pergunta sobre faturamento, custos, agenda e clientes.';
+---
+
+<PanelLayout site={site} user={user} current="relatorios" title="Assistente">
+  <PanelHeading
+    eyebrow="Inteligência do negócio"
+    title={`Converse com ${ROBOT_NAME}`}
+    intro="Pergunte sobre seu negócio e transforme dados em próximos passos."
+  />
+
+  <div class="tabs">
+    <ReportTabs current="assistente" />
+  </div>
+
+  <div class="grid">
+    <section class="chat" aria-labelledby="titulo-chat">
+      <header class="chat__head">
+        <span class="chat__avatar" aria-hidden="true">
+          <img src="/marca/mascote-atendimento-rosto.webp" alt="" width="48" height="48" />
+        </span>
+        <div>
+          <h2 id="titulo-chat"><RobotName /> · Assistente do Organizaê</h2>
+          <p>Análises de {site.profile.name} · {longDateLabel(hoje)}</p>
+        </div>
+        <a class="chat__new" href="/painel/relatorios/assistente?nova">Nova conversa</a>
+      </header>
+
+      <ol class="chat__log" aria-live="polite" data-log>
+        {
+          fresh ? (
+            <li class="msg msg--bot">
+              Oi, {owner}! Eu sou <RobotName />, do Organizaê. Pergunte sobre faturamento, custos, agenda ou clientes, ou comece por
+              uma das sugestões.
+            </li>
+          ) : (
+            <>
+              <li class="msg msg--user">
+                <strong>{owner}</strong>
+                Quanto faturamos em {monthName(period.from)}? Como estamos em relação a {monthName(period.previous.from)}?
+              </li>
+              <li class="msg msg--bot msg--card">
+                <p>
+                  {owner}, de {range(period)}, a receita registrada foi de {money(now.income)}. No mesmo intervalo de{' '}
+                  {monthName(period.previous.from)}, foi de {money(before.income)}.
+                </p>
+                <div class="figures">
+                  <div>
+                    <span>Receita · {range(period)}</span>
+                    <strong class="figures__pink">{money(now.income)}</strong>
+                    <small>
+                      {moneyChange(now.income, before.income)} · {change(now.income, before.income) ?? '—'} vs. {range(period.previous)}
+                    </small>
+                  </div>
+                  <div>
+                    <span>Resultado do período</span>
+                    <strong class="figures__green">{money(now.result)}</strong>
+                    <small>
+                      {moneyChange(now.result, before.result)} · {change(now.result, before.result) ?? '—'} vs. {money(before.result)}
+                    </small>
+                  </div>
+                </div>
+                <small class="msg__base">
+                  Base: receita por competência − {money(now.costs)} de custos − {money(now.taxes)} de impostos. Margem:{' '}
+                  {now.margin === undefined ? '—' : percent(now.margin)}. Esta análise não representa o saldo de caixa.
+                </small>
+              </li>
+              <li class="msg msg--user">
+                <strong>{owner}</strong>E o que podemos fazer para recuperar clientes?
+              </li>
+              <li class="msg msg--bot">
+                <p>
+                  Há {away.length} clientes há mais de 60 dias sem atendimento; {eligible.length} têm WhatsApp e permissão de contato.
+                  Posso preparar uma campanha para sua revisão. Nada será enviado sem sua aprovação.
+                </p>
+                <a class="msg__action" href={recoverHref}>
+                  Revisar campanha de recuperação
+                </a>
+              </li>
+            </>
+          )
+        }
+      </ol>
+
+      <form class="composer" data-composer>
+        <label class="sr-only" for="pergunta">Pergunte para {ROBOT_SPOKEN}</label>
+        <textarea id="pergunta" rows="2" maxlength="500" placeholder={`Pergunte para ${ROBOT_NAME}...`} required></textarea>
+        <button class="composer__send" type="submit">
+          Enviar <Icon name="chevron-right" size={16} />
+        </button>
+      </form>
+      <p class="chat__foot">Respostas de apoio à decisão. Confira período e base antes de agir.</p>
+    </section>
+
+    <aside class="side" aria-labelledby="titulo-sugestoes">
+      <h2 id="titulo-sugestoes">Por onde começamos?</h2>
+      <ul class="suggestions">
+        {
+          Object.keys(ANSWERS).map((question) => (
+            <li>
+              <button type="button" data-ask={question}>
+                {question}
+              </button>
+            </li>
+          ))
+        }
+      </ul>
+      <Callout tone="info" icon="info" title="Você mantém o controle">
+        <RobotName /> sugere. {owner} revisa e aprova campanhas e outras ações sensíveis.
+      </Callout>
+    </aside>
+  </div>
+
+  <script type="application/json" id="respostas" set:html={JSON.stringify({ answers: ANSWERS, fallback: FALLBACK, owner }).replace(/</g, '\\u003c')} is:inline />
+</PanelLayout>
+
+<script>
+  type Answer = { text: string; action?: { label: string; href: string } };
+  const data = JSON.parse(document.getElementById('respostas')?.textContent ?? '{}') as {
+    answers: Record<string, Answer>;
+    fallback: string;
+    owner: string;
+  };
+  const log = document.querySelector<HTMLOListElement>('[data-log]');
+  const form = document.querySelector<HTMLFormElement>('[data-composer]');
+  const field = document.querySelector<HTMLTextAreaElement>('#pergunta');
+
+  // As mensagens novas nascem aqui, sem o atributo de escopo do Astro: o estilo delas é `:global`.
+  const bubble = (kind: 'user' | 'bot', text: string) => {
+    const item = document.createElement('li');
+    item.className = `msg msg--${kind}`;
+    if (kind === 'user') {
+      const who = document.createElement('strong');
+      who.textContent = data.owner;
+      item.append(who);
+    }
+    item.append(document.createTextNode(text));
+    log?.append(item);
+    item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    return item;
+  };
+
+  const ask = (question: string) => {
+    bubble('user', question);
+    const reply = bubble('bot', 'Analisando…');
+    window.setTimeout(() => {
+      const answer = data.answers[question];
+      const text = document.createElement('p');
+      text.textContent = answer?.text ?? data.fallback;
+      reply.replaceChildren(text);
+      if (answer?.action) {
+        const link = document.createElement('a');
+        link.className = 'msg__action';
+        link.href = answer.action.href;
+        link.textContent = answer.action.label;
+        reply.append(link);
+      }
+    }, 700);
+  };
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-ask]')) {
+    button.addEventListener('click', () => ask(button.dataset.ask ?? ''));
+  }
+  form?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const question = field?.value.trim();
+    if (!question || !field) return;
+    ask(question);
+    field.value = '';
+  });
+  // Enter envia; Shift+Enter quebra a linha.
+  field?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      form?.requestSubmit();
+    }
+  });
+</script>
+
+<style>
+  .tabs {
+    margin-top: 28px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 16px;
+    margin-top: 20px;
+  }
+
+  .chat,
+  .side {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 24px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .chat__head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .chat__avatar {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--site-background-page-solid);
+    overflow: hidden;
+  }
+
+  .chat__avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .chat__head h2 {
+    font-size: 1.0625rem;
+    font-weight: 600;
+  }
+
+  .chat__head p {
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .chat__new {
+    margin-left: auto;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--site-color-brand-soft);
+    color: var(--site-color-text);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .chat__log {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    list-style: none;
+  }
+
+  .chat__log :global(.msg) {
+    max-width: 92%;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+
+  .chat__log :global(.msg--user) {
+    align-self: flex-end;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-width: 74%;
+    padding: 14px 18px;
+    border-radius: 16px;
+    background: var(--site-color-brand-soft);
+  }
+
+  .chat__log :global(.msg--user strong) {
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .chat__log :global(.msg--card) {
+    padding: 18px;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--site-accent-yellow-soft) 16%, var(--site-color-surface));
+  }
+
+  /* Ação sempre numa linha própria, abaixo do texto da resposta. */
+  .chat__log :global(.msg__action) {
+    display: flex;
+    width: fit-content;
+    align-items: center;
+    min-height: 44px;
+    margin-top: 10px;
+    padding: 0 18px;
+    border-radius: var(--site-radius-button);
+    border: 1px solid var(--site-color-border-strong);
+    color: var(--site-color-text);
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .chat__log :global(.msg__action:hover) {
+    background: var(--site-color-brand-soft);
+  }
+
+  .figures {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin: 14px 0 10px;
+  }
+
+  .figures > div {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 16px;
+    border-radius: 14px;
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .figures span,
+  .figures small,
+  .msg__base {
+    font-size: 0.75rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .figures strong {
+    font-family: var(--site-font-display);
+    font-size: 1.625rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  .figures__pink {
+    color: var(--site-accent-pink-deep);
+  }
+
+  .figures__green {
+    color: var(--site-accent-green-deep);
+  }
+
+  .composer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 10px 10px 16px;
+    border-radius: var(--site-radius-field);
+    border: 1px solid var(--site-color-border-strong);
+  }
+
+  .composer:focus-within {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  .composer textarea {
+    flex: 1;
+    min-height: 48px;
+    padding: 6px 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 1rem;
+    color: var(--site-color-text);
+    resize: none;
+  }
+
+  .composer textarea:focus {
+    outline: none;
+  }
+
+  .composer textarea::placeholder {
+    color: var(--site-color-text-muted);
+    opacity: 1;
+  }
+
+  .composer__send {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 18px;
+    border: 0;
+    border-radius: var(--site-radius-button);
+    background: var(--site-color-brand);
+    color: var(--site-color-on-brand);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 650;
+    cursor: pointer;
+  }
+
+  .chat__foot {
+    font-size: 0.75rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .side h2 {
+    font-size: 1.0625rem;
+    font-weight: 600;
+  }
+
+  .suggestions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    list-style: none;
+  }
+
+  .suggestions button {
+    width: 100%;
+    min-height: 48px;
+    padding: 0 16px;
+    border-radius: var(--site-radius-button);
+    border: 1px solid var(--site-color-border-strong);
+    background: var(--site-color-surface);
+    color: var(--site-color-text);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .suggestions button:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  .chat__new:focus-visible,
+  .suggestions button:focus-visible,
+  .composer__send:focus-visible,
+  .chat__log :global(.msg__action:focus-visible) {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  @media (max-width: 1099px) {
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 599px) {
+    .figures {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

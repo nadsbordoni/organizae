@@ -1,38 +1,25 @@
 ---
 import PanelLayout from '@/layouts/PanelLayout.astro';
 import ActionButton from '@/components/ActionButton.astro';
-import BarChart from '@/components/painel/BarChart.astro';
+import EmptyState from '@/components/EmptyState.astro';
+import RobotName from '@/components/RobotName.astro';
+import DayList from '@/components/painel/DayList.astro';
 import PanelHeading from '@/components/painel/PanelHeading.astro';
 import PanelSection from '@/components/painel/PanelSection.astro';
-import PanelTable from '@/components/painel/PanelTable.astro';
-import PeriodBar from '@/components/painel/PeriodBar.astro';
 import StatCard from '@/components/painel/StatCard.astro';
 import { getSite } from '@/config';
-import { dayNumber, nowInBusinessTime } from '@/lib/agenda';
+import { nowInBusinessTime } from '@/lib/agenda';
 import { csvHref } from '@/lib/csv';
 import { usuarioExemplo } from '@/lib/dados-exemplo';
-import { DEMO_OPENING_BALANCE } from '@/lib/demo-finance';
-import {
-  cashOf,
-  change,
-  flowBy,
-  money,
-  moneyChange,
-  monthShort,
-  percent,
-  pointsChange,
-  rangeLabel,
-  resultOf,
-  slices,
-} from '@/lib/finance';
-import type { Range } from '@/lib/finance';
+import { change, money, moneyChange, monthName, monthShort, percent, pointsChange, rangeLabel, resultOf } from '@/lib/finance';
 import { loadFinance } from '@/lib/finance-page';
-import { numericDate, tenantNotConfigured } from '@/lib/painel';
+import { financialAlerts } from '@/lib/insights';
+import { tenantNotConfigured } from '@/lib/painel';
 
 /**
- * Visão geral (quadro 07): o mês até hoje contra o mesmo trecho do mês anterior. Resultado pela
- * competência, caixa pelo dia do pagamento, e os dois lado a lado para não serem confundidos.
- * Números de DEMONSTRAÇÃO (`lib/demo-finance.ts`), coerentes com a Agenda e os Clientes do exemplo.
+ * Visão geral: como está hoje, em uma olhada, levando ao detalhe. Os números do mês vão para o
+ * Financeiro; caixa, gráficos e clientes ficam nas telas deles, para a home não repetir o detalhe.
+ * Números de DEMONSTRAÇÃO (`lib/demo-finance.ts`), coerentes com a Agenda e o Financeiro.
  */
 export const prerender = false;
 
@@ -40,35 +27,19 @@ const user = usuarioExemplo;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 
-const hoje = nowInBusinessTime(site.agenda?.timezone ?? 'America/Sao_Paulo').date;
-const { dados, entries, groups, months, period } = await loadFinance(Astro.url, user.tenantSlug, hoje);
+const agenda = site.agenda;
+const hoje = nowInBusinessTime(agenda?.timezone ?? 'America/Sao_Paulo').date;
+const { dados, entries, groups, period } = await loadFinance(Astro.url, user.tenantSlug, hoje);
 
 const now = resultOf(entries, period, groups);
 const before = resultOf(entries, period.previous, groups);
-const cash = cashOf(entries, period, DEMO_OPENING_BALANCE);
 const mon = monthShort(period.previous.from);
 const vs = (current: number, previous: number) =>
   `${mon}: ${money(previous)} · ${moneyChange(current, previous)} / ${change(current, previous) ?? '—'}`;
-
-const clients = await dados.clients();
-const clientsUntil = (date: string) => clients.filter((c) => c.created_at.slice(0, 10) <= date).length;
-const clientsNow = clientsUntil(period.to);
-const clientsBefore = clientsUntil(period.previous.to);
-const booked = async (range: Range) =>
-  (await dados.appointmentsBetween(range.from, range.to)).filter((a) => a.status !== 'cancelled').length;
-const bookedNow = await booked(period);
-const bookedBefore = await booked(period.previous);
-const countVs = (current: number, previous: number) =>
-  `${current - previous >= 0 ? '+' : '−'}${Math.abs(current - previous)} / ${change(current, previous) ?? '—'}`;
-
-// Quatro pedaços do período, como no protótipo: "01–04 nov".
-const days = dayNumber(period.to) - dayNumber(period.from) + 1;
-const movement = flowBy(entries, slices(period, Math.ceil(days / 4)), 'cash').map((f) => ({
-  ...f,
-  label: `${f.range.from.slice(8, 10)}–${f.range.to.slice(8, 10)} ${monthShort(f.range.to).toLowerCase()}`,
-}));
-const short = (r: Range) => `${r.from.slice(8, 10)}–${numericDate(r.to)}`;
 const marginText = (m?: number) => (m === undefined ? '—' : percent(m));
+
+const doDia = (await dados.appointmentsOn(hoje)).filter((m) => m.status !== 'cancelled');
+const alert = financialAlerts(entries, period, period.previous, hoje)[0];
 
 const csv = csvHref([
   ['Indicador', rangeLabel(period), rangeLabel(period.previous)],
@@ -76,8 +47,6 @@ const csv = csvHref([
   ['Despesas + impostos', money(now.expenses), money(before.expenses)],
   ['Resultado', money(now.result), money(before.result)],
   ['Margem', marginText(now.margin), marginText(before.margin)],
-  ['Entradas recebidas', money(cash.received), ''],
-  ['Saídas pagas', money(cash.paid), ''],
 ]);
 ---
 
@@ -85,7 +54,7 @@ const csv = csvHref([
   <PanelHeading
     eyebrow="Visão geral"
     title="Seu negócio, com clareza"
-    intro={`${site.profile.name} · Comparações sobre períodos equivalentes.`}
+    intro={`${site.profile.name} · ${rangeLabel(period)}, comparado ao mesmo trecho de ${monthName(period.previous.from)}.`}
   >
     <ActionButton
       label="Exportar resumo"
@@ -98,223 +67,152 @@ const csv = csvHref([
     />
   </PanelHeading>
 
-  <div class="block">
-    <PeriodBar
-      title={rangeLabel(period)}
-      compare={`Comparado a ${rangeLabel(period.previous)}`}
-      months={months}
-      current={period.key}
-      chips={['Todos os serviços e produtos']}
-    />
-  </div>
-
   <div class="stats">
-    <StatCard label="Faturamento" value={money(now.income)} note={vs(now.income, before.income)} tone="pink" />
-    <StatCard label="Despesas + impostos" value={money(now.expenses)} note={vs(now.expenses, before.expenses)} tone="yellow" />
-    <StatCard label="Resultado / lucro" value={money(now.result)} note={vs(now.result, before.result)} tone="green" />
+    <StatCard label="Faturamento" value={money(now.income)} note={vs(now.income, before.income)} tone="pink" href="/painel/financeiro" />
+    <StatCard
+      label="Despesas + impostos"
+      value={money(now.expenses)}
+      note={vs(now.expenses, before.expenses)}
+      tone="yellow"
+      href="/painel/financeiro/despesas"
+    />
+    <StatCard
+      label="Resultado / lucro"
+      value={money(now.result)}
+      note={vs(now.result, before.result)}
+      tone="green"
+      href="/painel/financeiro/rentabilidade"
+    />
     <StatCard
       label="Margem do resultado"
       value={marginText(now.margin)}
       note={`${mon}: ${marginText(before.margin)} · ${pointsChange(now.margin, before.margin) ?? '—'}`}
       tone="blue"
+      href="/painel/financeiro/rentabilidade"
     />
   </div>
-
-  <div class="row">
-    <StatCard
-      label="Total de clientes cadastrados"
-      value={String(clientsNow)}
-      note={`Base até ${numericDate(period.to, false)} vs. ${clientsBefore} até ${numericDate(period.previous.to, false)} · ${countVs(clientsNow, clientsBefore)}`}
-      tone="pink"
-    />
-    <StatCard
-      label="Agendamentos no período"
-      value={String(bookedNow)}
-      note={`${bookedBefore} em ${short(period.previous)} · ${countVs(bookedNow, bookedBefore)} · Inclui confirmados e concluídos`}
-      tone="yellow"
-    />
-    <section class="how" aria-labelledby="titulo-calculo">
-      <h2 id="titulo-calculo">Como o resultado foi calculado</h2>
-      <p>
-        {money(now.income)} de receita − {money(now.costs)} de custos − {money(now.taxes)} de impostos = {money(now.result)}.
-        Margem = resultado ÷ receita. Base: competência no período; não é saldo bancário.
-      </p>
-    </section>
-  </div>
+  <p class="base">Resultado pela competência: receita − custos − impostos. Não é o saldo de caixa, que fica no Financeiro.</p>
 
   <div class="grid">
-    <PanelSection
-      title="Movimento de caixa"
-      subtitle={`Entradas e saídas efetivamente recebidas / pagas em ${short(period)}`}
-      id="titulo-caixa"
-    >
-      <p class="legend" aria-hidden="true">
-        <span class="legend__in">Entradas</span>
-        <span class="legend__out">Saídas</span>
-      </p>
-      <BarChart groups={movement} label="Entradas e saídas por trecho do período" values />
-      <dl class="totals">
-        <div>
-          <dt>Entradas recebidas</dt>
-          <dd class="totals__in">{money(cash.received)}</dd>
-        </div>
-        <div>
-          <dt>Saídas pagas</dt>
-          <dd class="totals__out">{money(cash.paid)}</dd>
-        </div>
-        <div>
-          <dt>Entradas − saídas</dt>
-          <dd class="totals__net">{money(cash.received - cash.paid)}</dd>
-        </div>
-      </dl>
+    <PanelSection title="Agenda de hoje" subtitle={doDia.length === 1 ? '1 horário' : `${doDia.length} horários`} id="titulo-hoje">
+      <ActionButton slot="aside" label="Ver agenda" variant="secondary" href="/painel/agenda" full={false} />
+      {
+        doDia.length ? (
+          <DayList rows={doDia} agenda={agenda} label="Atendimentos de hoje" idPrefix="det-hoje" />
+        ) : (
+          <EmptyState level={3} mascot="relaxando" title="Nenhum atendimento hoje" text="Um bom dia para organizar o resto da semana." />
+        )
+      }
     </PanelSection>
 
-    <PanelSection
-      title="Saldo de caixa, não lucro"
-      subtitle={`Caixa de ${site.profile.name} · posição em ${numericDate(period.to, false)}`}
-      id="titulo-saldo"
-    >
-      <PanelTable label="Composição do saldo de caixa">
-        <thead>
-          <tr>
-            <th scope="col">Composição</th>
-            <th scope="col">Valor</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <th scope="row">Saldo inicial em {numericDate(period.from, false)}</th>
-            <td>{money(cash.opening)}</td>
-          </tr>
-          <tr>
-            <th scope="row">+ Entradas recebidas</th>
-            <td>{money(cash.received)}</td>
-          </tr>
-          <tr>
-            <th scope="row">− Saídas pagas</th>
-            <td>{money(cash.paid)}</td>
-          </tr>
-          <tr>
-            <th scope="row">Saldo final em {numericDate(period.to, false)}</th>
-            <td>{money(cash.closing)}</td>
-          </tr>
-        </tbody>
-      </PanelTable>
-      <p class="note">
-        A receber do período: {money(cash.receivable)}. Obrigações do período ainda não pagas: {money(cash.payable)}. Por isso
-        caixa e lucro diferem.
+    <section class="assist" aria-labelledby="titulo-assistente">
+      <h2 class="assist__label" id="titulo-assistente"><RobotName /> · Assistente</h2>
+      <p class="assist__title">{alert ? alert.title.replace(/^Atenção: /, '') : 'Seu mês vai bem.'}</p>
+      <p class="assist__text">
+        {alert ? alert.description : `O faturamento está ${change(now.income, before.income) ?? 'estável'} em relação a ${monthName(period.previous.from)}.`}
       </p>
-    </PanelSection>
+      {/* Texto num `span`: dentro do `inline-flex`, o espaço antes do nome seria descartado. */}
+      <a class="assist__button" href="/painel/relatorios/assistente"><span>Conversar com <RobotName /></span></a>
+      <span class="assist__mascot" aria-hidden="true">
+        <img src="/marca/mascote-tablet.webp" alt="" width="465" height="720" loading="lazy" />
+      </span>
+    </section>
   </div>
 </PanelLayout>
 
 <style>
-  .block {
-    margin-top: 32px;
-  }
-
   .stats {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 16px;
-    margin-top: 16px;
+    margin-top: 36px;
   }
 
-  .row {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px;
-    margin-top: 16px;
+  .base {
+    margin-top: 10px;
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
   }
 
-  .how {
-    padding: 24px;
-    border-radius: var(--site-radius-card);
-    border: 1px solid var(--site-color-border);
-    background: var(--site-color-surface);
-  }
-
-  .how h2 {
-    font-size: 1rem;
-    font-weight: 600;
-  }
-
-  .how p {
-    margin-top: 12px;
-    font-size: 0.875rem;
-    line-height: 1.55;
-  }
-
-  /* Proporção medida no protótipo. */
+  /* Colunas da mesma altura, na proporção do protótipo. */
   .grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
-    align-items: start;
+    grid-template-columns: minmax(0, 1.94fr) minmax(0, 1fr);
+    align-items: stretch;
     gap: 16px;
-    margin-top: 16px;
+    margin-top: 24px;
   }
 
-  .legend {
+  .assist {
+    position: relative;
     display: flex;
-    gap: 12px;
+    flex-direction: column;
+    align-items: flex-start;
+    min-height: 320px;
+    padding: 36px 36px 220px;
+    border-radius: var(--site-radius-card);
+    background: var(--site-panel-sidebar);
+    color: var(--site-panel-on-sidebar);
+    overflow: hidden;
   }
 
-  .legend span {
-    padding: 4px 12px;
-    border-radius: 999px;
-    font-size: 0.75rem;
+  .assist__label {
+    font-size: 0.875rem;
     font-weight: 600;
   }
 
-  .legend__in {
-    background: var(--site-accent-pink-soft);
-  }
-
-  .legend__out {
-    background: var(--site-accent-blue-soft);
-  }
-
-  .totals {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px;
-    margin: 0;
-  }
-
-  .totals dt {
-    font-size: 0.8125rem;
-    color: var(--site-color-text-muted);
-  }
-
-  .totals dd {
-    margin: 4px 0 0;
+  .assist__title {
+    margin-top: 24px;
     font-family: var(--site-font-display);
-    font-size: 1.375rem;
-    font-weight: 600;
-    letter-spacing: -0.02em;
+    font-size: 1.75rem;
+    font-weight: var(--site-font-display-weight);
+    letter-spacing: var(--site-font-display-tracking);
+    line-height: 1.15;
   }
 
-  .totals__in {
-    color: var(--site-accent-pink-deep);
-  }
-
-  .totals__out {
-    color: var(--site-accent-blue-deep);
-  }
-
-  .totals__net {
-    color: var(--site-accent-green-deep);
-  }
-
-  .grid :global(th[scope='row']) {
-    font-weight: 600;
-    text-align: left;
-  }
-
-  .note {
-    font-size: 0.8125rem;
+  .assist__text {
+    margin-top: 14px;
+    font-size: 0.875rem;
     line-height: 1.5;
-    color: var(--site-color-text-muted);
+    color: var(--site-panel-on-sidebar-muted);
+  }
+
+  .assist__button {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    min-height: 48px;
+    margin-top: 22px;
+    padding: 0 22px;
+    border-radius: var(--site-radius-button);
+    background: var(--site-color-surface);
+    color: var(--site-color-text);
+    font-size: 0.9375rem;
+    font-weight: 650;
+    text-decoration: none;
+  }
+
+  .assist__button:focus-visible {
+    outline: 2px solid var(--site-panel-sidebar-accent);
+    outline-offset: 3px;
+  }
+
+  .assist__mascot {
+    position: absolute;
+    right: 18px;
+    bottom: -30px;
+    display: grid;
+    place-items: center;
+    width: 170px;
+    height: 210px;
+    border-radius: 50% 50% 0 0 / 40% 40% 0 0;
+    background: var(--site-background-page-solid);
+  }
+
+  .assist__mascot img {
+    height: 160px;
+    width: auto;
   }
 
   @media (max-width: 1299px) {
@@ -324,15 +222,13 @@ const csv = csvHref([
   }
 
   @media (max-width: 1099px) {
-    .row,
     .grid {
       grid-template-columns: minmax(0, 1fr);
     }
   }
 
   @media (max-width: 599px) {
-    .stats,
-    .totals {
+    .stats {
       grid-template-columns: minmax(0, 1fr);
     }
   }

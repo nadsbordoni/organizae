@@ -119,6 +119,8 @@ export function demoFinancialEntries(today: IsoDate, appointments: AppointmentRo
     const at = (day: number) => `${first.slice(0, 8)}${String(Math.min(day, days)).padStart(2, '0')}`;
     const expense = (id: string, day: number, description: string, category: string, cents: number, method: PaymentMethod) => {
       const due = at(day);
+      // O contador deste mês ficou esquecido: é a conta vencida que o alerta dos Insights mostra.
+      const forgotten = offset === 0 && id === 'estrutura8';
       entries.push({
         id: `${id}-${first.slice(0, 7)}`,
         category_id: category,
@@ -126,7 +128,7 @@ export function demoFinancialEntries(today: IsoDate, appointments: AppointmentRo
         description,
         amount_cents: cents,
         due_date: due,
-        ...settle(due),
+        ...(forgotten ? { status: 'PENDING' as const, paid_on: null } : settle(due)),
         appointment_id: null,
         competence: due,
         payment_method: method,

@@ -7,6 +7,7 @@ import BarChart from '@/components/painel/BarChart.astro';
 import FinanceTabs from '@/components/painel/FinanceTabs.astro';
 import PanelHeading from '@/components/painel/PanelHeading.astro';
 import PanelSection from '@/components/painel/PanelSection.astro';
+import PanelTable from '@/components/painel/PanelTable.astro';
 import StatCard from '@/components/painel/StatCard.astro';
 import { getSite } from '@/config';
 import { nowInBusinessTime } from '@/lib/agenda';
@@ -119,9 +120,10 @@ const query = Astro.url.searchParams.get('mes') ? period.key : undefined;
           ))
         }
       </ActionsMenu>
-      <BarChart groups={weeks} label="Entradas e saídas por semana" />
+      <BarChart groups={weeks} label="Entradas e saídas por semana" grow />
     </PanelSection>
 
+    <div class="side">
     <PanelSection title="Próximos recebimentos" subtitle="Valores previstos" id="titulo-recebimentos">
       {
         upcoming.length ? (
@@ -148,6 +150,39 @@ const query = Astro.url.searchParams.get('mes') ? period.key : undefined;
         )
       }
     </PanelSection>
+
+    <PanelSection title="Saldo de caixa, não lucro" subtitle={`Posição em ${numericDate(period.to, false)}`} id="titulo-saldo">
+      <PanelTable label="Composição do saldo de caixa">
+        <thead>
+          <tr>
+            <th scope="col">Composição</th>
+            <th scope="col">Valor</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Saldo inicial em {numericDate(period.from, false)}</th>
+            <td>{money(cash.opening)}</td>
+          </tr>
+          <tr>
+            <th scope="row">+ Entradas recebidas</th>
+            <td>{money(cash.received)}</td>
+          </tr>
+          <tr>
+            <th scope="row">− Saídas pagas</th>
+            <td>{money(cash.paid)}</td>
+          </tr>
+          <tr>
+            <th scope="row">Saldo final em {numericDate(period.to, false)}</th>
+            <td>{money(cash.closing)}</td>
+          </tr>
+        </tbody>
+      </PanelTable>
+      <p class="empty">
+        A receber: {money(cash.receivable)}. A pagar: {money(cash.payable)}. Por isso caixa e lucro diferem.
+      </p>
+    </PanelSection>
+    </div>
   </div>
 </PanelLayout>
 
@@ -167,12 +202,19 @@ const query = Astro.url.searchParams.get('mes') ? period.key : undefined;
     margin-top: 20px;
   }
 
+  /* Colunas da mesma altura: o gráfico do fluxo cresce até o fim da coluna da direita. */
   .grid {
     display: grid;
     grid-template-columns: minmax(0, 1.94fr) minmax(0, 1fr);
-    align-items: start;
+    align-items: stretch;
     gap: 16px;
     margin-top: 16px;
+  }
+
+  .side {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
   }
 
   .next {

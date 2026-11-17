@@ -1,24 +1,28 @@
 ---
-/** Um número do resumo da Visão geral, com o semicírculo decorativo no canto. */
+/** Um número de resumo, com o semicírculo decorativo no canto. Com `href`, o cartão leva ao detalhe. */
 interface Props {
   label: string;
   value: string;
   note?: string;
   tone: 'pink' | 'yellow' | 'blue' | 'green';
+  href?: string;
 }
 
-const { label, value, note, tone } = Astro.props;
+const { label, value, note, tone, href } = Astro.props;
+const Tag = href ? 'a' : 'article';
 ---
 
-<article class="stat" style={`--tone: var(--site-accent-${tone}-deep)`}>
+<Tag class="stat" href={href} style={`--tone: var(--site-accent-${tone}-deep)`}>
   <p class="stat__label">{label}</p>
   <p class="stat__value">{value}</p>
   {note && <p class="stat__note">{note}</p>}
-</article>
+</Tag>
 
 <style>
   .stat {
     position: relative;
+    color: var(--site-color-text);
+    text-decoration: none;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -62,5 +66,15 @@ const { label, value, note, tone } = Astro.props;
     margin-top: 8px;
     font-size: 0.875rem;
     color: var(--site-color-text-muted);
+  }
+
+  a.stat:hover {
+    border-color: var(--site-color-border-strong);
+    box-shadow: var(--site-shadow-resting);
+  }
+
+  a.stat:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
   }
 </style>

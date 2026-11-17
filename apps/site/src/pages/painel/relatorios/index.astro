@@ -2,11 +2,13 @@
 import PanelLayout from '@/layouts/PanelLayout.astro';
 import ActionButton from '@/components/ActionButton.astro';
 import Icon from '@/components/Icon.astro';
+import RobotName from '@/components/RobotName.astro';
 import BarChart from '@/components/painel/BarChart.astro';
 import DonutChart from '@/components/painel/DonutChart.astro';
 import PanelHeading from '@/components/painel/PanelHeading.astro';
 import PanelSection from '@/components/painel/PanelSection.astro';
 import PeriodBar from '@/components/painel/PeriodBar.astro';
+import ReportTabs from '@/components/painel/ReportTabs.astro';
 import StatCard from '@/components/painel/StatCard.astro';
 import { getSite } from '@/config';
 import { nowInBusinessTime } from '@/lib/agenda';
@@ -18,8 +20,8 @@ import { loadFinance } from '@/lib/finance-page';
 import { tenantNotConfigured } from '@/lib/painel';
 
 /**
- * Balanço mensal (quadro 07), no item Relatórios. A "Leitura do Organizaê" é uma frase montada com os
- * números do mês; quando a assistente tiver tela, "Ver recomendações" abre a conversa com ela.
+ * Balanço mensal (quadro 07), a primeira aba de Relatórios. A "Leitura do Organizaê" é uma frase montada
+ * com os números do mês; "Ver recomendações" leva aos Insights.
  */
 export const prerender = false;
 
@@ -91,6 +93,10 @@ const csv = csvHref([
     <ActionButton label="Baixar PDF" icon="download" iconPosition="end" full={false} data-print="" />
   </PanelHeading>
 
+  <div class="tabs">
+    <ReportTabs current="balanco" />
+  </div>
+
   <div class="block">
     <PeriodBar
       title={current ? `${monthTitle(period.key)}, até hoje` : monthTitle(period.key)}
@@ -137,11 +143,10 @@ const csv = csvHref([
       <Icon name="sparkles" size={20} />
     </span>
     <div>
-      <h2 id="titulo-leitura">Leitura do Organizaê</h2>
+      <h2 id="titulo-leitura">Leitura de <RobotName /></h2>
       <p>{reading}</p>
     </div>
-    {/* PROTÓTIPO: sem ação até a assistente ter tela. */}
-    <ActionButton label="Ver recomendações" variant="secondary" full={false} />
+    <ActionButton label="Ver recomendações" variant="secondary" href="/painel/relatorios/insights" full={false} />
   </section>
 </PanelLayout>
 
@@ -150,8 +155,12 @@ const csv = csvHref([
 </script>
 
 <style>
+  .tabs {
+    margin-top: 28px;
+  }
+
   .block {
-    margin-top: 32px;
+    margin-top: 20px;
   }
 
   .stats {
@@ -161,10 +170,11 @@ const csv = csvHref([
     margin-top: 16px;
   }
 
+  /* Os dois cartões com a mesma altura: o da rosca é o mais alto e o das barras acompanha. */
   .grid {
     display: grid;
     grid-template-columns: minmax(0, 1.94fr) minmax(0, 1fr);
-    align-items: start;
+    align-items: stretch;
     gap: 16px;
     margin-top: 16px;
   }

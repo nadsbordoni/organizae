@@ -11,7 +11,7 @@ import StatCard from '@/components/painel/StatCard.astro';
 import StatusBadge from '@/components/painel/StatusBadge.astro';
 import { getSite } from '@/config';
 import { formatPrice, nowInBusinessTime } from '@/lib/agenda';
-import { CLIENT_STATUS, summarize } from '@/lib/clients';
+import { CLIENT_STATUS, statusDetail, summarize } from '@/lib/clients';
 import { forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
 import { whatsappUrl } from '@/lib/links';
 import {
@@ -78,7 +78,7 @@ const business = site.profile.name;
       <Initials name={client.name} large />
       <div class="card__who">
         <h2 class="card__name" id="titulo-cliente">{client.name}</h2>
-        <StatusBadge {...CLIENT_STATUS[summary.status]} />
+        <StatusBadge {...CLIENT_STATUS[summary.status]} label={statusDetail(summary, hoje)} />
       </div>
 
       <p class="card__contact">
@@ -90,7 +90,7 @@ const business = site.profile.name;
         <li>Cliente desde {monthLabel(client.created_at.slice(0, 10))}</li>
         {client.birth_date && <li>Aniversário em {birthdayLabel(client.birth_date)}</li>}
         {client.referral && <li>Conheceu por {client.referral}</li>}
-        <li>{client.whatsapp_opt_in ? 'Aceita mensagens de retorno' : 'Não autorizou mensagens de retorno'}</li>
+        <li>{client.whatsapp_opt_in ? 'Pode receber mensagens pelo WhatsApp' : 'Não autorizou mensagens pelo WhatsApp'}</li>
       </ul>
 
       <div class="card__notes">

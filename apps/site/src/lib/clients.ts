@@ -12,9 +12,12 @@ const NEW_FOR_DAYS = 30;
 
 export type ClientStatus = 'regular' | 'new' | 'away';
 
-/** Sem gênero de propósito: o "Ativa"/"Nova" do protótipo erra com os clientes de uma barbearia. */
+/**
+ * Sem gênero de propósito: o "Ativa"/"Nova" do protótipo erra com os clientes de uma barbearia.
+ * Quem veio nos últimos 60 dias não ganha rótulo, só a data da visita: "Em dia" lembrava pagamento.
+ */
 export const CLIENT_STATUS: Record<ClientStatus, { label: string; tone: PanelTone; icon: IconName }> = {
-  regular: { label: 'Em dia', tone: 'positive', icon: 'check-circle' },
+  regular: { label: 'Última visita', tone: 'positive', icon: 'check-circle' },
   new: { label: 'Recente', tone: 'info', icon: 'sparkles' },
   away: { label: 'Ausente', tone: 'attention', icon: 'clock' },
 };
@@ -60,6 +63,16 @@ export function summarize(
   };
 }
 
+const days = (n: number) => (n === 0 ? 'hoje' : `há ${n} ${n === 1 ? 'dia' : 'dias'}`);
+
+/** A situação com o motivo: "Ausente há 82 dias", "Última visita há 14 dias", "Recente · cadastro há 3 dias". */
+export function statusDetail(summary: ClientSummary, today: IsoDate): string {
+  const { label } = CLIENT_STATUS[summary.status];
+  if (summary.status === 'new') return `${label} · cadastro ${days(daysBetween(summary.client.created_at.slice(0, 10), today))}`;
+  if (summary.daysAway === undefined) return `${label} · sem atendimentos`;
+  return summary.status === 'away' ? `${label} há ${summary.daysAway} dias` : `${label} ${days(summary.daysAway)}`;
+}
+
 /** Nome sem acento nem caixa; telefone a partir de 3 dígitos. Com a API, vira o `?search=` de `GET /clients`. */
 export function matchesSearch(client: ClientRow, query: string): boolean {
   const term = foldText(query);
@@ -69,14 +82,14 @@ export function matchesSearch(client: ClientRow, query: string): boolean {
 }
 
 /** Linhas da planilha de clientes, com cabeçalho. */
-export function clientsSheet(rows: ClientSummary[]): string[][] {
+export function clientsSheet(rows: ClientSummary[], today: IsoDate): string[][] {
   return [
     ['Nome', 'Telefone', 'E-mail', 'Situação', 'Atendimentos', 'Valor total', 'Último atendimento'],
     ...rows.map((r) => [
       r.client.name,
       formatPhone(r.client.phone),
       r.client.email ?? '',
-      CLIENT_STATUS[r.status].label,
+      statusDetail(r, today),
       String(r.visits),
       r.spentCents === undefined ? '' : formatPrice(r.spentCents),
       r.lastVisit ? numericDate(r.lastVisit) : '',

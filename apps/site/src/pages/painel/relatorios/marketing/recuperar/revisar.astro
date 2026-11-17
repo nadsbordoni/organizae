@@ -1,0 +1,203 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import Callout from '@/components/Callout.astro';
+import RobotName from '@/components/RobotName.astro';
+import CampaignPreview from '@/components/painel/CampaignPreview.astro';
+import Initials from '@/components/painel/Initials.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import PanelTable from '@/components/painel/PanelTable.astro';
+import ReportTabs from '@/components/painel/ReportTabs.astro';
+import { getSite } from '@/config';
+import { nowInBusinessTime } from '@/lib/agenda';
+import { AWAY_AFTER_DAYS } from '@/lib/clients';
+import { usuarioExemplo } from '@/lib/dados-exemplo';
+import { pickRecipients, recoveryAudience, recoveryMessage } from '@/lib/insights';
+import { loadIntelligence } from '@/lib/intelligence-page';
+import { firstName, numericDate, tenantNotConfigured } from '@/lib/painel';
+
+/**
+ * Campanha de recuperação, passo 2 (quadro 17): a dona confere e autoriza. Ação sensível: o botão só
+ * libera com a caixa marcada, e a assistente não aprova por ela. PROTÓTIPO: aprovar só navega.
+ */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const hoje = nowInBusinessTime(site.agenda?.timezone ?? 'America/Sao_Paulo').date;
+const { summaries } = await loadIntelligence(Astro.url, site, hoje);
+const owner = firstName(user.name) ?? 'você';
+const { away, eligible } = recoveryAudience(summaries);
+const recipients = pickRecipients(eligible, Astro.url.searchParams.get('clientes'));
+const query = Astro.url.search;
+const n = recipients.length;
+const destinatarios = `${n} ${n === 1 ? 'destinatário' : 'destinatários'}`;
+---
+
+<PanelLayout site={site} user={user} current="relatorios" title="Revisar campanha">
+  <PanelHeading
+    eyebrow="Inteligência do negócio"
+    title="Revise antes de autorizar"
+    intro="Ação sensível: nenhum envio é autorizado sem a sua confirmação."
+  />
+
+  <div class="tabs">
+    <ReportTabs current="marketing" />
+  </div>
+
+  <div class="notice">
+    <Callout tone="attention" icon="alert" title="Envio bloqueado · Aguardando sua aprovação">
+      Revise os {destinatarios}, o canal e o texto. <RobotName /> não pode aprovar esta ação por você.
+    </Callout>
+  </div>
+
+  <div class="grid">
+    <CampaignPreview
+      name={`Um novo momento com ${site.profile.name}`}
+      message={recoveryMessage(site.profile.name, `${Astro.url.host}/${site.slug}`)}
+      recipients={recipients}
+      business={site.profile.name}
+    />
+
+    <section class="confirm" aria-labelledby="titulo-confirmar">
+      <h2 id="titulo-confirmar">Sua confirmação é indispensável</h2>
+      <Initials name={user.name ?? owner} large />
+      <p class="confirm__who">{owner} · Administradora</p>
+      <p class="confirm__text">
+        Público: mais de {AWAY_AFTER_DAYS} dias sem atendimento, com WhatsApp válido e permissão de contato. Referência em {numericDate(hoje)}.
+      </p>
+      <PanelTable label="Escopo da campanha">
+        <thead>
+          <tr>
+            <th scope="col">Escopo</th>
+            <th scope="col">Quantidade</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Clientes ausentes</th>
+            <td>{away.length}</td>
+          </tr>
+          <tr>
+            <th scope="row">Destinatários autorizáveis</th>
+            <td>{n}</td>
+          </tr>
+          <tr>
+            <th scope="row">Fora da campanha</th>
+            <td>{away.length - n}</td>
+          </tr>
+        </tbody>
+      </PanelTable>
+
+      <form class="confirm__form" method="post" action={`/painel/relatorios/marketing/recuperar/aprovada${query}`} data-prototype="transient">
+        <label class="check">
+          <input type="checkbox" required data-approve-check />
+          Li a mensagem e conferi o público. Autorizo esta campanha para os {destinatarios}.
+        </label>
+        <ActionButton label="Aprovar e autorizar envio" type="submit" disabled data-approve-button="" />
+        <ActionButton label="Voltar e editar" variant="secondary" href={`/painel/relatorios/marketing/recuperar${query}`} />
+      </form>
+    </section>
+  </div>
+</PanelLayout>
+
+<script>
+  import { wirePrototypeForms } from '@/lib/prototype-form';
+
+  const check = document.querySelector<HTMLInputElement>('[data-approve-check]');
+  const button = document.querySelector<HTMLButtonElement>('[data-approve-button]');
+  check?.addEventListener('change', () => {
+    if (button) button.disabled = !check.checked;
+  });
+
+  wirePrototypeForms();
+</script>
+
+<style>
+  .tabs {
+    margin-top: 28px;
+  }
+
+  .notice {
+    margin-top: 20px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    align-items: stretch;
+    gap: 16px;
+    margin-top: 16px;
+  }
+
+  .confirm {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 24px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .confirm > :global(*) {
+    width: 100%;
+  }
+
+  .confirm > :global(.initials) {
+    width: 72px;
+  }
+
+  .confirm h2 {
+    font-size: 1.0625rem;
+    font-weight: 600;
+  }
+
+  .confirm__who {
+    font-size: 1.125rem;
+    font-weight: 600;
+  }
+
+  .confirm__text {
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .confirm :global(th[scope='row']) {
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .confirm__form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: auto;
+  }
+
+  .check {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    cursor: pointer;
+  }
+
+  .check input {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    margin: 2px 0 0;
+    accent-color: var(--site-color-brand);
+  }
+
+  @media (max-width: 1099px) {
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

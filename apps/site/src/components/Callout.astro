@@ -2,9 +2,9 @@
 import Icon from './Icon.astro';
 import type { IconName } from '@/types/blocks';
 
-/** Caixa de aviso com título: azul para orientação, verde para confirmação. */
+/** Caixa de aviso com título: azul para orientação, verde para confirmação, amarelo para atenção. */
 interface Props {
-  tone: 'info' | 'success';
+  tone: 'info' | 'success' | 'attention';
   icon: IconName;
   title: string;
 }
@@ -38,6 +38,11 @@ const { tone, icon, title } = Astro.props;
   .callout[data-tone='success'] {
     --tint: var(--site-accent-green);
     --tone: var(--site-accent-green-deep);
+  }
+
+  .callout[data-tone='attention'] {
+    --tint: var(--site-accent-yellow-soft);
+    --tone: var(--site-accent-yellow-deep);
   }
 
   .callout :global(svg) {
