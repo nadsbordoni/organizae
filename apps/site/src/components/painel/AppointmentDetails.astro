@@ -1,0 +1,177 @@
+---
+import Icon from '@/components/Icon.astro';
+import StatusBadge from './StatusBadge.astro';
+import { formatDuration } from '@/lib/agenda';
+import { whatsappUrl } from '@/lib/links';
+import { STATUS_BADGE, catalogTotal, compactPrice, endTime, formatPhone, serviceNames, weekdayLabel } from '@/lib/painel';
+import type { Agenda } from '@/types/agenda';
+import type { AppointmentRow } from '@/types/painel';
+
+/**
+ * Detalhes de uma marcação num popover nativo: fecha com Esc, tocando fora ou no ×, sem JavaScript.
+ * Fica na camada de cima da página, então o `overflow: hidden` da grade não o corta.
+ */
+interface Props {
+  id: string;
+  row: AppointmentRow;
+  agenda?: Agenda;
+}
+
+const { id, row, agenda } = Astro.props;
+
+const price = catalogTotal([row], agenda);
+---
+
+<div class="det" id={id} popover aria-labelledby={`${id}-titulo`}>
+  <div class="det__top">
+    <StatusBadge {...STATUS_BADGE[row.status]} />
+    <button class="det__close" type="button" popovertarget={id} popovertargetaction="hide" aria-label="Fechar" autofocus>
+      <Icon name="close" size={18} />
+    </button>
+  </div>
+
+  <h3 class="det__name" id={`${id}-titulo`}>{row.client_name}</h3>
+
+  <dl class="det__list">
+    <div>
+      <dt>Quando</dt>
+      <dd>
+        {weekdayLabel(row.date)}
+        <br />
+        <strong>
+          {row.start_time} — {endTime(row)}
+        </strong>
+        · {formatDuration(row.duration_min)}
+      </dd>
+    </div>
+    <div>
+      <dt>Serviço</dt>
+      <dd>{serviceNames(row, agenda)}</dd>
+    </div>
+    {
+      price && (
+        <div>
+          <dt>Valor</dt>
+          <dd>{compactPrice(price)}</dd>
+        </div>
+      )
+    }
+    <div>
+      <dt>Observações</dt>
+      <dd>{row.notes ?? 'Nenhuma observação.'}</dd>
+    </div>
+    <div>
+      <dt>Contato</dt>
+      <dd>
+        {
+          row.client_phone ? (
+            <a href={whatsappUrl(row.client_phone)} target="_blank" rel="noopener noreferrer">
+              <Icon name="whatsapp" size={16} />
+              {formatPhone(row.client_phone)}
+            </a>
+          ) : (
+            'Sem telefone'
+          )
+        }
+      </dd>
+    </div>
+    <div>
+      <dt>Origem</dt>
+      <dd>{row.origin === 'site' ? 'Pedido pelo site' : 'Marcado no painel'}</dd>
+    </div>
+  </dl>
+</div>
+
+<style>
+  .det {
+    width: min(420px, calc(100vw - 32px));
+    max-height: calc(100svh - 48px);
+    margin: auto;
+    padding: 24px 28px 28px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+    color: var(--site-color-text);
+    box-shadow: 0 24px 60px rgba(31, 31, 31, 0.18);
+    overflow-y: auto;
+  }
+
+  .det::backdrop {
+    background: rgba(31, 31, 31, 0.32);
+  }
+
+  .det__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .det__close {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    margin-right: -8px;
+    padding: 0;
+    border: 0;
+    border-radius: 12px;
+    background: none;
+    color: var(--site-color-text);
+    cursor: pointer;
+  }
+
+  .det__close:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  .det__close:focus-visible,
+  .det__list a:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  .det__name {
+    margin-top: 16px;
+    font-family: var(--site-font-display);
+    font-size: 1.625rem;
+    font-weight: var(--site-font-display-weight);
+    letter-spacing: var(--site-font-display-tracking);
+  }
+
+  .det__list {
+    display: flex;
+    flex-direction: column;
+    margin: 20px 0 0;
+  }
+
+  .det__list > div {
+    display: grid;
+    grid-template-columns: 104px minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px 0;
+    border-top: 1px solid var(--site-color-border);
+  }
+
+  .det__list dt {
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .det__list dd {
+    margin: 0;
+    font-size: 0.9375rem;
+    line-height: 1.45;
+  }
+
+  .det__list strong {
+    font-weight: 600;
+  }
+
+  .det__list a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--site-color-text);
+    font-weight: 600;
+  }
+</style>

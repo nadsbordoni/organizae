@@ -5,10 +5,16 @@ from sqlalchemy import engine_from_config, pool
 from alembic import context
 from app.core.config import settings
 from app.db.base import Base
+from app.modules.appointments.models import Appointment, BusinessHour  # noqa: F401
 from app.modules.assistant.models import AssistantConversation, AssistantMessage  # noqa: F401
 from app.modules.business_categories.models import BusinessCategory  # noqa: F401
 from app.modules.businesses.models import Business  # noqa: F401
+from app.modules.categories.models import Category  # noqa: F401
+from app.modules.clients.models import Client  # noqa: F401
+from app.modules.financial_categories.models import FinancialCategory  # noqa: F401
+from app.modules.financial_entries.models import FinancialEntry  # noqa: F401
 from app.modules.professionals.models import Professional  # noqa: F401
+from app.modules.recurring_entries.models import RecurringEntry  # noqa: F401
 from app.modules.services.models import Service  # noqa: F401
 from app.modules.users.models import User  # noqa: F401
 

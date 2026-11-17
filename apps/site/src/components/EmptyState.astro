@@ -1,0 +1,115 @@
+---
+import Icon from './Icon.astro';
+import type { IconName } from '@/types/blocks';
+
+/**
+ * Tela sem conteúdo: nenhum horário livre, erro ao enviar, nada encontrado. Estado vazio mal feito
+ * é onde a pessoa desiste: diga o que aconteceu (`title`), por quê (`text`) e o que fazer (`<slot>`).
+ */
+
+interface Props {
+  /** Ícone OU mascote. */
+  icon?: IconName;
+  /** Pose do mascote: `public/marca/mascote-<pose>.webp`. Só nas telas do Organizaê, não nas do negócio. */
+  mascot?: string;
+  title: string;
+  text?: string;
+  /** `alert`: erro do nosso lado. `neutral`: dia cheio não é falha, e vermelho faria parecer. */
+  tone?: 'neutral' | 'alert';
+  /** 3 quando o estado vazio mora dentro de uma seção com `<h2>`. */
+  level?: 2 | 3;
+}
+
+const { icon, mascot, title, text, tone = 'neutral', level = 2 }: Props = Astro.props;
+const Heading = level === 3 ? 'h3' : 'h2';
+---
+
+<div class="empty" data-tone={tone}>
+  {
+    mascot ? (
+      <img class="empty__mascot" src={`/marca/mascote-${mascot}.webp`} alt="" height="120" loading="lazy" />
+    ) : (
+      icon && (
+        <span class="empty__icon">
+          <Icon name={icon} size={30} />
+        </span>
+      )
+    )
+  }
+
+  <Heading class="empty__title">{title}</Heading>
+  {text && <p class="empty__text">{text}</p>}
+
+  <div class="empty__actions">
+    <slot />
+  </div>
+</div>
+
+<style>
+  .empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+
+    padding: 28px 20px;
+    border-radius: var(--site-radius-card);
+    border: 1.5px solid var(--site-color-border);
+    background: var(--site-color-surface);
+    box-shadow: var(--site-shadow-resting);
+  }
+
+  .empty__mascot {
+    width: auto;
+    height: 120px;
+    margin-bottom: 12px;
+  }
+
+  .empty__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    margin-bottom: 16px;
+
+    background: var(--site-color-brand-soft);
+    color: var(--site-color-brand);
+  }
+
+  /* Único sinal de gravidade da peça, e não depende só de cor: o ícone de alerta também é outro. */
+  .empty[data-tone='alert'] .empty__icon {
+    background: var(--site-color-brand);
+    color: var(--site-color-on-brand);
+  }
+
+  .empty__title {
+    font-family: var(--site-font-body);
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--site-color-text);
+  }
+
+  .empty__text {
+    max-width: 34ch;
+    margin-top: 8px;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    color: var(--site-color-text-muted);
+  }
+
+  .empty__actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    margin-top: 20px;
+  }
+
+  .empty__actions:empty {
+    display: none;
+  }
+</style>

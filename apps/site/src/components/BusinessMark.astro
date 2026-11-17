@@ -1,0 +1,60 @@
+---
+import { initials } from '@/lib/painel';
+import type { Profile } from '@/types/site';
+
+/** Marca do negócio num quadradinho: o logo ou, sem logo, as iniciais no degradê da marca. */
+
+interface Props {
+  profile: Profile;
+  /** Lado em px. */
+  size?: number;
+  /** Prioriza o download do logo. Só no topo da página de links, onde ele é o LCP. */
+  priority?: boolean;
+}
+
+const { profile, size = 72, priority = false } = Astro.props;
+---
+
+{
+  profile.avatar ? (
+    <img
+      class="mark"
+      style={`--mark-size: ${size}px`}
+      src={profile.avatar.src}
+      alt={profile.avatar.alt}
+      width={size}
+      height={size}
+      fetchpriority={priority ? 'high' : undefined}
+      decoding="async"
+    />
+  ) : (
+    <span class="mark mark--initials" style={`--mark-size: ${size}px`} aria-hidden="true">
+      {initials(profile.name)}
+    </span>
+  )
+}
+
+<style>
+  .mark {
+    flex: none;
+    width: var(--mark-size);
+    height: var(--mark-size);
+    /* Raio proporcional: 18px no quadradinho de 72. */
+    border-radius: calc(var(--mark-size) * 0.25);
+    border: calc(var(--mark-size) / 18) solid #ffffff;
+    background: var(--site-color-surface);
+    box-shadow: var(--site-shadow-raised);
+    object-fit: cover;
+  }
+
+  .mark--initials {
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, var(--site-accent-yellow-soft), var(--site-accent-pink-soft));
+
+    font-size: calc(var(--mark-size) * 0.28);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--site-color-text);
+  }
+</style>

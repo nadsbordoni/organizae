@@ -1,0 +1,45 @@
+---
+/**
+ * Coluna de conteúdo. No desktop é a MESMA coluna do mobile, centrada e limitada:
+ * mantém a sensação de página de celular.
+ */
+
+interface Props {
+  /** `main` na página principal. */
+  as?: 'main' | 'div';
+  id?: string;
+  /** Coluna larga de desktop, para grade de produtos. */
+  wide?: boolean;
+}
+
+const { as: Tag = 'div', id, wide = false }: Props = Astro.props;
+---
+
+<Tag class="container" id={id} data-wide={wide ? '' : undefined}>
+  <slot />
+</Tag>
+
+<style>
+  .container {
+    width: 100%;
+    max-width: calc(var(--site-space-max-width) + var(--site-space-page-inline) * 2);
+    margin-inline: auto;
+
+    padding-inline: var(--site-space-page-inline);
+    /* SOMA (não `max`) os insets: os 34px da barra inferior do iPhone vêm além do respiro, não no lugar. */
+    padding-top: calc(28px + env(safe-area-inset-top));
+    padding-bottom: calc(40px + env(safe-area-inset-bottom));
+  }
+
+  /* Quatro cartões de produto lado a lado, como no protótipo. */
+  .container[data-wide] {
+    max-width: calc(1126px + var(--site-space-page-inline) * 2);
+  }
+
+  @media (min-width: 768px) {
+    .container {
+      padding-top: 56px;
+      padding-bottom: 56px;
+    }
+  }
+</style>

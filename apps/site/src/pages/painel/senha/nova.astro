@@ -1,0 +1,24 @@
+---
+import AuthLayout from '@/layouts/AuthLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import BackLink from '@/components/BackLink.astro';
+import Heading from '@/components/Heading.astro';
+import PasswordField from '@/components/PasswordField.astro';
+
+/** Nova senha (quadro 02), aberta pelo link do e-mail. O link vai trazer o código de troca quando o back existir. */
+---
+
+<AuthLayout title="Nova senha" footer="brand" mascot="chave">
+  <Heading
+    eyebrow="Novo começo"
+    title="Crie uma nova senha"
+    intro="Escolha uma senha segura para voltar a organizar seu negócio."
+  />
+
+  <form class="auth-form" method="post" action="/painel/senha/redefinida" data-prototype data-lock-submit>
+    <PasswordField id="senha" label="Nova senha" autocomplete="new-password" rules autofocus />
+    <PasswordField id="confirmacao" label="Confirmar nova senha" autocomplete="new-password" confirms="senha" />
+    <ActionButton label="Redefinir senha" type="submit" />
+    <BackLink href="/painel/login" label="Voltar para entrar" />
+  </form>
+</AuthLayout>

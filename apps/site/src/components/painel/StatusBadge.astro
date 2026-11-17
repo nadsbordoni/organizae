@@ -1,0 +1,35 @@
+---
+import Icon from '@/components/Icon.astro';
+import type { IconName } from '@/types/blocks';
+import type { PanelTone } from '@/lib/painel';
+
+/** Selo de situação. Cor, ícone e texto juntos: o estado nunca depende só da cor. */
+interface Props {
+  tone: PanelTone;
+  icon: IconName;
+  label: string;
+}
+
+const { tone, icon, label } = Astro.props;
+---
+
+<span class="badge" style={`--tone-soft: var(--site-panel-${tone}-soft)`}>
+  <Icon name={icon} size={16} />
+  {label}
+</span>
+
+<style>
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: var(--tone-soft);
+    color: var(--site-color-text);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+</style>

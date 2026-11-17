@@ -88,6 +88,7 @@ def test_create_service(
         "id": str(service_id),
         "description": None,
         "is_active": True,
+        "category_id": None,
     }
     service.create.assert_called_once_with(
         ServiceCreate(**service_payload, business_id=business_id)

@@ -12,6 +12,7 @@ from typing import Any
 import httpx
 from google import genai
 from google.genai import errors, types
+from pydantic import ValidationError
 
 from app.core.config import Settings
 from app.modules.assistant.exceptions import (
@@ -36,6 +37,7 @@ from app.modules.assistant.providers.base import (
 )
 from app.modules.assistant.tokens import estimate_text_tokens
 from app.modules.assistant.usage import RequestUsage, current_usage, monitor_usage
+from app.modules.financial_document_extraction.schemas import FinancialDocumentReading
 
 logger = logging.getLogger(__name__)
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
@@ -218,6 +220,47 @@ class GeminiProvider:
             if reply.calls or not reply.text:
                 raise AssistantInvalidResponseError()
             return reply.text
+
+    def extract_financial_document(
+        self, data: bytes, *, mime_type: str, system_prompt: str, context: str
+    ) -> FinancialDocumentReading:
+        with (
+            monitor_usage(self.settings.GEMINI_MODEL.strip()),
+            self._client() as client,
+        ):
+            result = _generate_content(
+                client,
+                model=self.settings.GEMINI_MODEL.strip(),
+                contents=[
+                    types.Content(
+                        role="user",
+                        parts=[
+                            types.Part.from_text(text=context),
+                            types.Part.from_bytes(data=data, mime_type=mime_type),
+                        ],
+                    )
+                ],
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    response_mime_type="application/json",
+                    # Decimal is serialized as a string; SDK Schema does not
+                    # support all numeric constraints generated for validation.
+                    response_json_schema=FinancialDocumentReading.model_json_schema(
+                        mode="serialization"
+                    ),
+                    max_output_tokens=self.settings.GEMINI_MAX_OUTPUT_TOKENS,
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                        disable=True
+                    ),
+                ),
+            )
+            reply = _parse_result(result)
+            if reply.calls or not reply.text:
+                raise AssistantInvalidResponseError()
+            try:
+                return FinancialDocumentReading.model_validate_json(reply.text)
+            except ValidationError as exc:
+                raise AssistantInvalidResponseError() from exc
 
     @contextmanager
     def conversation(

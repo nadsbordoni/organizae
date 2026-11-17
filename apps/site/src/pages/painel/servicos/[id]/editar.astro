@@ -1,0 +1,37 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import ServiceForm from '@/components/painel/ServiceForm.astro';
+import { getSite } from '@/config';
+import { catalogServices } from '@/lib/catalog';
+import { demoOptions, forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
+import { tenantNotConfigured } from '@/lib/painel';
+
+/** Editar serviço, aberto pelo catálogo. Com a API: `PATCH /services/{id}`. */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const found = catalogServices(site.agenda).find(({ service }) => service.id === Astro.params.id);
+if (!found) return new Response(null, { status: 404 });
+
+const professionals = await forTenant(user.tenantSlug, demoOptions(Astro.url, Astro.cookies)).professionals();
+---
+
+<PanelLayout site={site} user={user} current="servicos" title={`Editar ${found.service.name}`}>
+  <PanelHeading
+    eyebrow={`Catálogo · ${found.category.name}`}
+    title={found.service.name}
+    intro="Mudanças no preço e na duração valem para os próximos agendamentos."
+  />
+  <ServiceForm
+    action="/painel/servicos?salvo"
+    cancelHref="/painel/servicos"
+    submitLabel="Salvar alterações"
+    agenda={site.agenda}
+    professionals={professionals}
+    serviceId={found.service.id}
+  />
+</PanelLayout>

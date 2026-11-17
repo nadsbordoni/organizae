@@ -1,0 +1,20 @@
+---
+import AuthLayout from '@/layouts/AuthLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import Heading from '@/components/Heading.astro';
+import IconBadge from '@/components/IconBadge.astro';
+
+/** Cadastro concluído (quadro 01). */
+---
+
+<AuthLayout title="Conta criada" mascot="comemorando">
+  <IconBadge icon="check" />
+  <Heading
+    eyebrow="Tudo certo"
+    title="Sua conta foi criada!"
+    intro="Agora vamos personalizar o Organizaê para deixar tudo com a cara do seu negócio."
+  />
+  <div class="auth-form">
+    <ActionButton label="Personalizar meu espaço" icon="sparkles" iconPosition="end" href="/painel/configuracao" />
+  </div>
+</AuthLayout>

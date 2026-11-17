@@ -1,0 +1,123 @@
+---
+import Icon from '@/components/Icon.astro';
+
+/**
+ * Menu num popover nativo: fecha com Esc ou tocando fora, sem JavaScript. Os itens são links
+ * passados no slot. Sem `trigger`, o botão é o ⋯ de uma linha ou cartão.
+ */
+interface Props {
+  id: string;
+  /** Nome do botão para o leitor de tela: "Ações para Marina Costa". */
+  label: string;
+  /** Texto visível no lugar do ⋯, como "Alterar período". */
+  trigger?: string;
+}
+
+const { id, label, trigger } = Astro.props;
+---
+
+<button
+  class={trigger ? 'trigger' : 'more'}
+  type="button"
+  popovertarget={id}
+  aria-label={trigger ? undefined : label}
+  style={`anchor-name: --${id}`}
+>
+  {trigger ?? <Icon name="more" size={20} />}
+</button>
+<div class="menu" id={id} popover style={`position-anchor: --${id}`}>
+  <slot />
+</div>
+
+<style>
+  .more {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 0;
+    border-radius: 12px;
+    background: none;
+    color: var(--site-color-text);
+    cursor: pointer;
+  }
+
+  .more:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  .trigger {
+    min-height: 44px;
+    padding: 0 18px;
+    border-radius: var(--site-radius-button);
+    border: 1px solid var(--site-color-border-strong);
+    background: var(--site-color-surface);
+    color: var(--site-color-text);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .trigger:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  /* `margin: auto` centraliza onde não há âncora: o reset do site zera a margem do popover. */
+  .menu {
+    min-width: 220px;
+    margin: auto;
+    padding: 6px;
+    border-radius: 14px;
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+    box-shadow: 0 16px 40px rgba(31, 31, 31, 0.14);
+  }
+
+  .menu :global(a) {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 10px;
+    color: var(--site-color-text);
+    font-size: 0.9375rem;
+    text-align: left;
+    text-decoration: none;
+  }
+
+  .menu :global(a:hover) {
+    background: var(--site-color-brand-soft);
+  }
+
+  .menu :global(a[aria-current]) {
+    font-weight: 600;
+    background: var(--site-accent-yellow-soft);
+  }
+
+  .more:focus-visible,
+  .trigger:focus-visible,
+  .menu :global(a:focus-visible) {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  /* Abre colado no ⋯ onde há posicionamento por âncora; nos outros navegadores, no meio da tela. */
+  @supports (position-area: bottom) {
+    .menu {
+      inset: auto;
+      margin: 4px 0;
+      position-area: bottom span-left;
+      position-try-fallbacks: flip-block;
+    }
+  }
+
+  @supports not (position-area: bottom) {
+    .menu::backdrop {
+      background: rgba(31, 31, 31, 0.32);
+    }
+  }
+</style>

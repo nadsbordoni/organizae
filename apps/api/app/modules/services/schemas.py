@@ -25,6 +25,7 @@ class ServiceCreateRequest(BaseModel):
     duration_minutes: ServiceDuration
     description: str | None = None
     is_active: bool = True
+    category_id: UUID4 | None = None
 
 
 class ServiceCreate(ServiceCreateRequest):
@@ -39,6 +40,7 @@ class ServiceUpdate(BaseModel):
     duration_minutes: ServiceDuration | None = None
     description: str | None = None
     is_active: bool | None = None
+    category_id: UUID4 | None = None
 
     @model_validator(mode="after")
     def validate_required_fields(self) -> "ServiceUpdate":

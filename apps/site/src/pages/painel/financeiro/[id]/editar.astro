@@ -1,0 +1,42 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import EntryForm from '@/components/painel/EntryForm.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import { getSite } from '@/config';
+import { nowInBusinessTime } from '@/lib/agenda';
+import { usuarioExemplo } from '@/lib/dados-exemplo';
+import { loadFinance } from '@/lib/finance-page';
+import { tenantNotConfigured } from '@/lib/painel';
+
+/** Editar um lançamento, aberto pelo ⋯ das despesas. Com a API: `PATCH /financial-entries/{id}`. */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const hoje = nowInBusinessTime(site.agenda?.timezone ?? 'America/Sao_Paulo').date;
+const { entries, categories } = await loadFinance(Astro.url, user.tenantSlug, hoje);
+const entry = entries.find((e) => e.id === Astro.params.id);
+if (!entry) return new Response(null, { status: 404 });
+
+const back = entry.type === 'EXPENSE' ? '/painel/financeiro/despesas' : '/painel/financeiro';
+---
+
+<PanelLayout site={site} user={user} current="financeiro" title="Editar lançamento">
+  <PanelHeading
+    eyebrow="Gestão financeira · Movimentações"
+    title={entry.description}
+    intro="Mudanças no valor ou nas datas valem para o caixa e para o resultado."
+  />
+  <div class="form">
+    <EntryForm type={entry.type} categories={categories} action={`${back}?salvo`} cancelHref={back} today={hoje} entry={entry} />
+  </div>
+</PanelLayout>
+
+<style>
+  .form {
+    max-width: 760px;
+    margin-top: 32px;
+  }
+</style>

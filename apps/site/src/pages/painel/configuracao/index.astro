@@ -1,0 +1,28 @@
+---
+import SetupLayout from '@/layouts/SetupLayout.astro';
+import LogoPicker from '@/components/LogoPicker.astro';
+import TextField from '@/components/TextField.astro';
+import { BUSINESS_SEGMENTS } from '@/lib/painel';
+
+/** Configuração, passo 1. Com a API: `PATCH /api/v1/businesses/{id}` (nome, categoria, descrição, logo). */
+---
+
+<SetupLayout
+  step={1}
+  title="Deixe tudo com a sua cara"
+  intro="Escolha as informações que seus clientes verão primeiro."
+>
+  <LogoPicker nameInput="negocio" />
+
+  <div class="setup-row">
+    <TextField id="negocio" label="Nome público" autocomplete="organization" placeholder="Ex.: Studio Aurora" required autofocus />
+    <TextField id="categoria" label="Segmento" options={BUSINESS_SEGMENTS} required />
+  </div>
+  <TextField
+    id="descricao"
+    label="Descrição curta"
+    placeholder="Ex.: Cuidado, beleza e bem-estar em cada detalhe."
+    maxlength={120}
+    optional
+  />
+</SetupLayout>

@@ -86,6 +86,10 @@ def test_create_business(api_client: tuple[TestClient, Mock]) -> None:
         "description": None,
         "external_link": None,
         "address": None,
+        "instagram": None,
+        "slug": None,
+        "is_published": False,
+        "published_at": None,
     }
     service.create_for_user.assert_called_once_with(
         BusinessCreate(**payload), user_id=current_user_id

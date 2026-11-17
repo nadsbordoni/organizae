@@ -1,0 +1,77 @@
+---
+import PageContainer from './PageContainer.astro';
+import ProfileHeader from './ProfileHeader.astro';
+import Disclosure from './Disclosure.astro';
+import Footer from './Footer.astro';
+import BlockList from '@/blocks/BlockList.astro';
+import SiteLayout from '@/layouts/SiteLayout.astro';
+import { assertDisclosure } from '@/lib/disclosure';
+import { resolveBlocks } from '@/lib/blocks';
+import type { SiteConfig } from '@/types/site';
+
+/**
+ * Página de links completa a partir de uma configuração. As rotas (`/[slug]` e `/`) só
+ * escolhem QUAL config usar e delegam para cá, sem markup próprio para duplicar.
+ */
+
+interface Props {
+  site: SiteConfig;
+  /** URL canônica absoluta. Usada quando a mesma página serve em `/`. */
+  canonical?: string;
+}
+
+const { site, canonical }: Props = Astro.props;
+
+// Sem `seo.description`, compõe uma do perfil: "Especialista em Molde F1 • Unhas • Cabelo".
+// Na meta tag diferencial e catálogo vão juntos; só na TELA ficam separados.
+const descricaoAutomatica = [site.profile.headline, site.profile.services?.join(' • ')]
+  .filter(Boolean)
+  .join(' • ');
+
+const seo = {
+  ...site.seo,
+  title: site.seo?.title ?? site.profile.name,
+  description: site.seo?.description || descricaoAutomatica || site.profile.name,
+};
+
+assertDisclosure(site.blocks, site.disclosure, `página principal de ${site.slug}`);
+
+// Preenche o que os blocos derivam do site: destino do agendamento, horário da agenda.
+const blocks = resolveBlocks(site);
+---
+
+<SiteLayout theme={site.theme} seo={seo} canonical={canonical} noindex={site.seo?.noindex}>
+  <div class="backdrop">
+    <PageContainer as="main" id="conteudo">
+      <div class="card">
+        <ProfileHeader profile={site.profile} />
+        <BlockList blocks={blocks} />
+        {site.disclosure && <Disclosure text={site.disclosure} />}
+        <Footer note={site.footerNote} />
+      </div>
+    </PageContainer>
+  </div>
+</SiteLayout>
+
+<style>
+  .backdrop {
+    min-height: 100svh;
+    background:
+      radial-gradient(circle at 12% 6%, color-mix(in srgb, var(--site-accent-pink-soft) 55%, transparent) 0, transparent 34rem),
+      radial-gradient(circle at 88% 78%, color-mix(in srgb, var(--site-accent-blue-soft) 55%, transparent) 0, transparent 34rem);
+  }
+
+  .card {
+    padding: 48px 48px 40px;
+    border-radius: 32px;
+    background: var(--site-color-surface);
+    box-shadow: 0 24px 60px rgba(60, 45, 25, 0.08);
+  }
+
+  @media (max-width: 520px) {
+    .card {
+      padding: 32px 20px 28px;
+      border-radius: 24px;
+    }
+  }
+</style>

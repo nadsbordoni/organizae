@@ -1,0 +1,185 @@
+---
+import SetupLayout from '@/layouts/SetupLayout.astro';
+import BusinessMark from '@/components/BusinessMark.astro';
+import Icon from '@/components/Icon.astro';
+import { SETUP_STEPS } from '@/lib/setup';
+
+/**
+ * Configuração, passo 6: resumo do que foi preenchido nos passos anteriores, lido da sessão do
+ * navegador. Com a API, o resumo vem do negócio e "Publicar" o coloca no ar.
+ */
+// Um item por passo anterior, na mesma ordem: "Editar" leva de volta ao passo.
+const TEXTOS = [
+  'Identidade e informações públicas',
+  'Contato e localização',
+  'Horários de atendimento',
+  'Serviços cadastrados',
+  'Regras de agendamento',
+];
+const ITENS = TEXTOS.map((text, i) => ({ text, step: SETUP_STEPS[i]! }));
+---
+
+<SetupLayout
+  step={6}
+  title="Tudo pronto para publicar"
+  intro="Revise as principais informações antes de colocar sua página no ar."
+  nextLabel="Publicar e acessar painel"
+  nextIcon="sparkles"
+>
+  <div class="summary">
+    <span data-summary-mark>
+      <BusinessMark profile={{ name: 'Seu negócio' }} size={80} />
+    </span>
+    <span class="summary__text">
+      <strong data-summary="negocio">Seu negócio</strong>
+      <span data-summary="categoria">Beleza e bem-estar</span>
+      <span data-summary-address>Endereço não informado</span>
+    </span>
+    <span class="summary__status">Pronto para publicar</span>
+  </div>
+
+  <ul class="checks">
+    {
+      ITENS.map((item) => (
+        <li data-check={item.step.name}>
+          <span class="checks__icon" aria-hidden="true">
+            <Icon name="check" size={14} />
+          </span>
+          <span class="checks__text" data-check-text>
+            {item.text}
+          </span>
+          <a class="checks__edit" href={item.step.href} aria-label={`Editar ${item.text.toLowerCase()}`}>
+            Editar
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+</SetupLayout>
+
+<script>
+  import { readAccount } from '@/lib/prototype-form';
+  import { initials } from '@/lib/painel';
+
+  const data = readAccount();
+  const text = (key: string) => (typeof data[key] === 'string' ? (data[key] as string).trim() : '');
+
+  for (const el of document.querySelectorAll<HTMLElement>('[data-summary]')) {
+    const value = text(el.dataset.summary!);
+    if (value) el.textContent = value;
+  }
+
+  const mark = document.querySelector<HTMLElement>('[data-summary-mark] .mark');
+  if (mark && text('negocio')) mark.textContent = initials(text('negocio'));
+
+  const lugar = [text('bairro'), text('cidade')].filter(Boolean).join(', ');
+  const endereco = [text('endereco'), lugar].filter(Boolean).join(' · ');
+  if (endereco) document.querySelector('[data-summary-address]')!.textContent = endereco;
+
+  let categorias: Array<{ services?: unknown[] }> = [];
+  try {
+    categorias = JSON.parse(text('servicos') || '[]') as typeof categorias;
+  } catch {
+    /* lista corrompida: mostra o texto genérico */
+  }
+  const servicos = categorias.reduce((total, c) => total + (c.services?.length ?? 0), 0);
+  const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+  const item = document.querySelector('[data-check="Serviços"] [data-check-text]');
+  if (item && servicos) {
+    item.textContent = `${plural(servicos, 'serviço', 'serviços')} em ${plural(categorias.length, 'categoria', 'categorias')}`;
+  }
+</script>
+
+<style>
+  .summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px 20px;
+    padding: 20px 24px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .summary__text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 12rem;
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .summary__text strong {
+    font-size: 1.0625rem;
+    font-weight: 600;
+    color: var(--site-color-text);
+  }
+
+  .summary__status {
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--site-panel-positive-soft);
+    color: var(--site-accent-green-deep);
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .checks {
+    list-style: none;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .checks li {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    padding: 8px 12px 8px 20px;
+    border-top: 1px solid var(--site-color-border);
+  }
+
+  .checks li:first-child {
+    border-top: 0;
+  }
+
+  .checks__icon {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--site-accent-green);
+    color: var(--site-color-surface);
+  }
+
+  .checks__text {
+    font-size: 0.9375rem;
+  }
+
+  .checks__edit {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 12px;
+    border-radius: 10px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--site-color-text);
+    text-decoration: none;
+  }
+
+  .checks__edit:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  .checks__edit:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+</style>

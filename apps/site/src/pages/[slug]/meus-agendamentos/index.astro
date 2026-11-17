@@ -1,0 +1,363 @@
+---
+import ClientLayout from '@/layouts/ClientLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import BusinessMark from '@/components/BusinessMark.astro';
+import EmptyState from '@/components/EmptyState.astro';
+import Heading from '@/components/Heading.astro';
+import PanelTable from '@/components/painel/PanelTable.astro';
+import StatusBadge from '@/components/painel/StatusBadge.astro';
+import { BOOKING_PATH } from '@/lib/blocks';
+import { STATUS_BADGE, numericDate, weekdayName } from '@/lib/painel';
+import { cancelRule, isUpcoming } from '@/lib/portal';
+import { describe, loadPortal } from '@/lib/portal-page';
+
+/**
+ * Área pessoal da cliente (quadro 12): os próximos horários, com reagendar e cancelar, e o histórico.
+ * PROTÓTIPO: a cliente de exemplo é a Marina Costa; com a API, quem entra é a própria cliente.
+ */
+export const prerender = false;
+
+const portal = await loadPortal(Astro.params.slug);
+if (!portal) return new Response(null, { status: 404 });
+const { site, agenda, now, client, appointments, firstName } = portal;
+
+const upcoming = appointments
+  .filter((row) => isUpcoming(row, now))
+  .sort((a, b) => `${a.date}${a.start_time}`.localeCompare(`${b.date}${b.start_time}`));
+const history = appointments
+  .filter((row) => !isUpcoming(row, now))
+  .sort((a, b) => `${b.date}${b.start_time}`.localeCompare(`${a.date}${a.start_time}`));
+const base = `/${site.slug}/meus-agendamentos`;
+const month = (date: string) =>
+  new Intl.DateTimeFormat('pt-BR', { month: 'short', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`)).replace('.', '');
+// O bloco da data alterna as cores da marca, como no protótipo.
+const TONES = ['blue-soft', 'pink-soft', 'yellow-soft'];
+---
+
+<ClientLayout site={site} title="Meus agendamentos" clientName={client.name} wide>
+  <div class="page">
+    <div class="business">
+      <BusinessMark profile={site.profile} size={44} />
+      <span>
+        <strong>{site.profile.name}</strong>
+        {site.profile.nameSuffix && <small>{site.profile.nameSuffix}</small>}
+      </span>
+    </div>
+
+    <div class="hero">
+      <Heading eyebrow="Meus agendamentos" title={`Olá, ${firstName}!`} intro="Cuide dos seus próximos encontros com a gente." />
+      <ActionButton label="Novo agendamento" href={`/${site.slug}/${BOOKING_PATH}`} full={false} />
+    </div>
+
+    <nav class="chips" aria-label="Seções">
+      <a href="#proximos" aria-current="true">Próximos agendamentos <span>{upcoming.length}</span></a>
+      <a href="#historico">Histórico</a>
+    </nav>
+
+    <section id="proximos" aria-labelledby="titulo-proximos">
+      <h2 class="sr-only" id="titulo-proximos">Próximos agendamentos</h2>
+      {
+        upcoming.length ? (
+          <ul class="cards">
+            {upcoming.map((row, i) => {
+              const info = describe(row, agenda);
+              const rule = cancelRule(row, agenda, now);
+              const details = `${base}/${row.id}`;
+              return (
+                <li class="card">
+                  <span class="card__date" style={`--tone: var(--site-accent-${TONES[i % TONES.length]})`} aria-hidden="true">
+                    <strong>{row.date.slice(8, 10)}</strong>
+                    <small>
+                      {month(row.date)} · {row.date.slice(0, 4)}
+                    </small>
+                  </span>
+                  <div class="card__text">
+                    <h3>{info.service}</h3>
+                    <p>Com {site.profile.name}</p>
+                    <p class="card__meta">
+                      {weekdayName(row.date)}, {numericDate(row.date, false)} · {row.start_time}–{info.end} · {info.duration}
+                      {info.price && ` · ${info.price}`}
+                    </p>
+                  </div>
+                  <div class="card__side">
+                    <StatusBadge {...STATUS_BADGE[row.status]} />
+                    <a class="card__link" href={details}>
+                      Ver detalhes
+                    </a>
+                  </div>
+                  <div class="card__actions">
+                    <ActionButton label="Reagendar" variant="secondary" href={`${details}/reagendar?${info.query}`} full={false} />
+                    {rule.allowed ? (
+                      <ActionButton label="Cancelar agendamento" variant="secondary" href={`${details}#cancelar`} full={false} />
+                    ) : (
+                      <ActionButton label="Cancelamento indisponível" variant="secondary" disabled full={false} />
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <EmptyState
+            icon="calendar"
+            title="Nenhum horário marcado"
+            text="Quando você agendar, o horário aparece aqui."
+          >
+            <ActionButton label="Agendar um horário" href={`/${site.slug}/${BOOKING_PATH}`} full={false} />
+          </EmptyState>
+        )
+      }
+    </section>
+
+    <section class="history" id="historico" aria-labelledby="titulo-historico">
+      <h2 id="titulo-historico">Seu histórico</h2>
+      <p>Atendimentos e cancelamentos com {site.profile.name}.</p>
+      <PanelTable label="Seu histórico">
+        <thead>
+          <tr>
+            <th scope="col">Serviço</th>
+            <th scope="col">Data e horário</th>
+            <th scope="col" data-wide>
+              Situação
+            </th>
+            <th scope="col">
+              <span class="sr-only">Detalhes</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {history.map((row) => {
+            const info = describe(row, agenda);
+            return (
+              <tr>
+                <td class="strong">{info.service}</td>
+                <td class="nowrap">
+                  {numericDate(row.date)} · {row.start_time}
+                </td>
+                <td data-wide>
+                  {row.status === 'cancelled' ? 'Cancelado' : `Concluído${info.price ? ` · ${info.price}` : ''}`}
+                </td>
+                <td class="actions">
+                  <a href={`${base}/${row.id}`} aria-label={`Ver detalhes: ${info.service} em ${numericDate(row.date)}`}>
+                    Ver detalhes
+                  </a>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </PanelTable>
+    </section>
+  </div>
+</ClientLayout>
+
+<style>
+  .page {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    max-width: 760px;
+    margin: 0 auto;
+    padding-top: 28px;
+  }
+
+  .business {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .business :global(.mark) {
+    box-shadow: none;
+  }
+
+  .business span {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .business strong {
+    font-weight: 600;
+  }
+
+  .business small {
+    font-size: 0.75rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .chips a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    background: var(--site-color-brand-soft);
+    color: var(--site-color-text);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .chips a[aria-current] {
+    background: var(--site-accent-yellow-soft);
+  }
+
+  .cards {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    list-style: none;
+  }
+
+  .card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 16px;
+    padding: 18px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .card__date {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 88px;
+    height: 80px;
+    padding: 0 8px;
+    text-align: center;
+    border-radius: 12px;
+    background: var(--tone);
+  }
+
+  .card__date strong {
+    font-family: var(--site-font-display);
+    font-size: 1.75rem;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  /* Mês e ano numa linha só, como no protótipo. */
+  .card__date small {
+    margin-top: 6px;
+    font-size: 0.6875rem;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .card__text h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+  }
+
+  .card__text p {
+    margin-top: 2px;
+    font-size: 0.875rem;
+  }
+
+  .card__meta {
+    color: var(--site-color-text-muted);
+  }
+
+  .card__side {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .card__link,
+  .history a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    color: var(--site-color-text);
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .card__actions {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  .history {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 22px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .history h2 {
+    font-size: 1.125rem;
+    font-weight: 600;
+  }
+
+  .history > p {
+    margin-bottom: 12px;
+    font-size: 0.875rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .strong {
+    font-weight: 600;
+  }
+
+  .nowrap {
+    white-space: nowrap;
+  }
+
+  .actions {
+    text-align: right;
+  }
+
+  .chips a:focus-visible,
+  .card__link:focus-visible,
+  .history a:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  @media (max-width: 599px) {
+    .card {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .card__side {
+      grid-column: 1 / -1;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .card__actions {
+      justify-content: stretch;
+    }
+
+    .card__actions > :global(*) {
+      flex: 1;
+    }
+  }
+</style>

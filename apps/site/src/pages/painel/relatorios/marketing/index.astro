@@ -1,0 +1,338 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import Callout from '@/components/Callout.astro';
+import Icon from '@/components/Icon.astro';
+import RobotName from '@/components/RobotName.astro';
+import TextField from '@/components/TextField.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import PanelSection from '@/components/painel/PanelSection.astro';
+import ReportTabs from '@/components/painel/ReportTabs.astro';
+import { getSite } from '@/config';
+import { addDays, formatPrice, isIsoDate, nowInBusinessTime, parsePrice } from '@/lib/agenda';
+import { catalogServices, serviceState } from '@/lib/catalog';
+import { usuarioExemplo } from '@/lib/dados-exemplo';
+import { compactPrice, firstName, longDateLabel, numericDate, shortWeekday, tenantNotConfigured, weekdayName } from '@/lib/painel';
+
+/**
+ * Marketing, promoção (quadro 17): briefing, legenda sugerida, prévia da publicação e a aprovação da
+ * dona. Vem dos Insights com `?servico=&data=`. PROTÓTIPO: as legendas são modelos; com a API, a IA
+ * escreve. Nada é publicado pelo Organizaê.
+ */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const hoje = nowInBusinessTime(site.agenda?.timezone ?? 'America/Sao_Paulo').date;
+const owner = firstName(user.name) ?? 'você';
+const services = catalogServices(site.agenda)
+  .map(({ service }) => service)
+  .filter((s) => serviceState(s) === 'active' && parsePrice(s.price) !== undefined);
+const service = services.find((s) => s.id === Astro.url.searchParams.get('servico')) ?? services[0]!;
+const requested = Astro.url.searchParams.get('data') ?? '';
+const date = isIsoDate(requested) && requested > hoje ? requested : addDays(hoje, 5);
+const price = parsePrice(service.price)!;
+const promo = Math.round((price * 0.9) / 50) * 50;
+const promoText = formatPrice(promo).replace(/,00$/, '');
+const day = weekdayName(date).toLowerCase();
+const handle = site.blocks.flatMap((b) => (b.type === 'socials' ? b.items : [])).find((i) => i.network === 'instagram')?.handle;
+const approved = Astro.url.searchParams.has('aprovado');
+
+const CAPTIONS = [
+  `${weekdayName(date)} é dia de renovar o cuidado. Em ${numericDate(date, false)}, nos horários livres, ${service.name} sai de ${compactPrice(service.price!)} por ${promoText}. Reserve pelo link da bio. ${site.profile.name} · ${site.profile.headline ?? ''}`.trim(),
+  `Tem horário sobrando na ${day} (${numericDate(date, false)}) e ele pode ser seu: ${service.name} com 10% de desconto, de ${compactPrice(service.price!)} por ${promoText}. Vagas limitadas, agende pelo link da bio.`,
+  `Um presente para a sua ${day}: ${service.name} por ${promoText} em ${numericDate(date, false)}. Só nos horários livres da agenda. Agende pelo link da bio e venha se cuidar.`,
+];
+---
+
+<PanelLayout site={site} user={user} current="relatorios" title="Marketing">
+  <PanelHeading
+    eyebrow="Inteligência do negócio"
+    title="Uma promoção com a sua cara"
+    intro="Do briefing à aprovação: você decide o que será publicado."
+  >
+    <ActionButton label="Campanha de recuperação" variant="secondary" href="/painel/relatorios/marketing/recuperar" full={false} />
+  </PanelHeading>
+
+  <div class="tabs">
+    <ReportTabs current="marketing" />
+  </div>
+
+  {
+    approved && (
+      <div class="notice">
+        <Callout tone="success" icon="check-circle" title={`Conteúdo aprovado por ${owner}`}>
+          Copie a legenda e publique quando quiser: o Organizaê não publica nada sozinho.
+        </Callout>
+      </div>
+    )
+  }
+
+  <div class="grid">
+    <div class="col">
+      <PanelSection title="Briefing da promoção" subtitle={`Sugestão vinda dos horários livres de ${day}.`} id="titulo-briefing">
+        <div class="row">
+          <TextField
+            id="canal"
+            label="Canal"
+            options={['Instagram · Publicação', 'Instagram · Stories', 'WhatsApp · Status']}
+          />
+          <TextField id="objetivo" label="Objetivo" value={`Preencher horários de ${day}`} />
+        </div>
+        <TextField
+          id="oferta"
+          label="Oferta e condições"
+          rows={3}
+          value={`${service.name} com 10% de desconto: de ${compactPrice(service.price!)} por ${promoText}. ${weekdayName(date)}, ${numericDate(date)}, só nos horários livres.`}
+        />
+        <button class="ghost" type="button" data-next-caption>
+          Gerar nova sugestão <Icon name="sparkles" size={16} />
+        </button>
+      </PanelSection>
+
+      <PanelSection title="Sugestão editável" id="titulo-legenda">
+        <TextField id="legenda" label="Legenda" rows={5} maxlength={2200} value={CAPTIONS[0]} data-caption="" />
+        <p class="hint">Sugestão de <RobotName /> · Revise a oferta e o texto antes de aprovar.</p>
+        <div class="inline">
+          <button class="ghost" type="button" data-save-caption>Salvar edição</button>
+          <span class="status" role="status" data-caption-status></span>
+        </div>
+      </PanelSection>
+    </div>
+
+    <div class="col">
+      <PanelSection title="Prévia da publicação" subtitle={handle ? `@${handle} · Instagram` : 'Instagram'} id="titulo-previa">
+        <div class="post" aria-label="Prévia da arte da publicação">
+          <p class="post__brand">{site.profile.name} {site.profile.nameSuffix}</p>
+          <p class="post__title">{shortWeekday(date)} de cuidado.</p>
+          <p class="post__service">{service.name}</p>
+          <p class="post__price">{promoText}</p>
+          <p class="post__small">
+            {longDateLabel(date).replace(/ de \d{4}$/, '')} · horários livres
+            <br />
+            10% de desconto · Vagas limitadas
+          </p>
+        </div>
+        <p class="hint">Prévia do conteúdo. O preço do catálogo continua {compactPrice(service.price!)}.</p>
+      </PanelSection>
+
+      <PanelSection title="Aprovação da administradora" id="titulo-aprovacao">
+        <span class="chip" data-approved={approved ? '' : undefined}>{approved ? `Aprovado por ${owner}` : `Aguardando ${owner}`}</span>
+        <form class="approve" method="post" action="/painel/relatorios/marketing?aprovado" data-prototype="transient" data-approve>
+          <label class="check">
+            <input type="checkbox" required data-approve-check />
+            Revisei a oferta, a validade e o conteúdo.
+          </label>
+          <ActionButton label="Aprovar conteúdo" type="submit" disabled data-approve-button="" />
+        </form>
+        <p class="hint">A aprovação fica bloqueada até sua confirmação. Nenhuma publicação ou envio automático.</p>
+      </PanelSection>
+    </div>
+  </div>
+
+  <script type="application/json" id="legendas" set:html={JSON.stringify(CAPTIONS).replace(/</g, '\\u003c')} is:inline />
+</PanelLayout>
+
+<script>
+  import { wirePrototypeForms } from '@/lib/prototype-form';
+
+  const captions = JSON.parse(document.getElementById('legendas')?.textContent ?? '[]') as string[];
+  const caption = document.querySelector<HTMLTextAreaElement>('[data-caption]');
+  const status = document.querySelector<HTMLElement>('[data-caption-status]');
+  let index = 0;
+
+  // PROTÓTIPO: alterna entre modelos; com a API, cada clique pede uma legenda nova à IA.
+  document.querySelector('[data-next-caption]')?.addEventListener('click', () => {
+    index = (index + 1) % captions.length;
+    if (caption) caption.value = captions[index] ?? '';
+    if (status) status.textContent = 'Nova sugestão gerada.';
+  });
+  document.querySelector('[data-save-caption]')?.addEventListener('click', () => {
+    if (status) status.textContent = 'Edição salva.';
+  });
+
+  // "Aprovar conteúdo" só libera com a caixa marcada.
+  const check = document.querySelector<HTMLInputElement>('[data-approve-check]');
+  const button = document.querySelector<HTMLButtonElement>('[data-approve-button]');
+  check?.addEventListener('change', () => {
+    if (button) button.disabled = !check.checked;
+  });
+
+  wirePrototypeForms();
+</script>
+
+<style>
+  .tabs {
+    margin-top: 28px;
+  }
+
+  .notice {
+    margin-top: 20px;
+  }
+
+  /* Colunas da mesma altura. À esquerda estica o último cartão; à direita, a prévia, para não sobrar
+     vazio embaixo da aprovação. */
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    align-items: stretch;
+    gap: 16px;
+    margin-top: 20px;
+  }
+
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .col:first-child > :global(:last-child),
+  .col:last-child > :global(:first-child) {
+    flex: 1;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .ghost {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 18px;
+    border-radius: var(--site-radius-button);
+    border: 1px solid var(--site-color-border-strong);
+    background: var(--site-color-surface);
+    color: var(--site-color-text);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .ghost:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  .ghost:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  .inline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .status {
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+
+  .hint {
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  /* A arte da publicação no degradê da marca, como no protótipo. */
+  .post {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    padding: 28px;
+    border-radius: 18px;
+    background: linear-gradient(120deg, var(--site-accent-yellow-soft), var(--site-accent-pink-soft));
+    color: var(--site-color-text);
+  }
+
+  .post__brand {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .post__title {
+    margin-top: 10px;
+    font-family: var(--site-font-display);
+    font-size: 2.25rem;
+    font-weight: var(--site-font-display-weight);
+    letter-spacing: var(--site-font-display-tracking);
+    line-height: 1.05;
+  }
+
+  .post__service {
+    margin-top: 6px;
+    font-size: 1.125rem;
+  }
+
+  .post__price {
+    font-family: var(--site-font-display);
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .post__small {
+    margin-top: 6px;
+    font-size: 0.8125rem;
+  }
+
+  .chip {
+    align-self: flex-start;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--site-accent-yellow-soft);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .chip[data-approved] {
+    background: var(--site-panel-positive-soft);
+    color: var(--site-accent-green-deep);
+  }
+
+  .approve {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .check {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+
+  .check input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--site-color-brand);
+  }
+
+  @media (max-width: 1099px) {
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 599px) {
+    .row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

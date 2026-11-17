@@ -1,0 +1,582 @@
+---
+import ActionButton from '@/components/ActionButton.astro';
+import Callout from '@/components/Callout.astro';
+import TextField from '@/components/TextField.astro';
+import Initials from './Initials.astro';
+import PanelSection from './PanelSection.astro';
+import StatusBadge from './StatusBadge.astro';
+import { formatDuration } from '@/lib/agenda';
+import { catalogServices } from '@/lib/catalog';
+import { compactPrice, formatPhone } from '@/lib/painel';
+import { teamAgenda, timeOffLabel } from '@/lib/team';
+import type { Agenda, IsoDate } from '@/types/agenda';
+import type { ProfessionalRow, TimeOffRow } from '@/types/painel';
+
+/**
+ * Cadastro de profissional, novo ou edição. Nome, telefone, especialidade, situação e serviços são
+ * os campos de `POST/PATCH /professionals`; o e-mail de acesso ainda não existe no back. Na edição,
+ * férias e folgas viram bloqueios de dia inteiro (`POST /appointments/blocks` com `professional_id`).
+ * PROTÓTIPO: só valida e avança, sem guardar nada.
+ */
+interface Props {
+  action: string;
+  cancelHref: string;
+  submitLabel: string;
+  /** Quem administra o negócio, citado no aviso de acesso. */
+  ownerName: string;
+  agenda: Agenda | undefined;
+  today: IsoDate;
+  professional?: ProfessionalRow;
+  /** Férias e folgas da equipe; só as desta pessoa, de hoje em diante, aparecem. */
+  timeOff?: TimeOffRow[];
+}
+
+const { action, cancelHref, submitLabel, ownerName, agenda, today, professional, timeOff = [] } = Astro.props;
+
+const isOwner = professional?.role === 'owner';
+const ownTimeOff = timeOff
+  .filter((t) => t.professional_id === professional?.id && t.ends_on >= today)
+  .sort((a, b) => a.starts_on.localeCompare(b.starts_on));
+const REASONS = ['Férias', 'Folga', 'Licença', 'Curso', 'Outro'];
+const services = catalogServices(agenda).map(({ service }) => service);
+const chosen = new Set(professional?.service_ids ?? []);
+---
+
+<div class="pro-wrap">
+<div class="pro-form">
+  <PanelSection title="Dados do profissional" id="titulo-profissional">
+    {/* `autocomplete="off"`: os dados são de outra pessoa, e o navegador ofereceria os da dona do negócio. */}
+    <form class="form" method="post" action={action} data-prototype="transient" data-pro-form>
+      <div class="form__who">
+        <Initials name={professional?.name ?? ''} large />
+        {
+          professional ? (
+            <StatusBadge {...teamAgenda(professional, timeOff, today).badge} />
+          ) : (
+            <StatusBadge label="Novo cadastro" tone="info" icon="sparkles" />
+          )
+        }
+      </div>
+
+      <div class="form__row">
+        <TextField
+          id="nome"
+          label="Nome completo"
+          autocomplete={isOwner ? 'name' : 'off'}
+          maxlength={120}
+          value={professional?.name}
+          required
+          autofocus={!professional}
+        />
+        <TextField
+          id="telefone"
+          label="Telefone"
+          type="tel"
+          autocomplete={isOwner ? 'tel' : 'off'}
+          placeholder="(00) 00000-0000"
+          pattern="[0-9\(\)+ \-]{10,20}"
+          title="Só números, com DDD. Ex.: (81) 99999-9999"
+          value={professional?.phone ? formatPhone(professional.phone) : undefined}
+          required
+        />
+      </div>
+      <div class="form__row">
+        <TextField
+          id="email"
+          label="E-mail de acesso"
+          type="email"
+          autocomplete={isOwner ? 'email' : 'off'}
+          placeholder="nome@email.com"
+          hint="Para entrar no painel e ver a própria agenda."
+          value={professional?.email ?? undefined}
+          required
+        />
+        <TextField
+          id="especialidade"
+          label="Especialidade"
+          placeholder="Ex.: Alongamento e manutenção"
+          maxlength={80}
+          value={professional?.description ?? undefined}
+          optional
+        />
+      </div>
+
+      <fieldset class="services">
+        <legend>Serviços realizados</legend>
+        <p class="services__error" role="alert" hidden data-services-error>Escolha pelo menos um serviço.</p>
+        {
+          services.map((service) => (
+            <label class="service">
+              <input type="checkbox" name="servicos" value={service.id} checked={chosen.has(service.id)} />
+              <span class="service__text">
+                <strong>{service.name}</strong>
+                <small>
+                  {formatDuration(service.durationMinutes)}
+                  {service.price && ` · ${compactPrice(service.price)}`}
+                </small>
+              </span>
+              <span class="service__tag service__tag--on">Elegível</span>
+              <span class="service__tag service__tag--off">Não associado</span>
+            </label>
+          ))
+        }
+      </fieldset>
+
+      {
+        professional && (
+          <fieldset class="off" data-off data-today={today} data-professional={professional.id}>
+            <legend>Férias e folgas</legend>
+            <p class="off__hint">
+              {isOwner
+                ? 'Nesses dias ninguém consegue agendar com você.'
+                : 'Nesses dias ninguém consegue agendar com esta pessoa.'}
+            </p>
+            <ul class="off__list" data-off-list>
+              {ownTimeOff.map((t) => (
+                <li class="off__item">
+                  <span>{timeOffLabel(t)}</span>
+                  <button class="off__remove" type="button" data-off-remove={t.id} aria-label={`Remover: ${timeOffLabel(t)}`}>
+                    Remover
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p class="off__empty" hidden={ownTimeOff.length > 0} data-off-empty>
+              Nenhum período marcado.
+            </p>
+            <div class="off__add">
+              <TextField id="off-inicio" label="Início" type="date" />
+              <TextField id="off-fim" label="Fim" type="date" hint="Vazio, vale só o dia do início." />
+              <TextField id="off-motivo" label="Motivo" options={REASONS} />
+              <ActionButton label="Marcar período" variant="secondary" full={false} data-off-add="" />
+            </div>
+            <p class="off__error" role="alert" hidden data-off-error />
+            <input type="hidden" name="ausencias" value={JSON.stringify(ownTimeOff)} data-off-value />
+          </fieldset>
+        )
+      }
+
+      {
+        professional && (
+          <label class="form__check">
+            <input type="checkbox" name="agenda-aberta" checked={professional.is_active} />
+            Agenda aberta: recebe novos agendamentos
+          </label>
+        )
+      }
+
+      <div class="form__actions">
+        <ActionButton label="Cancelar" variant="secondary" href={cancelHref} full={false} />
+        <ActionButton label={submitLabel} type="submit" full={false} />
+      </div>
+    </form>
+  </PanelSection>
+
+  <aside class="access" aria-labelledby="titulo-acesso">
+    <h2 class="access__title" id="titulo-acesso">Acesso à própria operação</h2>
+    {
+      isOwner ? (
+        <>
+          <span class="access__role">Perfil Administração</span>
+          <p>Você vê a agenda de toda a equipe, a carteira de clientes, o financeiro e as configurações.</p>
+        </>
+      ) : (
+        <>
+          <span class="access__role">Perfil Profissional</span>
+          <p>Esta pessoa vê apenas os próprios atendimentos e pode bloquear horários na própria agenda.</p>
+          <Callout tone="info" icon="info" title={`Gestão continua com ${ownerName}`}>
+            Faturamento, carteira completa de clientes e configurações não fazem parte deste perfil.
+          </Callout>
+        </>
+      )
+    }
+    <small>
+      {isOwner ? 'Só os serviços marcados entram na sua agenda.' : 'Só os serviços marcados aparecem para esta pessoa no agendamento.'}
+    </small>
+  </aside>
+</div>
+</div>
+
+<script>
+  import { initials, toneFor } from '@/lib/painel';
+  import { wirePrototypeForms } from '@/lib/prototype-form';
+  import { timeOffLabel } from '@/lib/team';
+  import type { TimeOffRow } from '@/types/painel';
+
+  const form = document.querySelector<HTMLFormElement>('[data-pro-form]');
+  const boxes = [...(form?.querySelectorAll<HTMLInputElement>('input[name="servicos"]') ?? [])];
+  const error = form?.querySelector<HTMLElement>('[data-services-error]');
+
+  // Grupo de caixas não tem `required` nativo: a primeira carrega o erro enquanto nenhuma estiver marcada.
+  const syncServices = () => {
+    const none = !boxes.some((box) => box.checked);
+    boxes[0]?.setCustomValidity(none ? 'Escolha pelo menos um serviço.' : '');
+    if (error && !none) error.hidden = true;
+  };
+  for (const box of boxes) box.addEventListener('change', syncServices);
+  boxes[0]?.addEventListener('invalid', () => {
+    if (error) error.hidden = false;
+  });
+  syncServices();
+
+  wirePrototypeForms();
+
+  // Férias e folgas: a lista vive no campo escondido, como os períodos da tela de horários.
+  const off = form?.querySelector<HTMLElement>('[data-off]');
+  if (off) {
+    const list = off.querySelector<HTMLElement>('[data-off-list]')!;
+    const empty = off.querySelector<HTMLElement>('[data-off-empty]')!;
+    const value = off.querySelector<HTMLInputElement>('[data-off-value]')!;
+    const start = off.querySelector<HTMLInputElement>('#off-inicio')!;
+    const end = off.querySelector<HTMLInputElement>('#off-fim')!;
+    const reason = off.querySelector<HTMLSelectElement>('#off-motivo')!;
+    const offError = off.querySelector<HTMLElement>('[data-off-error]')!;
+    const today = off.dataset.today ?? '';
+    let items = JSON.parse(value.value) as TimeOffRow[];
+
+    const render = () => {
+      items.sort((a, b) => a.starts_on.localeCompare(b.starts_on));
+      list.replaceChildren(
+        ...items.map((t) => {
+          const item = document.createElement('li');
+          item.className = 'off__item';
+          const text = document.createElement('span');
+          text.textContent = timeOffLabel(t);
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'off__remove';
+          remove.dataset.offRemove = t.id;
+          remove.textContent = 'Remover';
+          remove.setAttribute('aria-label', `Remover: ${timeOffLabel(t)}`);
+          item.append(text, remove);
+          return item;
+        }),
+      );
+      empty.hidden = items.length > 0;
+      value.value = JSON.stringify(items);
+    };
+
+    off.querySelector('[data-off-add]')?.addEventListener('click', () => {
+      const from = start.value;
+      const to = end.value || from;
+      let message = '';
+      if (!from) message = 'Escolha o dia de início.';
+      else if (to < from) message = 'O fim precisa ser no mesmo dia do início ou depois.';
+      else if (to < today) message = 'Esse período já passou.';
+      else if (items.some((t) => t.starts_on <= to && from <= t.ends_on)) message = 'Esse período encosta em outro já marcado.';
+      offError.textContent = message;
+      offError.hidden = !message;
+      if (message) return;
+
+      items.push({
+        id: `novo-${Date.now()}`,
+        professional_id: off.dataset.professional ?? '',
+        starts_on: from,
+        ends_on: to,
+        reason: reason.value,
+      });
+      start.value = '';
+      end.value = '';
+      render();
+    });
+
+    list.addEventListener('click', (event) => {
+      const remove = (event.target as Element).closest<HTMLElement>('[data-off-remove]');
+      if (!remove) return;
+      items = items.filter((t) => t.id !== remove.dataset.offRemove);
+      render();
+      // O botão some com a linha: o foco volta para o começo do formulário de período.
+      start.focus();
+    });
+  }
+
+  const name = form?.querySelector<HTMLInputElement>('#nome');
+  const badge = form?.querySelector<HTMLElement>('[data-initials]');
+  name?.addEventListener('input', () => {
+    if (!badge) return;
+    const value = name.value.trim();
+    badge.textContent = initials(value);
+    badge.style.setProperty('--tone', `var(--site-accent-${toneFor(value)})`);
+  });
+</script>
+
+<style>
+  /* Medido pela largura do espaço, não da tela: dentro das Configurações o submenu já ocupa a esquerda. */
+  .pro-wrap {
+    container-type: inline-size;
+  }
+
+  .pro-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 24px;
+  }
+
+  .form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .form__who {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .form__row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 16px;
+  }
+
+  .services {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .services legend {
+    margin-bottom: 12px;
+    padding: 0;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .services__error {
+    font-size: 0.8125rem;
+    color: var(--site-color-error);
+  }
+
+  .service {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    min-height: 64px;
+    padding: 12px 16px;
+    border-radius: var(--site-radius-field);
+    border: 1px solid var(--site-color-border);
+    cursor: pointer;
+  }
+
+  .service:hover {
+    border-color: var(--site-color-brand);
+  }
+
+  .service:has(input:focus-visible) {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  .service input,
+  .form__check input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--site-color-brand);
+  }
+
+  .service__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .service__text strong {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .service__text small {
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  /* O selo acompanha a caixa sem JavaScript. */
+  .service__tag {
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .service__tag--on {
+    display: none;
+    background: var(--site-panel-positive-soft);
+    color: var(--site-accent-green-deep);
+  }
+
+  .service__tag--off {
+    background: var(--site-color-brand-soft);
+  }
+
+  .service:has(input:checked) .service__tag--on {
+    display: inline;
+  }
+
+  .service:has(input:checked) .service__tag--off {
+    display: none;
+  }
+
+  .form__check {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+
+  .form__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 12px;
+    padding-top: 20px;
+    border-top: 1px solid var(--site-color-border);
+  }
+
+  .access {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 28px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .access__title {
+    font-size: 1.1875rem;
+    font-weight: 600;
+  }
+
+  .access__role {
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: var(--site-accent-blue-soft);
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+
+  .access p {
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+
+  .access small {
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .off {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
+    padding: 18px;
+    border-radius: var(--site-radius-field);
+    border: 1px solid var(--site-color-border);
+  }
+
+  .off legend {
+    padding: 0 6px;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .off__hint,
+  .off__empty {
+    font-size: 0.875rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .off__list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    list-style: none;
+  }
+
+  .off__list:empty {
+    display: none;
+  }
+
+  /* Global: as linhas novas nascem no script, sem o atributo de escopo do Astro. */
+  .off :global(.off__item) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 48px;
+    padding: 4px 6px 4px 14px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--site-accent-yellow-soft) 30%, var(--site-color-surface));
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+
+  .off :global(.off__remove) {
+    min-height: 40px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 10px;
+    background: none;
+    color: var(--site-color-text);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .off :global(.off__remove:hover) {
+    background: var(--site-color-brand-soft);
+  }
+
+  .off :global(.off__remove:focus-visible) {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  .off__add {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+    align-items: start;
+    gap: 12px;
+  }
+
+  /* O botão alinha com os campos, abaixo dos rótulos. */
+  .off__add > :global(.action) {
+    margin-top: 29px;
+  }
+
+  .off__error {
+    font-size: 0.8125rem;
+    color: var(--site-color-error);
+  }
+
+  @container (max-width: 860px) {
+    .pro-form {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @container (max-width: 640px) {
+    .form__row,
+    .off__add {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .off__add > :global(.action) {
+      margin-top: 0;
+    }
+  }
+</style>

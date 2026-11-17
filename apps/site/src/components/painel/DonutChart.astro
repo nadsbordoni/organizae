@@ -1,0 +1,136 @@
+---
+import { percent } from '@/lib/finance';
+
+/**
+ * Partes de um total num anel, com a legenda em texto ao lado: a cor nunca é a única pista.
+ * O anel é decorativo; o leitor de tela lê a legenda.
+ */
+interface Props {
+  items: Array<{ label: string; value: number; tone: 'pink-soft' | 'yellow-soft' | 'blue-soft' | 'green' }>;
+  /** Texto grande no meio, como "R$ 9,2k". */
+  center: string;
+  centerNote: string;
+  label: string;
+}
+
+const { items, center, centerNote, label } = Astro.props;
+
+const total = items.reduce((sum, item) => sum + item.value, 0) || 1;
+let start = 0;
+const slices = items.map((item) => {
+  const share = (item.value / total) * 100;
+  const slice = { ...item, share, from: start };
+  start += share;
+  return slice;
+});
+
+// Cada fatia é um arco próprio. Com traço tracejado num círculo só, o navegador desenha um bico onde
+// o círculo começa e termina, bem na emenda de duas fatias.
+const R = 78;
+const point = (percent: number) => {
+  const angle = (percent / 100) * 2 * Math.PI - Math.PI / 2;
+  return `${(100 + R * Math.cos(angle)).toFixed(2)} ${(100 + R * Math.sin(angle)).toFixed(2)}`;
+};
+const arc = (from: number, share: number) =>
+  share >= 99.99
+    ? `M ${point(0)} A ${R} ${R} 0 1 1 ${point(50)} A ${R} ${R} 0 1 1 ${point(0)}`
+    : `M ${point(from)} A ${R} ${R} 0 ${share > 50 ? 1 : 0} 1 ${point(from + share)}`;
+---
+
+<figure class="donut">
+  <div class="donut__ring" aria-hidden="true">
+    <svg viewBox="0 0 200 200" focusable="false">
+      {slices.filter((s) => s.share > 0).map((s) => <path d={arc(s.from, s.share)} stroke={`var(--site-accent-${s.tone})`} />)}
+    </svg>
+    <span class="donut__center">
+      <strong>{center}</strong>
+      <span>{centerNote}</span>
+    </span>
+  </div>
+
+  <ul class="donut__legend" aria-label={label}>
+    {
+      slices.map((s) => (
+        <li>
+          <span class="donut__dot" style={`--tone: var(--site-accent-${s.tone})`} aria-hidden="true" />
+          {s.label}
+          <strong>{percent(s.share, 0)}</strong>
+        </li>
+      ))
+    }
+  </ul>
+</figure>
+
+<style>
+  .donut {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    margin: 0;
+  }
+
+  .donut__ring {
+    position: relative;
+    width: min(220px, 100%);
+    aspect-ratio: 1;
+  }
+
+  .donut__ring svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Começa no topo, como um relógio (o ângulo sai de -90° em `point`). */
+  .donut__ring path {
+    fill: none;
+    stroke-width: 30;
+  }
+
+  .donut__center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+  }
+
+  .donut__center strong {
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+
+  .donut__center span {
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .donut__legend {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    list-style: none;
+    font-size: 0.875rem;
+  }
+
+  .donut__legend li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .donut__legend strong {
+    margin-left: auto;
+    font-weight: 600;
+  }
+
+  .donut__dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--tone);
+  }
+</style>

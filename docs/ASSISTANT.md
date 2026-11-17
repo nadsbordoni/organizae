@@ -217,7 +217,7 @@ Testes com mocks: `uv run pytest tests/test_gemini_retries.py`.
 
 A assistente acessa somente a empresa vinculada ao usuário autenticado. Escritas exigem configuração de desenvolvimento e confirmação explícita pela API, conforme a seção abaixo. Não executa SQL. O Google recebe o prompt, a janela de mensagens da conversa e os campos permitidos retornados pelas ferramentas, sem token ou dados de autenticação.
 
-Function Calling nativo está implementado, mas a execução automática de funções Python pelo SDK permanece desabilitada: somente o backend despacha as funções permitidas. Análise financeira, comandos por voz, extração de dados de imagens e Text-to-SQL não foram implementados. O JWT atual não tem logout com revogação individual nem refresh token; a expiração e a situação atual da conta são verificadas em cada requisição.
+Function Calling nativo está implementado, mas a execução automática de funções Python pelo SDK permanece desabilitada: somente o backend despacha as funções permitidas. Consultas financeiras de leitura estão disponíveis conforme o [guia da US-027](ASSISTANT_FINANCIAL.md). Escrita financeira, insights automáticos, comandos por voz, extração de dados de imagens e Text-to-SQL não foram implementados. O JWT atual não tem logout com revogação individual nem refresh token; a expiração e a situação atual da conta são verificadas em cada requisição.
 
 
 ## Escrita com confirmação explícita (desenvolvimento)

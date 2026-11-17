@@ -1,5 +1,6 @@
 from typing import Annotated
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import JSONResponse
@@ -7,9 +8,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.session import get_db
+from app.modules.appointments.service import AppointmentService
 from app.modules.assistant.actions import ActionDecision
 from app.modules.assistant.exceptions import (
     AssistantActionStateError,
+    AssistantAppointmentConflictError,
     AssistantBusinessNotFoundError,
     AssistantContextLimitError,
     AssistantConversationNotFoundError,
@@ -35,8 +38,13 @@ from app.modules.assistant.schemas import (
 )
 from app.modules.assistant.service import AssistantProvider, AssistantService
 from app.modules.assistant.tools import AssistantTools
+from app.modules.assistant.tools.financial import FinancialTools
 from app.modules.auth.dependencies import get_current_business_id, get_current_user
 from app.modules.businesses.service import BusinessService
+from app.modules.clients.service import ClientService
+from app.modules.financial.service import FinancialReportService
+from app.modules.financial_categories.service import FinancialCategoryService
+from app.modules.financial_entries.service import FinancialEntryService
 from app.modules.professionals.service import ProfessionalService
 from app.modules.services.service import ServiceService
 from app.modules.users.models import User
@@ -57,12 +65,21 @@ def get_assistant_tools(
     current_user: Annotated[User, Depends(get_current_user)],
     business_id: Annotated[UUID, Depends(get_current_business_id)],
 ) -> AssistantTools:
+    tz = ZoneInfo(settings.BUSINESS_TIMEZONE)
     return AssistantTools(
         business_id,
         BusinessService(session),
         ProfessionalService(session),
         ServiceService(session),
         user_id=current_user.id,
+        client_service=ClientService(session),
+        appointment_service=AppointmentService(session, tz),
+        financial_tools=FinancialTools(
+            FinancialReportService(session, tz),
+            FinancialEntryService(session),
+            FinancialCategoryService(session),
+            tz,
+        ),
     )
 
 
@@ -88,6 +105,7 @@ async def assistant_error_handler(
     request: Request, exc: AssistantError
 ) -> JSONResponse:
     status_codes = {
+        AssistantAppointmentConflictError: 409,
         AssistantConversationNotFoundError: 404,
         AssistantContextLimitError: 422,
         AssistantBusinessNotFoundError: 404,

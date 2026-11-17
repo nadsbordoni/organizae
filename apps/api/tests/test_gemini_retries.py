@@ -282,7 +282,8 @@ def test_retries_prepare_only_one_action_and_never_write(
             sdk_reply(
                 types.Part(
                     function_call=types.FunctionCall(
-                        name="create_professional", args={"name": "Ana"}
+                        name="create_professional",
+                        args={"name": "Ana", "service_ids": []},
                     )
                 )
             ),
@@ -311,7 +312,9 @@ def test_action_execution_is_never_retried(tools: AssistantTools) -> None:
         ),
         patch(f"{MODULE}.time.sleep") as sleep,
     ):
-        result = tools.execute(ToolCall("create_professional", {"name": "Ana"}))
+        result = tools.execute(
+            ToolCall("create_professional", {"name": "Ana", "service_ids": []})
+        )
         action_id = UUID(result.response["pending_action"]["id"])
         tools.professional_service.create.side_effect = RuntimeError("private-error")
         try:

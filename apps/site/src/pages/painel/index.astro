@@ -1,0 +1,235 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import EmptyState from '@/components/EmptyState.astro';
+import RobotName from '@/components/RobotName.astro';
+import DayList from '@/components/painel/DayList.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import PanelSection from '@/components/painel/PanelSection.astro';
+import StatCard from '@/components/painel/StatCard.astro';
+import { getSite } from '@/config';
+import { nowInBusinessTime } from '@/lib/agenda';
+import { csvHref } from '@/lib/csv';
+import { usuarioExemplo } from '@/lib/dados-exemplo';
+import { change, money, moneyChange, monthName, monthShort, percent, pointsChange, rangeLabel, resultOf } from '@/lib/finance';
+import { loadFinance } from '@/lib/finance-page';
+import { financialAlerts } from '@/lib/insights';
+import { tenantNotConfigured } from '@/lib/painel';
+
+/**
+ * Visão geral: como está hoje, em uma olhada, levando ao detalhe. Os números do mês vão para o
+ * Financeiro; caixa, gráficos e clientes ficam nas telas deles, para a home não repetir o detalhe.
+ * Números de DEMONSTRAÇÃO (`lib/demo-finance.ts`), coerentes com a Agenda e o Financeiro.
+ */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const agenda = site.agenda;
+const hoje = nowInBusinessTime(agenda?.timezone ?? 'America/Sao_Paulo').date;
+const { dados, entries, groups, period } = await loadFinance(Astro.url, user.tenantSlug, hoje);
+
+const now = resultOf(entries, period, groups);
+const before = resultOf(entries, period.previous, groups);
+const mon = monthShort(period.previous.from);
+const vs = (current: number, previous: number) =>
+  `${mon}: ${money(previous)} · ${moneyChange(current, previous)} / ${change(current, previous) ?? '—'}`;
+const marginText = (m?: number) => (m === undefined ? '—' : percent(m));
+
+const doDia = (await dados.appointmentsOn(hoje)).filter((m) => m.status !== 'cancelled');
+const alert = financialAlerts(entries, period, period.previous, hoje)[0];
+
+const csv = csvHref([
+  ['Indicador', rangeLabel(period), rangeLabel(period.previous)],
+  ['Faturamento', money(now.income), money(before.income)],
+  ['Despesas + impostos', money(now.expenses), money(before.expenses)],
+  ['Resultado', money(now.result), money(before.result)],
+  ['Margem', marginText(now.margin), marginText(before.margin)],
+]);
+---
+
+<PanelLayout site={site} user={user} current="home" title="Visão geral">
+  <PanelHeading
+    eyebrow="Visão geral"
+    title="Seu negócio, com clareza"
+    intro={`${site.profile.name} · ${rangeLabel(period)}, comparado ao mesmo trecho de ${monthName(period.previous.from)}.`}
+  >
+    <ActionButton
+      label="Exportar resumo"
+      variant="secondary"
+      icon="download"
+      iconPosition="end"
+      href={csv}
+      download={`resumo-${period.key}.csv`}
+      full={false}
+    />
+  </PanelHeading>
+
+  <div class="stats">
+    <StatCard label="Faturamento" value={money(now.income)} note={vs(now.income, before.income)} tone="pink" href="/painel/financeiro" />
+    <StatCard
+      label="Despesas + impostos"
+      value={money(now.expenses)}
+      note={vs(now.expenses, before.expenses)}
+      tone="yellow"
+      href="/painel/financeiro/despesas"
+    />
+    <StatCard
+      label="Resultado / lucro"
+      value={money(now.result)}
+      note={vs(now.result, before.result)}
+      tone="green"
+      href="/painel/financeiro/rentabilidade"
+    />
+    <StatCard
+      label="Margem do resultado"
+      value={marginText(now.margin)}
+      note={`${mon}: ${marginText(before.margin)} · ${pointsChange(now.margin, before.margin) ?? '—'}`}
+      tone="blue"
+      href="/painel/financeiro/rentabilidade"
+    />
+  </div>
+  <p class="base">Resultado pela competência: receita − custos − impostos. Não é o saldo de caixa, que fica no Financeiro.</p>
+
+  <div class="grid">
+    <PanelSection title="Agenda de hoje" subtitle={doDia.length === 1 ? '1 horário' : `${doDia.length} horários`} id="titulo-hoje">
+      <ActionButton slot="aside" label="Ver agenda" variant="secondary" href="/painel/agenda" full={false} />
+      {
+        doDia.length ? (
+          <DayList rows={doDia} agenda={agenda} label="Atendimentos de hoje" idPrefix="det-hoje" />
+        ) : (
+          <EmptyState level={3} mascot="relaxando" title="Nenhum atendimento hoje" text="Um bom dia para organizar o resto da semana." />
+        )
+      }
+    </PanelSection>
+
+    <section class="assist" aria-labelledby="titulo-assistente">
+      <h2 class="assist__label" id="titulo-assistente"><RobotName /> · Assistente</h2>
+      <p class="assist__title">{alert ? alert.title.replace(/^Atenção: /, '') : 'Seu mês vai bem.'}</p>
+      <p class="assist__text">
+        {alert ? alert.description : `O faturamento está ${change(now.income, before.income) ?? 'estável'} em relação a ${monthName(period.previous.from)}.`}
+      </p>
+      {/* Texto num `span`: dentro do `inline-flex`, o espaço antes do nome seria descartado. */}
+      <a class="assist__button" href="/painel/relatorios/assistente"><span>Conversar com <RobotName /></span></a>
+      <span class="assist__mascot" aria-hidden="true">
+        <img src="/marca/mascote-tablet.webp" alt="" width="465" height="720" loading="lazy" />
+      </span>
+    </section>
+  </div>
+</PanelLayout>
+
+<style>
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 36px;
+  }
+
+  .base {
+    margin-top: 10px;
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  /* Colunas da mesma altura, na proporção do protótipo. */
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.94fr) minmax(0, 1fr);
+    align-items: stretch;
+    gap: 16px;
+    margin-top: 24px;
+  }
+
+  .assist {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-height: 320px;
+    padding: 36px 36px 220px;
+    border-radius: var(--site-radius-card);
+    background: var(--site-panel-sidebar);
+    color: var(--site-panel-on-sidebar);
+    overflow: hidden;
+  }
+
+  .assist__label {
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .assist__title {
+    margin-top: 24px;
+    font-family: var(--site-font-display);
+    font-size: 1.75rem;
+    font-weight: var(--site-font-display-weight);
+    letter-spacing: var(--site-font-display-tracking);
+    line-height: 1.15;
+  }
+
+  .assist__text {
+    margin-top: 14px;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--site-panel-on-sidebar-muted);
+  }
+
+  .assist__button {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    min-height: 48px;
+    margin-top: 22px;
+    padding: 0 22px;
+    border-radius: var(--site-radius-button);
+    background: var(--site-color-surface);
+    color: var(--site-color-text);
+    font-size: 0.9375rem;
+    font-weight: 650;
+    text-decoration: none;
+  }
+
+  .assist__button:focus-visible {
+    outline: 2px solid var(--site-panel-sidebar-accent);
+    outline-offset: 3px;
+  }
+
+  .assist__mascot {
+    position: absolute;
+    right: 18px;
+    bottom: -30px;
+    display: grid;
+    place-items: center;
+    width: 170px;
+    height: 210px;
+    border-radius: 50% 50% 0 0 / 40% 40% 0 0;
+    background: var(--site-background-page-solid);
+  }
+
+  .assist__mascot img {
+    height: 160px;
+    width: auto;
+  }
+
+  @media (max-width: 1299px) {
+    .stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 1099px) {
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 599px) {
+    .stats {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

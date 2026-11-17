@@ -1,0 +1,54 @@
+---
+/**
+ * Título de tela (sobretítulo, título e linha de apoio). Uma peça só para os tamanhos
+ * não divergirem entre login, agendamento e vitrine.
+ */
+
+interface Props {
+  eyebrow?: string;
+  title: string;
+  intro?: string;
+  align?: 'start' | 'center';
+  /** A tela tem um `h1` só. */
+  as?: 'h1' | 'h2';
+}
+
+const { eyebrow, title, intro, align = 'start', as: Tag = 'h1' } = Astro.props;
+---
+
+<header class="heading" data-align={align}>
+  {eyebrow && <p class="heading__eyebrow">{eyebrow}</p>}
+  <Tag class="heading__title">{title}</Tag>
+  {intro && <p class="heading__intro">{intro}</p>}
+</header>
+
+<style>
+  .heading[data-align='center'] {
+    text-align: center;
+  }
+
+  .heading__eyebrow {
+    margin-bottom: 12px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--site-color-eyebrow);
+  }
+
+  .heading__title {
+    font-family: var(--site-font-display);
+    font-weight: var(--site-font-display-weight);
+    font-size: clamp(2rem, 7vw, 2.625rem);
+    letter-spacing: var(--site-font-display-tracking);
+    line-height: 1.1;
+    color: var(--site-color-text);
+  }
+
+  .heading__intro {
+    margin-top: 10px;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: var(--site-color-text-muted);
+  }
+</style>

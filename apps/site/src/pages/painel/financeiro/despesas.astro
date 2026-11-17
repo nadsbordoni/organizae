@@ -1,0 +1,194 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import Callout from '@/components/Callout.astro';
+import ActionsMenu from '@/components/painel/ActionsMenu.astro';
+import FinanceTabs from '@/components/painel/FinanceTabs.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import PanelSection from '@/components/painel/PanelSection.astro';
+import PanelTable from '@/components/painel/PanelTable.astro';
+import StatCard from '@/components/painel/StatCard.astro';
+import { getSite } from '@/config';
+import { nowInBusinessTime } from '@/lib/agenda';
+import { usuarioExemplo } from '@/lib/dados-exemplo';
+import { change, entryStatus, inPeriod, money, monthName, monthTitle, percent, resultOf, wholeMonth } from '@/lib/finance';
+import { loadFinance } from '@/lib/finance-page';
+import { numericDate, tenantNotConfigured } from '@/lib/painel';
+
+/**
+ * Financeiro, aba Despesas e notas (quadro 07). Notas fiscais ainda não existem no back: as notas
+ * emitidas são as receitas com número de nota nos dados de DEMONSTRAÇÃO.
+ */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const hoje = nowInBusinessTime(site.agenda?.timezone ?? 'America/Sao_Paulo').date;
+const { entries, categories, groups, months, period } = await loadFinance(Astro.url, user.tenantSlug, hoje);
+
+const now = resultOf(entries, period, groups);
+const before = resultOf(entries, period.previous, groups);
+// Lista e contas a vencer olham o mês inteiro; os números de comparação, o mesmo trecho dos dois meses.
+const month = inPeriod(entries, wholeMonth(period)).filter((e) => e.status !== 'CANCELLED');
+const expenses = month.filter((e) => e.type === 'EXPENSE').sort((a, b) => a.due_date.localeCompare(b.due_date));
+const toPay = expenses.filter((e) => e.status === 'PENDING');
+const invoices = inPeriod(entries, period).filter((e) => e.type === 'INCOME' && e.invoice && e.status !== 'CANCELLED');
+const names = new Map(categories.map((c) => [c.id, c.name]));
+const sum = (list: typeof entries) => list.reduce((total, e) => total + e.amount_cents, 0);
+const query = Astro.url.searchParams.get('mes') ? period.key : undefined;
+---
+
+<PanelLayout site={site} user={user} current="financeiro" title="Despesas e notas fiscais">
+  <PanelHeading
+    eyebrow="Financeiro"
+    title="Despesas e notas fiscais"
+    intro="Acompanhe custos, vencimentos e documentos do negócio."
+  >
+    {/* Abre o lançamento de despesa com o foco no comprovante, que a IA lê e preenche. */}
+    <ActionButton
+      label="Importar nota"
+      variant="secondary"
+      icon="download"
+      iconPosition="end"
+      href="/painel/financeiro/lancar?tipo=despesa&comprovante"
+      full={false}
+    />
+    <ActionButton label="Nova despesa" icon="plus" iconPosition="end" href="/painel/financeiro/lancar?tipo=despesa" full={false} />
+  </PanelHeading>
+
+  <div class="tabs">
+    <FinanceTabs current="despesas" month={query} />
+  </div>
+
+  {
+    Astro.url.searchParams.has('salvo') && (
+      <div class="notice">
+        <Callout tone="success" icon="check-circle" title="Lançamento salvo">
+          As alterações já valem para o caixa e para o resultado.
+        </Callout>
+      </div>
+    )
+  }
+
+  <div class="stats">
+    <StatCard
+      label="Despesas no mês"
+      value={money(now.expenses)}
+      note={`${change(now.expenses, before.expenses) ?? '—'} comparado a ${monthName(period.previous.from)}`}
+      tone="pink"
+    />
+    <StatCard
+      label="A vencer"
+      value={money(sum(toPay))}
+      note={`${toPay.length} ${toPay.length === 1 ? 'lançamento' : 'lançamentos'}`}
+      tone="yellow"
+    />
+    <StatCard label="Notas emitidas" value={String(invoices.length)} note={`${money(sum(invoices))} faturados`} tone="blue" />
+    <StatCard
+      label="Custos fixos"
+      value={money(now.fixed)}
+      note={now.expenses ? `${percent((now.fixed / now.expenses) * 100, 0)} das despesas` : '—'}
+      tone="green"
+    />
+  </div>
+
+  <div class="section">
+    <PanelSection title="Lançamentos recentes" subtitle="Controle de contas e documentos" id="titulo-despesas">
+      <ActionsMenu slot="aside" id="mes-despesas" label="Trocar o mês" trigger={monthTitle(period.key)}>
+        {
+          months.map((m) => (
+            <a href={`/painel/financeiro/despesas?mes=${m}`} aria-current={m === period.key ? 'true' : undefined}>
+              {monthTitle(m)}
+            </a>
+          ))
+        }
+      </ActionsMenu>
+
+      <PanelTable label={`Despesas de ${monthTitle(period.key)}`}>
+        <thead>
+          <tr>
+            <th scope="col">Descrição</th>
+            <th scope="col" data-wide>
+              Categoria
+            </th>
+            <th scope="col">Vencimento</th>
+            <th scope="col">Valor</th>
+            <th scope="col" data-wide>
+              Situação
+            </th>
+            <th scope="col">
+              <span class="sr-only">Ações</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {expenses.map((e) => (
+            <tr>
+              <td class="strong">{e.description}</td>
+              <td data-wide>{names.get(e.category_id)}</td>
+              <td>{numericDate(e.due_date, false)}</td>
+              <td class="strong nowrap">{money(e.amount_cents)}</td>
+              <td class="strong" data-wide>
+                {entryStatus(e, hoje)}
+              </td>
+              <td class="actions">
+                <ActionsMenu id={`menu-${e.id}`} label={`Ações para ${e.description}`}>
+                  <a href={`/painel/financeiro/${e.id}/editar`}>Editar despesa</a>
+                  <a href={`/painel/financeiro/lancar?tipo=despesa&categoria=${e.category_id}`}>Nova despesa nesta categoria</a>
+                </ActionsMenu>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </PanelTable>
+    </PanelSection>
+  </div>
+</PanelLayout>
+
+<style>
+  .tabs {
+    margin-top: 28px;
+  }
+
+  .notice {
+    margin-top: 20px;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+  }
+
+  .section {
+    margin-top: 16px;
+  }
+
+  .strong {
+    font-weight: 600;
+  }
+
+  .nowrap {
+    white-space: nowrap;
+  }
+
+  .actions {
+    width: 1%;
+    text-align: right;
+  }
+
+  @media (max-width: 1299px) {
+    .stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 599px) {
+    .stats {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

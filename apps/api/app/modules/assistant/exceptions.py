@@ -146,6 +146,18 @@ class AssistantWriteBusinessError(AssistantError):
     )
 
 
+class AssistantAppointmentConflictError(AssistantWriteBusinessError):
+    code = "assistant_appointment_conflict"
+    public_message = (
+        "O horário não está mais disponível. Consulte a agenda e escolha outro horário."
+    )
+
+
+class AssistantAppointmentValidationError(AssistantWriteBusinessError):
+    code = "assistant_appointment_invalid"
+    public_message = "Agendamento recusado. Confira o cliente, serviço, profissional e horário na empresa autenticada."
+
+
 class AssistantRequestConflictError(AssistantError):
     code = "assistant_request_conflict"
     public_message = (

@@ -1,0 +1,77 @@
+---
+import ActionsMenu from './ActionsMenu.astro';
+import { monthTitle } from '@/lib/finance';
+
+/** Faixa do período com a comparação e a troca de mês. O mês vive na URL (`?mes=AAAA-MM`). */
+interface Props {
+  title: string;
+  compare: string;
+  /** Meses que dá para escolher, do atual para trás. */
+  months: string[];
+  current: string;
+  /** Selos de filtro à direita, como "Todos os serviços". */
+  chips?: string[];
+}
+
+const { title, compare, months, current, chips = [] } = Astro.props;
+const path = Astro.url.pathname;
+---
+
+<section class="period" aria-label="Período">
+  <div>
+    <p class="period__title">{title}</p>
+    <p class="period__compare">{compare}</p>
+  </div>
+  <div class="period__end">
+    {chips.map((chip) => <span class="period__chip">{chip}</span>)}
+    <ActionsMenu id="periodo" label="Alterar período" trigger="Alterar período">
+      {
+        months.map((month) => (
+          <a href={`${path}?mes=${month}`} aria-current={month === current ? 'true' : undefined}>
+            {monthTitle(month)}
+          </a>
+        ))
+      }
+    </ActionsMenu>
+  </div>
+</section>
+
+<style>
+  .period {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 20px 24px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .period__title {
+    font-size: 1.125rem;
+    font-weight: 600;
+  }
+
+  .period__compare {
+    margin-top: 2px;
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .period__end {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .period__chip {
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--site-color-brand-soft);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+</style>

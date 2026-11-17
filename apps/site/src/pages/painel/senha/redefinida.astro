@@ -1,0 +1,21 @@
+---
+import AuthLayout from '@/layouts/AuthLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import Callout from '@/components/Callout.astro';
+import Heading from '@/components/Heading.astro';
+import IconBadge from '@/components/IconBadge.astro';
+
+/** Senha redefinida (quadro 02). */
+---
+
+<AuthLayout title="Senha redefinida" footer="brand" mascot="joinha">
+  <IconBadge icon="check" />
+  <Heading eyebrow="Tudo certo" title="Senha redefinida!" intro="Agora você pode acessar o Organizaê com sua nova senha." />
+
+  <div class="auth-form">
+    <Callout tone="success" icon="check-circle" title="Seu acesso está pronto">
+      Use sua nova senha na próxima entrada.
+    </Callout>
+    <ActionButton label="Voltar para entrar" href="/painel/login" />
+  </div>
+</AuthLayout>

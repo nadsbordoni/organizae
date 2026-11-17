@@ -1,0 +1,88 @@
+---
+/** Progresso de um fluxo em etapas: uma barrinha por passo, preta até o atual. É o mesmo no agendamento e na configuração inicial. */
+interface Props {
+  steps: string[];
+  /** Começa em 1. */
+  current: number;
+}
+
+const { steps, current } = Astro.props;
+---
+
+<ol
+  class="steps"
+  style={`--count: ${steps.length}`}
+  data-many={steps.length > 4 ? '' : undefined}
+  aria-label={`Passo ${current} de ${steps.length}`}
+>
+  {
+    steps.map((name, index) => (
+      <li
+        class="steps__item"
+        data-state={index + 1 === current ? 'atual' : index + 1 < current ? 'feito' : 'futuro'}
+        aria-current={index + 1 === current ? 'step' : undefined}
+      >
+        <span class="steps__bar" aria-hidden="true" />
+        <span class="steps__name">{name}</span>
+      </li>
+    ))
+  }
+</ol>
+
+<style>
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(var(--count), minmax(0, 1fr));
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .steps__item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: 0.75rem;
+    line-height: 1.3;
+    text-align: center;
+    color: var(--site-color-text-muted);
+  }
+
+  /* Barra em vez de bolinha numerada: mais legível numa tela de 320px. */
+  .steps__bar {
+    width: 100%;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--site-color-border);
+  }
+
+  .steps__item[data-state='feito'] .steps__bar,
+  .steps__item[data-state='atual'] .steps__bar {
+    background: var(--site-color-brand);
+  }
+
+  .steps__item[data-state='atual'] .steps__name {
+    font-weight: 600;
+    color: var(--site-color-text);
+  }
+
+  /* Com muitos passos no celular, só o nome do atual aparece; os outros continuam para o leitor de tela. */
+  @media (max-width: 599px) {
+    .steps[data-many] .steps__item:not([data-state='atual']) .steps__name {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+  }
+
+  @media (max-width: 359px) {
+    .steps__name {
+      font-size: 0.6875rem;
+    }
+  }
+</style>

@@ -1,0 +1,39 @@
+---
+import type { SectionBlock } from '@/types/blocks';
+
+interface Props {
+  block: SectionBlock;
+}
+
+const { block } = Astro.props;
+---
+
+<h2 class="section">
+  <span>{block.title}</span>
+</h2>
+
+<style>
+  .section {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+
+    margin: 20px 0 4px;
+    font-family: var(--site-font-body);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    /* Compensa o tracking após a última letra; sem isto o texto encosta no filete da direita. */
+    text-indent: 0.14em;
+    text-transform: uppercase;
+    color: var(--site-color-eyebrow);
+  }
+
+  .section::before,
+  .section::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--site-color-border);
+  }
+</style>

@@ -1,0 +1,18 @@
+---
+import TabsNav from './TabsNav.astro';
+
+/** Abas de Relatórios: o balanço do mês e a inteligência do negócio (quadro 17). */
+interface Props {
+  current: 'balanco' | 'assistente' | 'insights' | 'marketing';
+}
+
+const { current } = Astro.props;
+const TABS = [
+  { key: 'balanco', label: 'Balanço', href: '/painel/relatorios' },
+  { key: 'assistente', label: 'Assistente', href: '/painel/relatorios/assistente' },
+  { key: 'insights', label: 'Insights', href: '/painel/relatorios/insights' },
+  { key: 'marketing', label: 'Marketing', href: '/painel/relatorios/marketing' },
+];
+---
+
+<TabsNav label="Áreas dos relatórios" items={TABS.map((t) => ({ label: t.label, href: t.href, current: t.key === current }))} />

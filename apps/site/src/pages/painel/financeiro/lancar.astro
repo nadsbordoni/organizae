@@ -1,0 +1,126 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import Callout from '@/components/Callout.astro';
+import EntryForm from '@/components/painel/EntryForm.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import PanelSection from '@/components/painel/PanelSection.astro';
+import PanelTable from '@/components/painel/PanelTable.astro';
+import { getSite } from '@/config';
+import { nowInBusinessTime } from '@/lib/agenda';
+import { usuarioExemplo } from '@/lib/dados-exemplo';
+import { money, monthTitle } from '@/lib/finance';
+import { loadFinance } from '@/lib/finance-page';
+import { numericDate, tenantNotConfigured } from '@/lib/painel';
+import type { FinancialType } from '@/types/painel';
+
+/** Lançar receita ou despesa (quadro 07). O tipo vive na URL (`?tipo=despesa`), e o título acompanha. */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const hoje = nowInBusinessTime(site.agenda?.timezone ?? 'America/Sao_Paulo').date;
+const { entries, categories } = await loadFinance(Astro.url, user.tenantSlug, hoje);
+
+const type: FinancialType = Astro.url.searchParams.get('tipo') === 'despesa' ? 'EXPENSE' : 'INCOME';
+const noun = type === 'INCOME' ? 'receita' : 'despesa';
+const switchHref = (t: FinancialType) => `/painel/financeiro/lancar${t === 'EXPENSE' ? '?tipo=despesa' : ''}`;
+// PROTÓTIPO: o formulário volta para cá com `?salvo`, sem gravar nada.
+const saved = Astro.url.searchParams.has('salvo');
+
+// Os últimos pagamentos, com receitas e despesas misturadas: só receitas esconderia as saídas.
+const latest = (type: FinancialType, count: number) =>
+  entries
+    .filter((e) => e.type === type && e.status === 'PAID')
+    .sort((a, b) => b.paid_on!.localeCompare(a.paid_on!))
+    .slice(0, count);
+const recent = [...latest('INCOME', 3), ...latest('EXPENSE', 2)].sort((a, b) => b.paid_on!.localeCompare(a.paid_on!));
+---
+
+<PanelLayout site={site} user={user} current="financeiro" title={`Lançar ${noun}`}>
+  <PanelHeading
+    eyebrow="Gestão financeira · Movimentações"
+    title={`Lançar ${noun}`}
+    intro="Organize suas entradas e saídas com categoria e data."
+  />
+
+  {
+    saved && (
+      <div class="notice">
+        <Callout tone="success" icon="check-circle" title={type === 'INCOME' ? 'Receita salva' : 'Despesa salva'}>
+          O lançamento já entra no caixa e no resultado.
+        </Callout>
+      </div>
+    )
+  }
+
+  <div class="grid">
+    <PanelSection title="Lançamentos recentes" subtitle={`${site.profile.name} · ${monthTitle(hoje.slice(0, 7))}`} id="titulo-recentes">
+      <PanelTable label="Lançamentos recentes">
+        <thead>
+          <tr>
+            <th scope="col">Descrição</th>
+            <th scope="col" data-wide>
+              Data
+            </th>
+            <th scope="col">Valor</th>
+            <th scope="col">Tipo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {recent.map((e) => (
+            <tr>
+              <td class="strong">{e.description}</td>
+              <td data-wide>{numericDate(e.paid_on!)}</td>
+              <td class="nowrap">{money(e.amount_cents)}</td>
+              <td>{e.type === 'INCOME' ? 'Receita' : 'Despesa'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </PanelTable>
+      <Callout tone="info" icon="info" title="Caixa e resultado têm bases diferentes">
+        A data de pagamento define o movimento de caixa. A competência define o período do resultado.
+      </Callout>
+    </PanelSection>
+
+    <EntryForm
+      type={type}
+      categories={categories}
+      action={`${switchHref(type)}${type === 'EXPENSE' ? '&' : '?'}salvo`}
+      cancelHref={type === 'EXPENSE' ? '/painel/financeiro/despesas' : '/painel/financeiro'}
+      today={hoje}
+      category={Astro.url.searchParams.get('categoria') ?? undefined}
+      switchHref={switchHref}
+      receipt={Astro.url.searchParams.has('comprovante')}
+    />
+  </div>
+</PanelLayout>
+
+<style>
+  .notice {
+    margin-top: 24px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    align-items: start;
+    gap: 24px;
+    margin-top: 32px;
+  }
+
+  .strong {
+    font-weight: 600;
+  }
+
+  .nowrap {
+    white-space: nowrap;
+  }
+
+  @media (max-width: 1099px) {
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

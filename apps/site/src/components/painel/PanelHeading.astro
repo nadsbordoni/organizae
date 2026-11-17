@@ -1,0 +1,35 @@
+---
+import Heading from '@/components/Heading.astro';
+
+/** Cabeçalho das telas do painel: título à esquerda, ações à direita. */
+interface Props {
+  eyebrow?: string;
+  title: string;
+  intro?: string;
+}
+
+const { eyebrow, title, intro } = Astro.props;
+---
+
+<div class="hero">
+  <Heading eyebrow={eyebrow} title={title} intro={intro} />
+  <div class="hero__actions">
+    <slot />
+  </div>
+</div>
+
+<style>
+  .hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+  }
+
+  .hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+</style>

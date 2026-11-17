@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request, Response, status
+from fastapi import APIRouter, Depends, Path, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -16,6 +16,7 @@ from app.modules.businesses.exceptions import (
     BusinessConflictError,
     BusinessError,
     BusinessNotFoundError,
+    BusinessNotPublishableError,
     InvalidBusinessPaginationError,
 )
 from app.modules.businesses.models import Business
@@ -23,11 +24,14 @@ from app.modules.businesses.schemas import (
     BusinessCreate,
     BusinessResponse,
     BusinessUpdate,
+    PublicPageResponse,
 )
 from app.modules.businesses.service import BusinessService
 from app.modules.users.models import User
 
 router = APIRouter(prefix="/businesses", tags=["Businesses"])
+# Published business pages, no authentication.
+public_router = APIRouter(prefix="/public/pages", tags=["Public pages"])
 
 
 def get_business_service(
@@ -42,6 +46,7 @@ async def business_error_handler(request: Request, exc: BusinessError) -> JSONRe
         BusinessCategoryNotFoundError: status.HTTP_422_UNPROCESSABLE_CONTENT,
         BusinessConflictError: status.HTTP_409_CONFLICT,
         InvalidBusinessPaginationError: status.HTTP_422_UNPROCESSABLE_CONTENT,
+        BusinessNotPublishableError: status.HTTP_422_UNPROCESSABLE_CONTENT,
     }
     status_code = status_codes.get(type(exc), status.HTTP_500_INTERNAL_SERVER_ERROR)
     detail = str(exc) if status_code != 500 else "Internal server error"
@@ -82,6 +87,22 @@ def update_business(
     service: Annotated[BusinessService, Depends(get_business_service)],
 ) -> Business:
     return service.update(business_id, business_data)
+
+
+@router.post("/{business_id}/publish", response_model=BusinessResponse)
+def publish_business(
+    business_id: Annotated[UUID, Depends(get_owned_business_id)],
+    service: Annotated[BusinessService, Depends(get_business_service)],
+) -> Business:
+    return service.publish(business_id)
+
+
+@public_router.get("/{slug}", response_model=PublicPageResponse)
+def get_public_page(
+    slug: Annotated[str, Path(max_length=80, pattern=r"^[a-z0-9]+(-[a-z0-9]+)*$")],
+    service: Annotated[BusinessService, Depends(get_business_service)],
+) -> PublicPageResponse:
+    return service.get_public_page(slug)
 
 
 @router.delete("/{business_id}", status_code=status.HTTP_204_NO_CONTENT)

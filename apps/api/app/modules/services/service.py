@@ -7,7 +7,9 @@ from sqlalchemy.orm import Session
 
 from app.modules.businesses.exceptions import BusinessNotFoundError
 from app.modules.businesses.repository import BusinessRepository
+from app.modules.categories.repository import CategoryRepository
 from app.modules.services.exceptions import (
+    InvalidServiceCategoryError,
     InvalidServicePaginationError,
     ServiceConflictError,
     ServiceNotFoundError,
@@ -22,6 +24,7 @@ class ServiceService:
         self.session = session
         self.repository = ServiceRepository(session)
         self.business_repository = BusinessRepository(session)
+        self.category_repository = CategoryRepository(session)
 
     def get_by_id(self, service_id: UUID, *, business_id: UUID) -> Service:
         service = self.repository.get_by_id(service_id, business_id=business_id)
@@ -42,6 +45,9 @@ class ServiceService:
         with self._transaction():
             if self.business_repository.get_by_id(service_data.business_id) is None:
                 raise BusinessNotFoundError("Business not found")
+            self._validate_category(
+                service_data.category_id, business_id=service_data.business_id
+            )
             service = self.repository.create(service_data)
             self.session.commit()
             self.session.refresh(service)
@@ -52,6 +58,7 @@ class ServiceService:
     ) -> Service:
         with self._transaction():
             service = self.get_by_id(service_id, business_id=business_id)
+            self._validate_category(service_data.category_id, business_id=business_id)
             service = self.repository.update(service, service_data)
             self.session.commit()
             self.session.refresh(service)
@@ -62,6 +69,16 @@ class ServiceService:
             if not self.repository.delete(service_id, business_id=business_id):
                 raise ServiceNotFoundError("Service not found")
             self.session.commit()
+
+    def _validate_category(
+        self, category_id: UUID | None, *, business_id: UUID
+    ) -> None:
+        if (
+            category_id is not None
+            and self.category_repository.get_by_id(category_id, business_id=business_id)
+            is None
+        ):
+            raise InvalidServiceCategoryError("Category not found in this business")
 
     @contextmanager
     def _transaction(self) -> Iterator[None]:

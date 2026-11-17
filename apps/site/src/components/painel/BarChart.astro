@@ -1,0 +1,149 @@
+---
+import { money } from '@/lib/finance';
+
+/**
+ * Entradas e saídas lado a lado, em barras, como no protótipo. Quem não vê o gráfico ouve a tabela
+ * escondida logo abaixo, com os mesmos números.
+ */
+interface Props {
+  groups: Array<{ label: string; income: number; expenses: number }>;
+  /** Legenda da tabela escondida. */
+  label: string;
+  /** Valor em cima de cada barra. */
+  values?: boolean;
+  series?: [string, string];
+  /** Ocupa a altura que sobrar no cartão, em vez dos 240px fixos. */
+  grow?: boolean;
+}
+
+const { groups, label, values = false, series = ['Entradas', 'Saídas'], grow = false } = Astro.props;
+
+const peak = Math.max(1, ...groups.flatMap((g) => [g.income, g.expenses]));
+const height = (cents: number) => `${Math.max(2, Math.round((cents / peak) * 100))}%`;
+// '5.200': nas barras o "R$" de cada número só pesa.
+const short = (cents: number) => Math.round(cents / 100).toLocaleString('pt-BR');
+---
+
+<figure class="bars" data-grow={grow ? '' : undefined} style={`--groups: ${groups.length}`}>
+  <div class="bars__body" aria-hidden="true">
+    <div class="bars__plot">
+      {
+        groups.map((g) => (
+          <div class="bars__pair">
+            <span class="bars__bar bars__bar--in" style={`--h: ${height(g.income)}`}>
+              {values && <span class="bars__value">{short(g.income)}</span>}
+            </span>
+            <span class="bars__bar bars__bar--out" style={`--h: ${height(g.expenses)}`}>
+              {values && <span class="bars__value">{short(g.expenses)}</span>}
+            </span>
+          </div>
+        ))
+      }
+    </div>
+    <div class="bars__axis">
+      {groups.map((g) => <span>{g.label}</span>)}
+    </div>
+  </div>
+
+  <table class="sr-only">
+    <caption>{label}</caption>
+    <thead>
+      <tr>
+        <th scope="col">Período</th>
+        <th scope="col">{series[0]}</th>
+        <th scope="col">{series[1]}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        groups.map((g) => (
+          <tr>
+            <th scope="row">{g.label}</th>
+            <td>{money(g.income)}</td>
+            <td>{money(g.expenses)}</td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</figure>
+
+<style>
+  .bars {
+    margin: 0;
+  }
+
+  .bars[data-grow],
+  .bars[data-grow] .bars__body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+  }
+
+  .bars[data-grow] .bars__plot {
+    flex: 1;
+    height: auto;
+    min-height: 240px;
+  }
+
+  /* Mesma grade nas barras e nos rótulos, para cada rótulo cair embaixo do seu par. */
+  .bars__plot,
+  .bars__axis {
+    display: grid;
+    grid-template-columns: repeat(var(--groups), minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .bars__plot {
+    height: 240px;
+    padding-top: 24px;
+    border-bottom: 1px solid var(--site-color-border);
+  }
+
+  .bars__pair {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .bars__bar {
+    position: relative;
+    width: clamp(16px, 3vw, 32px);
+    height: var(--h);
+    border-radius: 6px 6px 0 0;
+  }
+
+  /* Cores medidas no protótipo. */
+  .bars__bar--in {
+    background: var(--site-accent-pink-soft);
+  }
+
+  .bars__bar--out {
+    background: var(--site-accent-blue-soft);
+  }
+
+  .bars__value {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    translate: -50% 0;
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+
+  .bars__bar--in .bars__value {
+    color: var(--site-accent-pink-deep);
+  }
+
+  .bars__bar--out .bars__value {
+    color: var(--site-accent-blue-deep);
+  }
+
+  .bars__axis {
+    margin-top: 10px;
+    font-size: 0.8125rem;
+    text-align: center;
+    color: var(--site-color-text-muted);
+  }
+</style>

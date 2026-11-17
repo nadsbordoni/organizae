@@ -1,0 +1,35 @@
+---
+/** Link discreto de volta, como o "Voltar para entrar" das telas de acesso. */
+interface Props {
+  href: string;
+  label: string;
+}
+
+const { href, label } = Astro.props;
+---
+
+<a class="back" href={href}>{label}</a>
+
+<style>
+  .back {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    min-height: 44px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--site-color-text);
+    text-decoration: none;
+  }
+
+  .back:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .back:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+</style>

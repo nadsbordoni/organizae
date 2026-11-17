@@ -1,0 +1,80 @@
+---
+/** Um número de resumo, com o semicírculo decorativo no canto. Com `href`, o cartão leva ao detalhe. */
+interface Props {
+  label: string;
+  value: string;
+  note?: string;
+  tone: 'pink' | 'yellow' | 'blue' | 'green';
+  href?: string;
+}
+
+const { label, value, note, tone, href } = Astro.props;
+const Tag = href ? 'a' : 'article';
+---
+
+<Tag class="stat" href={href} style={`--tone: var(--site-accent-${tone}-deep)`}>
+  <p class="stat__label">{label}</p>
+  <p class="stat__value">{value}</p>
+  {note && <p class="stat__note">{note}</p>}
+</Tag>
+
+<style>
+  .stat {
+    position: relative;
+    color: var(--site-color-text);
+    text-decoration: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 24px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    overflow: hidden;
+  }
+
+  /* 12% da cor escura sobre o fundo: é o tom medido nos quatro cartões. */
+  .stat::after {
+    content: '';
+    position: absolute;
+    right: -30px;
+    bottom: -46px;
+    width: 116px;
+    height: 116px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--tone) 12%, var(--site-panel-background));
+  }
+
+  .stat__label {
+    font-size: 0.8125rem;
+    font-weight: 400;
+    color: var(--site-color-text-muted);
+  }
+
+  .stat__value {
+    margin-top: 14px;
+    font-family: var(--site-font-display);
+    font-size: 1.875rem;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    color: var(--tone);
+  }
+
+  .stat__note {
+    position: relative;
+    z-index: 1;
+    margin-top: 8px;
+    font-size: 0.875rem;
+    color: var(--site-color-text-muted);
+  }
+
+  a.stat:hover {
+    border-color: var(--site-color-border-strong);
+    box-shadow: var(--site-shadow-resting);
+  }
+
+  a.stat:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+</style>

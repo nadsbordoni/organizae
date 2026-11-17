@@ -1,0 +1,121 @@
+---
+import SetupLayout from '@/layouts/SetupLayout.astro';
+import Icon from '@/components/Icon.astro';
+import type { IconName } from '@/types/blocks';
+
+/** Configuração, passo 5. O back ainda não guarda essas regras; no site elas são a `agenda` de `config/sites/`. */
+const REGRAS: Array<{ name: string; title: string; icon: IconName; options: string[]; value: string }> = [
+  {
+    name: 'intervalo',
+    title: 'Intervalo entre horários',
+    icon: 'clock',
+    options: ['Sem intervalo', '10 minutos', '15 minutos', '30 minutos'],
+    value: '15 minutos',
+  },
+  {
+    name: 'antecedencia',
+    title: 'Antecedência mínima',
+    icon: 'calendar',
+    options: ['Sem antecedência', '1 hora', '2 horas', '6 horas', '12 horas', '24 horas'],
+    value: '2 horas',
+  },
+  {
+    name: 'janela',
+    title: 'Janela de agendamento',
+    icon: 'calendar',
+    options: ['15 dias', '30 dias', '60 dias', '90 dias'],
+    value: '60 dias',
+  },
+  {
+    name: 'cancelamento',
+    title: 'Cancelamento',
+    icon: 'close',
+    options: ['Até 2h antes', 'Até 6h antes', 'Até 12h antes', 'Até 24h antes'],
+    value: 'Até 12h antes',
+  },
+];
+---
+
+<SetupLayout
+  step={5}
+  title="Defina suas regras"
+  intro="Configure como os horários serão oferecidos para evitar imprevistos."
+>
+  <div class="rules">
+    {
+      REGRAS.map((rule) => (
+        <label class="rule">
+          <Icon name={rule.icon} size={20} />
+          <span class="rule__title">{rule.title}</span>
+          <select class="rule__value" name={rule.name}>
+            {rule.options.map((option) => (
+              <option selected={option === rule.value}>{option}</option>
+            ))}
+          </select>
+        </label>
+      ))
+    }
+  </div>
+</SetupLayout>
+
+<style>
+  .rules {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .rule {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 22px 20px 16px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+    cursor: pointer;
+  }
+
+  .rule :global(svg) {
+    color: var(--site-accent-yellow-deep);
+  }
+
+  .rule__title {
+    margin-top: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  /* Lista com cara de texto, como o valor no protótipo; a seta diz que dá para trocar. */
+  .rule__value {
+    min-height: 44px;
+    margin-left: -8px;
+    padding: 0 32px 0 8px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%23726f68' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 4.5 3 3 3-3'/%3E%3C/svg%3E") no-repeat right 10px center;
+    appearance: none;
+    font: inherit;
+    font-size: 0.875rem;
+    color: var(--site-color-text-muted);
+    cursor: pointer;
+  }
+
+  /* Texto escuro no hover: o cinza cai para 4,3:1 sobre o bege. */
+  .rule__value:hover {
+    background-color: var(--site-color-brand-soft);
+    color: var(--site-color-text);
+  }
+
+  .rule__value:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  @media (max-width: 599px) {
+    .rules {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

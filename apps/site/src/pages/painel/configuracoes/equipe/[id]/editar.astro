@@ -1,0 +1,41 @@
+---
+import SettingsLayout from '@/layouts/SettingsLayout.astro';
+import ProfessionalForm from '@/components/painel/ProfessionalForm.astro';
+import SectionHeader from '@/components/painel/SectionHeader.astro';
+import { getSite } from '@/config';
+import { nowInBusinessTime } from '@/lib/agenda';
+import { demoOptions, forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
+import { tenantNotConfigured } from '@/lib/painel';
+
+/** Editar profissional (quadro 04). Com a API: `PATCH /professionals/{id}` e `PUT /professionals/{id}/services`. */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const dados = forTenant(user.tenantSlug, demoOptions(Astro.url, Astro.cookies));
+const professional = await dados.professional(Astro.params.id ?? '');
+if (!professional) return new Response(null, { status: 404 });
+
+const hoje = nowInBusinessTime(site.agenda?.timezone ?? 'America/Sao_Paulo').date;
+const isOwner = professional.role === 'owner';
+---
+
+<SettingsLayout site={site} user={user} section="equipe" title={`Editar ${professional.name}`} subpage>
+  <SectionHeader
+    title={isOwner ? 'Seu cadastro de profissional' : professional.name}
+    intro={isOwner ? 'Seus contatos, os serviços que você faz e as suas férias e folgas.' : 'Contato, serviços, férias e folgas desta pessoa.'}
+    back={{ href: '/painel/configuracoes/equipe', label: 'Voltar para a equipe' }}
+  />
+  <ProfessionalForm
+    action="/painel/configuracoes/equipe?salvo"
+    cancelHref="/painel/configuracoes/equipe"
+    submitLabel="Salvar alterações"
+    ownerName={user.name ?? 'você'}
+    agenda={site.agenda}
+    today={hoje}
+    professional={professional}
+    timeOff={await dados.timeOff()}
+  />
+</SettingsLayout>

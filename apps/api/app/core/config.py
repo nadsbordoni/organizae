@@ -6,7 +6,7 @@ from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # BaseSettings lê as configurações do .env, enquanto URL.create() monta a conexão sem problemas com caracteres especiais na senha.
-ROOT_DIR = Path(__file__).resolve().parents[4]
+ROOT_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     GEMINI_MAX_OUTPUT_TOKENS: int = Field(default=2048, gt=0)
     APP_ENV: Literal["development", "test", "production"] = "production"
     ASSISTANT_WRITES_ENABLED: bool = False
+    BUSINESS_TIMEZONE: str = "America/Sao_Paulo"
 
     model_config = SettingsConfigDict(env_file=ROOT_DIR / ".env", extra="ignore")
 

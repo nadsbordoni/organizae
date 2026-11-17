@@ -1,0 +1,19 @@
+---
+import TabsNav from './TabsNav.astro';
+
+/** Abas do Financeiro. O mês escolhido passa de uma aba para a outra. */
+interface Props {
+  current: 'visao-geral' | 'despesas' | 'rentabilidade';
+  month?: string;
+}
+
+const { current, month } = Astro.props;
+const query = month ? `?mes=${month}` : '';
+const TABS = [
+  { key: 'visao-geral', label: 'Visão geral', href: '/painel/financeiro' },
+  { key: 'despesas', label: 'Despesas e notas', href: '/painel/financeiro/despesas' },
+  { key: 'rentabilidade', label: 'Rentabilidade', href: '/painel/financeiro/rentabilidade' },
+];
+---
+
+<TabsNav label="Áreas do financeiro" items={TABS.map((t) => ({ label: t.label, href: `${t.href}${query}`, current: t.key === current }))} />

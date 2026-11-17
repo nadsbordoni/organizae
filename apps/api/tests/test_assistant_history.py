@@ -325,7 +325,7 @@ def test_request_id_cannot_be_replayed_into_another_conversation(
     monkeypatch.setattr(settings, "ASSISTANT_WRITES_ENABLED", True)
     first = client.post(ROOT, headers=headers(USER_A), json={}).json()["id"]
     second = client.post(ROOT, headers=headers(USER_A), json={}).json()["id"]
-    request_tool(provider, "create_professional", {"name": "Ana"})
+    request_tool(provider, "create_professional", {"name": "Ana", "service_ids": []})
     body = {
         "message": "Cadastre Ana",
         "request_id": str(uuid4()),
@@ -432,7 +432,8 @@ def test_history_migration_is_additive_and_postgresql_sql_is_valid() -> None:
     )
     script = ScriptDirectory.from_config(config)
     revision = script.get_revision("e6f8a2c93104")
-    assert script.get_current_head() == revision.revision
+    lineage = script.iterate_revisions(script.get_current_head(), "base")
+    assert revision.revision in {item.revision for item in lineage}
     assert revision.down_revision == "c2e74a9b8106"
     output = StringIO()
     context = MigrationContext.configure(

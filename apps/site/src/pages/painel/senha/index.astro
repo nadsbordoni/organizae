@@ -1,0 +1,32 @@
+---
+import AuthLayout from '@/layouts/AuthLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import BackLink from '@/components/BackLink.astro';
+import Heading from '@/components/Heading.astro';
+import TextField from '@/components/TextField.astro';
+
+/** Recuperação de senha, passo 1 (quadro 02). O back ainda não tem rota para enviar o e-mail. */
+---
+
+<AuthLayout title="Recuperar senha" footer="brand" mascot="pensativo">
+  <Heading
+    eyebrow="Vamos ajudar"
+    title="Esqueceu sua senha?"
+    intro="Informe seu e-mail para receber as instruções de recuperação."
+  />
+
+  <form class="auth-form" method="post" action="/painel/senha/enviada" data-prototype>
+    <TextField
+      id="email"
+      label="E-mail"
+      type="email"
+      autocomplete="email"
+      placeholder="voce@empresa.com.br"
+      hint="Use o e-mail informado no seu cadastro."
+      required
+      autofocus
+    />
+    <ActionButton label="Enviar instruções" type="submit" />
+    <BackLink href="/painel/login" label="Voltar para entrar" />
+  </form>
+</AuthLayout>

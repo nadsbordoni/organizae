@@ -1,0 +1,409 @@
+---
+import ActionButton from '@/components/ActionButton.astro';
+import Callout from '@/components/Callout.astro';
+import TextField from '@/components/TextField.astro';
+import { formatPrice } from '@/lib/agenda';
+import { demoReceiptReading } from '@/lib/demo-finance';
+import type { FinancialCategoryRow, FinancialEntryRow, FinancialType } from '@/types/painel';
+
+/**
+ * Lançamento de receita ou despesa, novo ou edição. Campos de `POST/PATCH /financial-entries`; a
+ * competência de lançamento avulso e a forma de pagamento ainda não existem no back.
+ * O comprovante anexado é lido pela IA do projeto, que preenche os campos para a pessoa conferir.
+ * PROTÓTIPO: só valida e avança, sem guardar nada; a leitura devolve valores de exemplo.
+ */
+interface Props {
+  type: FinancialType;
+  categories: FinancialCategoryRow[];
+  action: string;
+  cancelHref: string;
+  today: string;
+  entry?: FinancialEntryRow;
+  /** Categoria já escolhida, como no "Nova despesa nesta categoria". */
+  category?: string;
+  /** Troca de receita para despesa por link (`?tipo=`), para o título da página acompanhar. */
+  switchHref?: (type: FinancialType) => string;
+  /** Veio do "Importar nota": o foco começa no comprovante. */
+  receipt?: boolean;
+}
+
+const { type, categories, action, cancelHref, today, entry, category, switchHref, receipt = false } = Astro.props;
+
+const income = type === 'INCOME';
+const noun = income ? 'receita' : 'despesa';
+const SITUATIONS = income
+  ? [
+      { value: 'paid:pix', label: 'Recebida · Pix' },
+      { value: 'paid:card', label: 'Recebida · Cartão' },
+      { value: 'paid:cash', label: 'Recebida · Dinheiro' },
+      { value: 'pending:card', label: 'A receber · Cartão' },
+      { value: 'pending', label: 'A receber' },
+    ]
+  : [
+      { value: 'paid:pix', label: 'Paga · Pix' },
+      { value: 'paid:card', label: 'Paga · Cartão' },
+      { value: 'paid:boleto', label: 'Paga · Boleto' },
+      { value: 'pending:boleto', label: 'A pagar · Boleto' },
+      { value: 'scheduled:debit', label: 'Agendada · Débito automático' },
+    ];
+const situation = entry
+  ? [entry.scheduled ? 'scheduled' : entry.status === 'PAID' ? 'paid' : 'pending', entry.payment_method].filter(Boolean).join(':')
+  : undefined;
+const options = categories.filter((c) => c.type === type).map((c) => ({ value: c.id, label: c.name }));
+---
+
+<section class="entry" aria-labelledby="titulo-lancamento">
+  <h2 class="entry__title" id="titulo-lancamento">{entry ? `Editar ${noun}` : `Nova ${noun}`}</h2>
+
+  {
+    switchHref && (
+      <nav class="entry__switch" aria-label="Tipo de lançamento">
+        <a href={switchHref('INCOME')} aria-current={income ? 'page' : undefined}>
+          Receita
+        </a>
+        <a href={switchHref('EXPENSE')} aria-current={income ? undefined : 'page'}>
+          Despesa
+        </a>
+      </nav>
+    )
+  }
+
+  <form
+    class="entry__form"
+    method="post"
+    action={action}
+    data-prototype="transient"
+    data-entry-form
+    data-reading={JSON.stringify(demoReceiptReading(type, today))}
+  >
+    <div class="receipt" data-highlight={receipt ? '' : undefined}>
+      <span class="receipt__thumb" aria-hidden="true" data-receipt-thumb>
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5" /><path d="M10 13h6M10 17h4" />
+        </svg>
+      </span>
+      <div class="receipt__text">
+        <strong>Comprovante ou nota</strong>
+        <small id="comprovante-regra">Foto, imagem ou PDF de até 5 MB. A IA lê e preenche os campos para você conferir.</small>
+        <span class="receipt__name" data-receipt-name hidden></span>
+        <label class="receipt__pick">
+          <span data-receipt-label>Tirar foto ou escolher arquivo</span>
+          <input
+            class="sr-only"
+            type="file"
+            name="comprovante"
+            accept="image/*,application/pdf"
+            aria-describedby="comprovante-regra"
+            autofocus={receipt}
+            data-receipt-input
+          />
+        </label>
+      </div>
+    </div>
+    <p class="receipt__status" role="status" data-receipt-status></p>
+    <p class="receipt__error" role="alert" hidden data-receipt-error>O arquivo passa de 5 MB. Escolha um menor.</p>
+    <div hidden data-receipt-review>
+      <Callout tone="info" icon="sparkles" title="Confira o que a IA leu">
+        Os campos marcados foram preenchidos pela leitura, que pode errar. Corrija o que precisar antes de salvar. Nesta
+        demonstração, os valores lidos são de exemplo.
+      </Callout>
+    </div>
+
+    <TextField
+      id="descricao"
+      label="Descrição"
+      maxlength={500}
+      placeholder={income ? 'Ex.: Manutenção · Marina Costa' : 'Ex.: Géis e esmaltes'}
+      value={entry?.description}
+      required
+      autofocus={!entry && !receipt}
+    />
+    <div class="entry__row">
+      <TextField
+        id="valor"
+        label="Valor"
+        placeholder="R$ 0,00"
+        pattern="(R\$ ?)?[0-9]{1,3}(\.?[0-9]{3})*(,[0-9]{2})?"
+        title="Valor em reais. Ex.: R$ 120,00"
+        inputmode="decimal"
+        value={entry ? formatPrice(entry.amount_cents) : undefined}
+        required
+      />
+      <TextField id="categoria" label="Categoria" options={options} value={entry?.category_id ?? category} required />
+    </div>
+    <div class="entry__row">
+      <TextField
+        id="competencia"
+        label="Data de competência"
+        type="date"
+        hint="O mês do resultado."
+        value={entry?.competence ?? today}
+        required
+      />
+      <TextField
+        id="pagamento"
+        label="Data de pagamento"
+        type="date"
+        hint="O dia em que entra ou sai do caixa; se ainda não foi pago, o previsto."
+        value={entry?.paid_on ?? entry?.due_date ?? today}
+        required
+      />
+    </div>
+    <TextField id="situacao" label="Situação" options={SITUATIONS} value={situation} required />
+    {
+      entry?.appointment_id && (
+        <p class="entry__context">Lançada a partir do atendimento de {entry.competence.split('-').reverse().join('/')}.</p>
+      )
+    }
+
+    <div class="entry__actions">
+      <ActionButton label="Cancelar" variant="secondary" href={cancelHref} full={false} />
+      <ActionButton label={entry ? 'Salvar alterações' : `Salvar ${noun}`} type="submit" full={false} />
+    </div>
+  </form>
+</section>
+
+<script>
+  import { wirePrototypeForms } from '@/lib/prototype-form';
+
+  const MAX = 5 * 1024 * 1024;
+  const form = document.querySelector<HTMLFormElement>('[data-entry-form]');
+  const input = form?.querySelector<HTMLInputElement>('[data-receipt-input]');
+  const thumb = form?.querySelector<HTMLElement>('[data-receipt-thumb]');
+  const name = form?.querySelector<HTMLElement>('[data-receipt-name]');
+  const label = form?.querySelector<HTMLElement>('[data-receipt-label]');
+  const status = form?.querySelector<HTMLElement>('[data-receipt-status]');
+  const error = form?.querySelector<HTMLElement>('[data-receipt-error]');
+  const review = form?.querySelector<HTMLElement>('[data-receipt-review]');
+
+  // PROTÓTIPO: no lugar do envio à IA, espera um instante e preenche com os valores de exemplo.
+  const read = () => {
+    const values = JSON.parse(form?.dataset.reading ?? '{}') as Record<string, string>;
+    let filled = 0;
+    for (const [id, value] of Object.entries(values)) {
+      const field = form?.querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`);
+      if (!field) continue;
+      field.value = value;
+      field.dataset.read = '';
+      filled++;
+    }
+    if (status) status.textContent = `Pronto: ${filled} campos preenchidos. Confira antes de salvar.`;
+    if (review) review.hidden = false;
+  };
+
+  input?.addEventListener('change', () => {
+    const file = input.files?.[0];
+    if (!file || !error) return;
+    const tooBig = file.size > MAX;
+    error.hidden = !tooBig;
+    input.setCustomValidity(tooBig ? 'O arquivo passa de 5 MB.' : '');
+    if (tooBig) return;
+
+    if (name) {
+      name.textContent = file.name;
+      name.hidden = false;
+    }
+    if (label) label.textContent = 'Trocar arquivo';
+    if (thumb && file.type.startsWith('image/')) {
+      thumb.style.backgroundImage = `url(${URL.createObjectURL(file)})`;
+      thumb.dataset.photo = '';
+    }
+    if (status) status.textContent = 'Lendo o comprovante…';
+    window.setTimeout(read, 1200);
+  });
+
+  // Corrigiu o campo, a marca de "lido pela IA" sai.
+  form?.addEventListener('input', (event) => {
+    const target = event.target as HTMLElement;
+    if (target !== input) delete target.dataset.read;
+  });
+
+  wirePrototypeForms();
+</script>
+
+<style>
+  .entry {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 28px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .entry__title {
+    font-size: 1.1875rem;
+    font-weight: 600;
+  }
+
+  .entry__switch {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .entry__switch a {
+    display: grid;
+    place-items: center;
+    min-height: 48px;
+    border-radius: var(--site-radius-button);
+    border: 1px solid var(--site-color-border-strong);
+    color: var(--site-color-text);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .entry__switch a:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  .entry__switch a[aria-current='page'] {
+    border-color: transparent;
+    background: var(--site-accent-yellow-soft);
+  }
+
+  .entry__switch a:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  .entry__form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .receipt {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    border-radius: var(--site-radius-field);
+    border: 1px dashed var(--site-color-border-strong);
+  }
+
+  /* Veio do "Importar nota": o bloco do comprovante chama a atenção primeiro. */
+  .receipt[data-highlight] {
+    border-color: var(--site-accent-yellow-deep);
+    background: color-mix(in srgb, var(--site-accent-yellow-soft) 18%, var(--site-color-surface));
+  }
+
+  .receipt__thumb {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+    background: var(--site-color-brand-soft);
+    background-size: cover;
+    background-position: center;
+    color: var(--site-color-text-muted);
+  }
+
+  .receipt__thumb[data-photo] svg {
+    display: none;
+  }
+
+  .receipt__text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .receipt__text strong {
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+
+  .receipt__text small,
+  .receipt__name {
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .receipt__name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .receipt__pick {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin-top: 6px;
+    padding: 0 18px;
+    border-radius: var(--site-radius-button);
+    border: 1px solid var(--site-color-border-strong);
+    background: var(--site-color-surface);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .receipt__pick:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  .receipt__pick:focus-within {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  .receipt__status {
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .receipt__status:empty {
+    display: none;
+  }
+
+  .receipt__error {
+    font-size: 0.8125rem;
+    color: var(--site-color-error);
+  }
+
+  /* Campo preenchido pela leitura: fundo amarelo até a pessoa mexer nele. */
+  .entry__form :global([data-read]) {
+    border-color: var(--site-accent-yellow-deep);
+    background-color: color-mix(in srgb, var(--site-accent-yellow-soft) 22%, var(--site-color-surface));
+  }
+
+  .entry__row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 16px;
+  }
+
+  .entry__context {
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .entry__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 12px;
+    padding-top: 20px;
+    border-top: 1px solid var(--site-color-border);
+  }
+
+  @media (max-width: 599px) {
+    .entry {
+      padding: 20px;
+    }
+
+    .entry__row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

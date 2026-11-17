@@ -6,6 +6,8 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     ForeignKey,
+    ForeignKeyConstraint,
+    Index,
     Integer,
     Numeric,
     String,
@@ -17,6 +19,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.modules.categories.models import Category
 from app.modules.services.associations import professional_services
 
 if TYPE_CHECKING:
@@ -31,6 +34,12 @@ class Service(Base):
         CheckConstraint("price >= 0", name="ck_services_price"),
         CheckConstraint("duration_minutes > 0", name="ck_services_duration"),
         UniqueConstraint("id", "business_id", name="uq_services_id_business"),
+        ForeignKeyConstraint(
+            ["category_id", "business_id"],
+            ["categories.id", "categories.business_id"],
+            name="fk_services_category_business",
+        ),
+        Index("ix_services_business_category", "business_id", "category_id"),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -43,6 +52,8 @@ class Service(Base):
 
     name: Mapped[str] = mapped_column(String(150), nullable=False)
 
+    category_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
+
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
@@ -54,6 +65,13 @@ class Service(Base):
     )
 
     business: Mapped["Business"] = relationship("Business", back_populates="services")
+
+    category: Mapped[Category | None] = relationship(
+        Category,
+        back_populates="services",
+        primaryjoin="and_(Service.category_id == Category.id, Service.business_id == Category.business_id)",
+        foreign_keys=[category_id],
+    )
 
     professionals: Mapped[list["Professional"]] = relationship(
         "Professional", secondary=professional_services, back_populates="services"

@@ -1,0 +1,181 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import Callout from '@/components/Callout.astro';
+import TextField from '@/components/TextField.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import PanelSection from '@/components/painel/PanelSection.astro';
+import PanelTable from '@/components/painel/PanelTable.astro';
+import ReportTabs from '@/components/painel/ReportTabs.astro';
+import StatCard from '@/components/painel/StatCard.astro';
+import { getSite } from '@/config';
+import { addDays, nowInBusinessTime } from '@/lib/agenda';
+import { AWAY_AFTER_DAYS } from '@/lib/clients';
+import { usuarioExemplo } from '@/lib/dados-exemplo';
+import { pickRecipients, recoveryAudience, recoveryMessage } from '@/lib/insights';
+import { loadIntelligence } from '@/lib/intelligence-page';
+import { firstName, numericDate, tenantNotConfigured } from '@/lib/painel';
+
+/**
+ * Campanha de recuperação, passo 1 (quadro 17): público e mensagem. Vem do "Recuperar clientes" com as
+ * clientes marcadas em `?clientes=`. PROTÓTIPO: o nome e o texto ficam na sessão do navegador para a
+ * revisão; nada é enviado.
+ */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const hoje = nowInBusinessTime(site.agenda?.timezone ?? 'America/Sao_Paulo').date;
+const { summaries } = await loadIntelligence(Astro.url, site, hoje);
+const owner = firstName(user.name) ?? 'você';
+const { away, eligible } = recoveryAudience(summaries);
+const recipients = pickRecipients(eligible, Astro.url.searchParams.get('clientes'));
+const query = Astro.url.searchParams.get('clientes') ? `?clientes=${Astro.url.searchParams.get('clientes')}` : '';
+const link = `${Astro.url.host}/${site.slug}`;
+---
+
+<PanelLayout site={site} user={user} current="relatorios" title="Campanha de recuperação">
+  <PanelHeading
+    eyebrow="Inteligência do negócio"
+    title="Vamos retomar boas conexões"
+    intro={`Prepare uma mensagem para clientes há mais de ${AWAY_AFTER_DAYS} dias sem atendimento.`}
+  />
+
+  <div class="tabs">
+    <ReportTabs current="marketing" />
+  </div>
+
+  <div class="notice">
+    <Callout tone="info" icon="info" title="Rascunho · Nenhuma mensagem enviada">
+      A campanha passa pela revisão e pela confirmação de {owner} antes de qualquer envio.
+    </Callout>
+  </div>
+
+  <div class="grid">
+    <PanelSection title="Público da recuperação" id="titulo-publico">
+      <div class="stats">
+        <StatCard label="Ausentes" value={String(away.length)} note={`Mais de ${AWAY_AFTER_DAYS} dias sem atendimento`} tone="pink" />
+        <StatCard label="Elegíveis" value={String(eligible.length)} note="WhatsApp com permissão de contato" tone="green" />
+      </div>
+      <p class="hint">
+        Base em {numericDate(hoje)} · último atendimento antes de {numericDate(addDays(hoje, -AWAY_AFTER_DAYS))}. Fora da campanha:{' '}
+        {away.length - eligible.length} sem permissão.
+      </p>
+      <PanelTable label="Clientes da campanha">
+        <thead>
+          <tr>
+            <th scope="col">Cliente</th>
+            <th scope="col" data-wide>
+              Última visita
+            </th>
+            <th scope="col">Dias ausente</th>
+          </tr>
+        </thead>
+        <tbody>
+          {recipients.map((s) => (
+            <tr>
+              <td class="strong">{s.client.name}</td>
+              <td data-wide>{s.lastVisit ? numericDate(s.lastVisit) : '—'}</td>
+              <td>{s.daysAway === undefined ? '—' : `${s.daysAway} dias`}</td>
+            </tr>
+          ))}
+        </tbody>
+      </PanelTable>
+      <p class="hint">
+        {recipients.length} de {eligible.length} {eligible.length === 1 ? 'elegível selecionada' : 'elegíveis selecionadas'} ·{' '}
+        <a href="/painel/clientes/inativos">Trocar a seleção</a>
+      </p>
+    </PanelSection>
+
+    <PanelSection title="Mensagem da campanha" id="titulo-mensagem">
+      <form class="form" method="post" action={`/painel/relatorios/marketing/recuperar/revisar${query}`} data-prototype>
+        <TextField id="campanha" label="Nome da campanha" maxlength={80} value={`Um novo momento com ${site.profile.name}`} required />
+        <TextField id="canal" label="Canal" options={['WhatsApp']} />
+        <TextField
+          id="mensagem"
+          label="Mensagem editável"
+          rows={6}
+          maxlength={1000}
+          value={recoveryMessage(site.profile.name, link)}
+          hint="{primeiro_nome} vira o nome de cada cliente na prévia."
+          required
+        />
+        <Callout tone="attention" icon="alert" title="Envio bloqueado até a aprovação">
+          A próxima etapa mostra público, mensagem e canal para a sua confirmação.
+        </Callout>
+        <ActionButton label="Revisar campanha" type="submit" disabled={!recipients.length} />
+      </form>
+    </PanelSection>
+  </div>
+</PanelLayout>
+
+<script>
+  import { wirePrototypeForms } from '@/lib/prototype-form';
+
+  wirePrototypeForms();
+</script>
+
+<style>
+  .tabs {
+    margin-top: 28px;
+  }
+
+  .notice {
+    margin-top: 20px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 16px;
+    margin-top: 16px;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .hint {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--site-color-text-muted);
+  }
+
+  .hint a {
+    color: var(--site-color-text);
+    font-weight: 600;
+  }
+
+  .strong {
+    font-weight: 600;
+  }
+
+  .form {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* Com as colunas da mesma altura, o botão fica no fim do cartão. */
+  .form > :global(.action) {
+    margin-top: auto;
+  }
+
+  @media (max-width: 1099px) {
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 599px) {
+    .stats {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

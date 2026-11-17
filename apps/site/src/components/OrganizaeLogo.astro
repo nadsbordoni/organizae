@@ -1,0 +1,56 @@
+---
+/**
+ * Logo do Organizaê: ícone e nome. O nome vai em TEXTO, não no logotipo vetorizado:
+ * é como o protótipo usa a marca, e fica nítido em qualquer tamanho sem baixar arquivo.
+ */
+
+interface Props {
+  /** `light` para fundo escuro, como o menu do painel. */
+  tone?: 'dark' | 'light';
+}
+
+const { tone = 'dark' } = Astro.props;
+---
+
+<span class="logo" data-tone={tone}>
+  {/* No fundo escuro vai só o símbolo, sem o quadrado: o quadrado preto sumiria. */}
+  <img
+    class="logo__icon"
+    src={tone === 'light' ? '/marca/simbolo-fundo-escuro.svg' : '/marca/icone.svg'}
+    alt=""
+    width="38"
+    height="38"
+  />
+  <span class="logo__name">Organizaê</span>
+</span>
+
+<style>
+  .logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--site-color-text);
+  }
+
+  .logo[data-tone='light'] {
+    color: var(--site-color-on-brand);
+  }
+
+  .logo__icon {
+    width: 38px;
+    height: 38px;
+    flex: none;
+  }
+
+  .logo[data-tone='light'] .logo__icon {
+    width: 28px;
+    height: auto;
+  }
+
+  .logo__name {
+    font-size: 1.375rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1;
+  }
+</style>

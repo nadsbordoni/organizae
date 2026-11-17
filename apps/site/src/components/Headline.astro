@@ -1,0 +1,21 @@
+---
+/** Frase de destaque do perfil: o diferencial do negócio, não o catálogo. */
+
+interface Props {
+  text: string;
+}
+
+const { text }: Props = Astro.props;
+---
+
+<p class="headline">{text}</p>
+
+<style>
+  .headline {
+    max-width: 36ch;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: var(--site-color-text-muted);
+    text-wrap: balance;
+  }
+</style>

@@ -1,0 +1,178 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import Callout from '@/components/Callout.astro';
+import CampaignPreview from '@/components/painel/CampaignPreview.astro';
+import Initials from '@/components/painel/Initials.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import PanelTable from '@/components/painel/PanelTable.astro';
+import ReportTabs from '@/components/painel/ReportTabs.astro';
+import { getSite } from '@/config';
+import { nowInBusinessTime, toClock } from '@/lib/agenda';
+import { AWAY_AFTER_DAYS } from '@/lib/clients';
+import { usuarioExemplo } from '@/lib/dados-exemplo';
+import { pickRecipients, recoveryAudience, recoveryMessage } from '@/lib/insights';
+import { loadIntelligence } from '@/lib/intelligence-page';
+import { firstName, numericDate, tenantNotConfigured } from '@/lib/painel';
+
+/**
+ * Campanha aprovada (quadro 17). Aprovação não é envio: a tela diz isso com todas as letras.
+ * PROTÓTIPO: nada foi gravado nem enviado; o envio por WhatsApp ainda não existe no back.
+ */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const agora = nowInBusinessTime(site.agenda?.timezone ?? 'America/Sao_Paulo');
+const hoje = agora.date;
+const { summaries } = await loadIntelligence(Astro.url, site, hoje);
+const owner = firstName(user.name) ?? 'você';
+const { away, eligible } = recoveryAudience(summaries);
+const recipients = pickRecipients(eligible, Astro.url.searchParams.get('clientes'));
+const n = recipients.length;
+---
+
+<PanelLayout site={site} user={user} current="relatorios" title="Campanha aprovada">
+  <PanelHeading
+    eyebrow="Inteligência do negócio"
+    title={`Campanha aprovada por ${owner}`}
+    intro="Confira o resumo da autorização e dos destinatários."
+  />
+
+  <div class="tabs">
+    <ReportTabs current="marketing" />
+  </div>
+
+  <div class="notice">
+    <Callout tone="success" icon="check-circle" title="Aprovação registrada · Envio ainda pendente">
+      {owner} autorizou esta versão em {numericDate(hoje)}, às {toClock(agora.minutes)}. A aprovação não significa que as mensagens
+      foram enviadas.
+    </Callout>
+  </div>
+
+  <div class="grid">
+    <CampaignPreview
+      name={`Um novo momento com ${site.profile.name}`}
+      message={recoveryMessage(site.profile.name, `${Astro.url.host}/${site.slug}`)}
+      recipients={recipients}
+      business={site.profile.name}
+      approved
+    />
+
+    <section class="summary" aria-labelledby="titulo-resumo">
+      <h2 id="titulo-resumo">Resumo da autorização</h2>
+      <Initials name={user.name ?? owner} large />
+      <p class="summary__who">{owner} · Administradora</p>
+      <p class="summary__text">
+        Público: mais de {AWAY_AFTER_DAYS} dias sem atendimento, com WhatsApp válido e permissão de contato. Referência em {numericDate(hoje)}.
+      </p>
+      <PanelTable label="Escopo autorizado">
+        <thead>
+          <tr>
+            <th scope="col">Escopo</th>
+            <th scope="col">Quantidade</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Clientes ausentes</th>
+            <td>{away.length}</td>
+          </tr>
+          <tr>
+            <th scope="row">Destinatários autorizados</th>
+            <td>{n}</td>
+          </tr>
+          <tr>
+            <th scope="row">Fora da campanha</th>
+            <td>{away.length - n}</td>
+          </tr>
+        </tbody>
+      </PanelTable>
+      <span class="chip">{n} {n === 1 ? 'destinatário autorizado' : 'destinatários autorizados'}</span>
+      <p class="summary__note">Canal WhatsApp. O envio depende da integração com o WhatsApp, que ainda não existe.</p>
+      <div class="summary__actions">
+        <ActionButton label="Voltar ao Marketing" href="/painel/relatorios/marketing" />
+      </div>
+    </section>
+  </div>
+</PanelLayout>
+
+<style>
+  .tabs {
+    margin-top: 28px;
+  }
+
+  .notice {
+    margin-top: 20px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    align-items: stretch;
+    gap: 16px;
+    margin-top: 16px;
+  }
+
+  .summary {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 24px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .summary > :global(.table),
+  .summary__actions {
+    width: 100%;
+  }
+
+  .summary h2 {
+    font-size: 1.0625rem;
+    font-weight: 600;
+  }
+
+  .summary__who {
+    font-size: 1.125rem;
+    font-weight: 600;
+  }
+
+  .summary__text {
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .summary :global(th[scope='row']) {
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .chip {
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--site-panel-positive-soft);
+    color: var(--site-accent-green-deep);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .summary__note {
+    font-size: 0.8125rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .summary__actions {
+    margin-top: auto;
+  }
+
+  @media (max-width: 1099px) {
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

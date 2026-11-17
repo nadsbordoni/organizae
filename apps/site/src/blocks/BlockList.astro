@@ -1,0 +1,68 @@
+---
+import LinkBlockView from './LinkBlock.astro';
+import WhatsappBlockView from './WhatsappBlock.astro';
+import BookingBlockView from './BookingBlock.astro';
+import LocationBlockView from './LocationBlock.astro';
+import HoursBlockView from './HoursBlock.astro';
+import SocialsBlockView from './SocialsBlock.astro';
+import SectionBlockView from './SectionBlock.astro';
+import NoteBlockView from './NoteBlock.astro';
+import type { Block, BlockType } from '@/types/blocks';
+
+/**
+ * Renderiza os blocos de uma página. O REGISTRY é o único elo `type` → componente:
+ * graças ao `satisfies`, um tipo novo em `types/blocks.ts` sem registro aqui QUEBRA O BUILD.
+ */
+
+interface Props {
+  blocks: Block[];
+}
+
+const REGISTRY = {
+  link: LinkBlockView,
+  whatsapp: WhatsappBlockView,
+  booking: BookingBlockView,
+  location: LocationBlockView,
+  hours: HoursBlockView,
+  socials: SocialsBlockView,
+  section: SectionBlockView,
+  note: NoteBlockView,
+} satisfies Record<BlockType, unknown>;
+
+const { blocks } = Astro.props;
+
+const visible = blocks.filter((block) => !block.hidden);
+---
+
+<div class="stack">
+  {
+    visible.map((block) => {
+      // O TS não correlaciona a chave da união com as props do componente;
+      // o `satisfies` acima já garante o par, o cast só destrava a renderização.
+      const Component = REGISTRY[block.type] as (props: { block: Block }) => unknown;
+      return <Component block={block} />;
+    })
+  }
+</div>
+
+<style>
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--site-space-stack);
+  }
+
+  /* Cor do quadradinho de ícone alternada a partir do 2º filho: o 1º costuma ser o
+     botão principal (sem quadradinho), então a 1ª linha comum sai amarela, como no protótipo. */
+  .stack > :global(:nth-child(3n + 2)) {
+    --tone-soft: var(--site-accent-yellow-soft);
+  }
+
+  .stack > :global(:nth-child(3n)) {
+    --tone-soft: var(--site-accent-blue-soft);
+  }
+
+  .stack > :global(:nth-child(3n + 1)) {
+    --tone-soft: var(--site-accent-pink-soft);
+  }
+</style>

@@ -1,0 +1,105 @@
+---
+import type { HoursBlock } from '@/types/blocks';
+
+/**
+ * Horário de funcionamento. Usa `<dl>` porque cada faixa é um par dias → horário,
+ * e leitores de tela anunciam o par junto em vez de uma parede de texto.
+ */
+
+interface Props {
+  block: HoursBlock;
+}
+
+const { block }: Props = Astro.props;
+const { title = 'Horário de atendimento', subtitle, schedule } = block;
+
+if (!schedule) {
+  throw new Error('Bloco `hours` sem `schedule`: renderize os blocos por `resolveBlocks(site)`.');
+}
+---
+
+<section class="hours">
+  <h2 class="hours__title">{title}</h2>
+  {subtitle && <p class="hours__subtitle">{subtitle}</p>}
+
+  <dl class="hours__list">
+    {
+      schedule.map((faixa) => (
+        <div class="hours__row">
+          <dt>{faixa.days}</dt>
+          <dd>{faixa.time}</dd>
+        </div>
+      ))
+    }
+  </dl>
+</section>
+
+<style>
+  .hours {
+    padding: 16px 18px;
+    border-radius: var(--site-radius-button);
+    border: 1px solid var(--site-color-border-strong);
+    background: var(--site-color-surface);
+    box-shadow: var(--site-shadow-resting);
+  }
+
+  .hours__title {
+    font-family: var(--site-font-body);
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--site-color-text);
+  }
+
+  .hours__subtitle {
+    margin-top: 2px;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--site-color-text-muted);
+  }
+
+  .hours__list {
+    margin: 10px 0 0;
+  }
+
+  .hours__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+
+    font-size: 0.9375rem;
+    line-height: 1.6;
+  }
+
+  /* Fio pontilhado: guia a leitura quando os nomes dos dias têm larguras diferentes. */
+  .hours__row::after {
+    content: '';
+    order: 1;
+    flex: 1;
+    min-width: 12px;
+    height: 0;
+    margin-bottom: 4px;
+    border-bottom: 1px dotted var(--site-color-border);
+  }
+
+  .hours__row dt {
+    color: var(--site-color-text-muted);
+  }
+
+  .hours__row dd {
+    order: 2;
+    margin: 0;
+    font-weight: 500;
+    color: var(--site-color-text);
+    /* SEM `nowrap`: dia com pausa precisa quebrar. Os espaços dentro de cada faixa
+       são NBSP (`describeDay()` em lib/agenda.ts), então a quebra só cai no " e ". */
+    text-align: right;
+  }
+
+  @media (max-width: 359px) {
+    .hours__row {
+      font-size: 0.875rem;
+    }
+  }
+</style>

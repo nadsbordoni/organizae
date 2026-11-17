@@ -1,0 +1,35 @@
+---
+import SetupLayout from '@/layouts/SetupLayout.astro';
+import TextField from '@/components/TextField.astro';
+
+/**
+ * Configuração, passo 2. Com a API: `PATCH /api/v1/businesses/{id}` (whatsapp, endereço). O campo
+ * do WhatsApp se chama `telefone` para vir preenchido com o telefone do cadastro.
+ */
+---
+
+<SetupLayout
+  step={2}
+  title="Como seus clientes encontram você?"
+  intro="Você pode editar esses dados quando quiser."
+>
+  <div class="setup-row">
+    <TextField
+      id="telefone"
+      label="WhatsApp"
+      type="tel"
+      autocomplete="tel"
+      placeholder="(00) 00000-0000"
+      pattern="[0-9\(\)+ \-]{10,20}"
+      title="Só números, com DDD. Ex.: (81) 99999-9999"
+      required
+      autofocus
+    />
+    <TextField id="instagram" label="Instagram" placeholder="@seuperfil" optional />
+  </div>
+  <TextField id="endereco" label="Endereço" autocomplete="address-line1" placeholder="Rua, número e complemento" optional />
+  <div class="setup-row">
+    <TextField id="bairro" label="Bairro" autocomplete="address-level3" optional />
+    <TextField id="cidade" label="Cidade" autocomplete="address-level2" placeholder="Ex.: Recife" required />
+  </div>
+</SetupLayout>

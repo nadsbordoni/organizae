@@ -1,0 +1,335 @@
+---
+import ActionButton from '@/components/ActionButton.astro';
+import Callout from '@/components/Callout.astro';
+import ChoiceCard from '@/components/ChoiceCard.astro';
+import TextField from '@/components/TextField.astro';
+import PanelSection from './PanelSection.astro';
+import { formatDuration } from '@/lib/agenda';
+import { DURATION_OPTIONS, SERVICE_STATE, catalogServices, serviceState } from '@/lib/catalog';
+import type { ServiceState } from '@/lib/catalog';
+import type { Agenda } from '@/types/agenda';
+import type { ProfessionalRow } from '@/types/painel';
+
+/**
+ * Cadastro de serviço, novo ou edição, com a prévia de como ele aparece no agendamento (o mesmo
+ * `ChoiceCard` da tela da cliente). Campos de
+ * `POST/PATCH /services`; os profissionais vão em `PUT /professionals/{id}/services`.
+ * Com uma pessoa só na equipe, a escolha de profissionais some: todo serviço é dela.
+ * PROTÓTIPO: só valida e avança, sem guardar nada.
+ */
+interface Props {
+  action: string;
+  cancelHref: string;
+  submitLabel: string;
+  agenda: Agenda | undefined;
+  professionals: ProfessionalRow[];
+  serviceId?: string;
+}
+
+const { action, cancelHref, submitLabel, agenda, professionals, serviceId } = Astro.props;
+
+const catalog = catalogServices(agenda);
+const index = catalog.findIndex(({ service }) => service.id === serviceId);
+const current = catalog[index];
+const service = current?.service;
+const team = professionals.length > 1;
+const eligible = professionals.filter((p) => (service ? p.service_ids.includes(service.id) : p.is_active));
+
+const CATEGORIES = [
+  ...(agenda?.categories ?? []).map((c) => ({ value: c.id, label: c.name })),
+  { value: 'nova', label: 'Nova categoria' },
+];
+const STATES = (Object.keys(SERVICE_STATE) as ServiceState[]).map((state) => ({
+  value: state,
+  label: `${SERVICE_STATE[state].label} · ${SERVICE_STATE[state].detail}`,
+}));
+const plural = (n: number) => `${n} ${n === 1 ? 'profissional elegível' : 'profissionais elegíveis'}`;
+---
+
+<div class="service-form">
+  <PanelSection title="Informações do serviço" id="titulo-servico">
+    <form class="form" method="post" action={action} data-prototype="transient" data-service-form>
+      <TextField
+        id="nome"
+        label="Nome do serviço"
+        maxlength={80}
+        placeholder="Ex.: Alongamento em gel"
+        value={service?.name}
+        required
+        autofocus={!service}
+      />
+      <TextField
+        id="descricao"
+        label="Descrição"
+        maxlength={160}
+        placeholder="O que está incluído, em uma frase."
+        value={service?.description}
+        optional
+      />
+      <div class="form__row">
+        <TextField
+          id="preco"
+          label="Preço"
+          placeholder="R$ 0,00"
+          pattern="(R\$ ?)?[0-9]{1,3}(\.?[0-9]{3})*(,[0-9]{2})?"
+          title="Valor em reais. Ex.: R$ 120,00"
+          inputmode="decimal"
+          value={service?.price}
+          required
+        />
+        <TextField
+          id="duracao"
+          label="Duração"
+          options={DURATION_OPTIONS}
+          value={String(service?.durationMinutes ?? 60)}
+          hint="Inclua o preparo e a limpeza."
+          required
+        />
+      </div>
+      <div class="form__row">
+        <TextField id="categoria" label="Categoria" options={CATEGORIES} value={current?.category.id} required />
+        <div hidden data-new-category>
+          <TextField id="nova-categoria" label="Nome da nova categoria" maxlength={60} placeholder="Ex.: Sobrancelhas" />
+        </div>
+      </div>
+
+      {
+        team && (
+          <fieldset class="pros">
+            <legend>Profissionais elegíveis</legend>
+            <p class="pros__error" role="alert" hidden data-pros-error>
+              Escolha pelo menos um profissional.
+            </p>
+            {professionals.map((p) => (
+              <label class="pros__item">
+                <input type="checkbox" name="profissionais" value={p.id} checked={eligible.includes(p)} />
+                <span>
+                  {p.name}
+                  {p.description && ` · ${p.description}`}
+                  {!p.is_active && ' · indisponível'}
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        )
+      }
+
+      <TextField
+        id="situacao"
+        label="Disponibilidade na página pública"
+        options={STATES}
+        value={service ? serviceState(service) : 'active'}
+      />
+
+      <div class="form__actions">
+        <ActionButton label="Cancelar" variant="secondary" href={cancelHref} full={false} />
+        <ActionButton label={submitLabel} type="submit" full={false} />
+      </div>
+    </form>
+  </PanelSection>
+
+  <aside class="preview" aria-labelledby="titulo-previa">
+    <h2 class="preview__title" id="titulo-previa">Como aparece no agendamento</h2>
+    {/* `inert`: é só a imagem do cartão; quem escolhe é a cliente, na página do negócio. */}
+    <div class="preview__card" inert data-preview-card>
+      <ChoiceCard
+        control="checkbox"
+        name="previa"
+        title={service?.name ?? 'Nome do serviço'}
+        description={service?.description || 'Descrição do serviço'}
+        meta={[formatDuration(service?.durationMinutes ?? 60), service?.price].filter((item): item is string => Boolean(item))}
+        badge="Em breve"
+      />
+    </div>
+    <p class="preview__note" hidden data-preview-draft>Rascunho: o serviço não aparece no agendamento.</p>
+    {
+      team && (
+        <div data-preview-count>
+          <Callout tone="info" icon="info" title={plural(eligible.length)}>
+            Só quem estiver marcado recebe este serviço na agenda.
+          </Callout>
+        </div>
+      )
+    }
+  </aside>
+</div>
+
+<script>
+  import { formatPrice, parsePrice } from '@/lib/agenda';
+  import { wirePrototypeForms } from '@/lib/prototype-form';
+
+  const form = document.querySelector<HTMLFormElement>('[data-service-form]');
+  const field = <T extends Element>(selector: string) => form?.querySelector<T>(selector) ?? null;
+
+  const name = field<HTMLInputElement>('#nome');
+  const description = field<HTMLInputElement>('#descricao');
+  const price = field<HTMLInputElement>('#preco');
+  const duration = field<HTMLSelectElement>('#duracao');
+  const state = field<HTMLSelectElement>('#situacao');
+
+  // A prévia é o `ChoiceCard` do agendamento: o script só troca os textos dele.
+  const previewCard = document.querySelector<HTMLElement>('[data-preview-card]');
+  const draftNote = document.querySelector<HTMLElement>('[data-preview-draft]');
+  const choice = previewCard?.querySelector<HTMLElement>('.choice');
+  const title = previewCard?.querySelector<HTMLElement>('.choice__title');
+  const titleText = [...(title?.childNodes ?? [])].find((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim());
+  const badge = previewCard?.querySelector<HTMLElement>('.choice__badge');
+  const detail = previewCard?.querySelector<HTMLElement>('.choice__description');
+  const meta = previewCard?.querySelector<HTMLElement>('.choice__meta');
+
+  const syncPreview = () => {
+    if (titleText) titleText.textContent = name?.value.trim() || 'Nome do serviço';
+    if (detail) {
+      detail.textContent = description?.value.trim() ?? '';
+      detail.style.display = detail.textContent ? '' : 'none';
+    }
+    const cents = parsePrice(price?.value);
+    const parts = [duration?.selectedOptions[0]?.textContent ?? '', cents === undefined ? '' : formatPrice(cents)];
+    if (meta) meta.textContent = parts.filter(Boolean).join(' · ');
+
+    // Como no agendamento: "Em breve" aparece apagado e sem seleção; rascunho nem aparece.
+    const soon = state?.value === 'soon';
+    const draft = state?.value === 'draft';
+    if (badge) badge.style.display = soon ? '' : 'none';
+    choice?.toggleAttribute('data-disabled', soon);
+    if (previewCard) previewCard.hidden = draft;
+    if (draftNote) draftNote.hidden = !draft;
+  };
+  form?.addEventListener('input', syncPreview);
+  form?.addEventListener('change', syncPreview);
+  syncPreview();
+
+  // "Nova categoria" abre o campo do nome, que passa a ser obrigatório.
+  const category = field<HTMLSelectElement>('#categoria');
+  const newCategory = field<HTMLElement>('[data-new-category]');
+  const newCategoryInput = field<HTMLInputElement>('#nova-categoria');
+  const syncCategory = () => {
+    const creating = category?.value === 'nova';
+    if (newCategory) newCategory.hidden = !creating;
+    if (newCategoryInput) newCategoryInput.required = creating;
+  };
+  category?.addEventListener('change', syncCategory);
+  syncCategory();
+
+  // Grupo de caixas não tem `required` nativo: a primeira carrega o erro enquanto nenhuma estiver marcada.
+  const boxes = [...(form?.querySelectorAll<HTMLInputElement>('input[name="profissionais"]') ?? [])];
+  const error = field<HTMLElement>('[data-pros-error]');
+  const count = document.querySelector('[data-preview-count] strong');
+  const syncPros = () => {
+    const checked = boxes.filter((box) => box.checked).length;
+    boxes[0]?.setCustomValidity(checked ? '' : 'Escolha pelo menos um profissional.');
+    if (error && checked) error.hidden = true;
+    if (count) count.textContent = `${checked} ${checked === 1 ? 'profissional elegível' : 'profissionais elegíveis'}`;
+  };
+  for (const box of boxes) box.addEventListener('change', syncPros);
+  boxes[0]?.addEventListener('invalid', () => {
+    if (error) error.hidden = false;
+  });
+  if (boxes.length) syncPros();
+
+  wirePrototypeForms();
+</script>
+
+<style>
+  .service-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 24px;
+    margin-top: 32px;
+  }
+
+  .form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .form__row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 16px;
+  }
+
+  .pros {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .pros legend {
+    margin-bottom: 8px;
+    padding: 0;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .pros__error {
+    font-size: 0.8125rem;
+    color: var(--site-color-error);
+  }
+
+  .pros__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    font-size: 0.9375rem;
+    cursor: pointer;
+  }
+
+  .pros__item input {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--site-color-brand);
+  }
+
+  .form__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 12px;
+    padding-top: 20px;
+    border-top: 1px solid var(--site-color-border);
+  }
+
+  .preview {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 28px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .preview__title {
+    font-size: 1.1875rem;
+    font-weight: 600;
+  }
+
+  .preview__note {
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: var(--site-color-brand-soft);
+    font-size: 0.875rem;
+  }
+
+  @media (max-width: 1099px) {
+    .service-form {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 599px) {
+    .form__row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

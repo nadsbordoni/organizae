@@ -1,0 +1,58 @@
+---
+/**
+ * `<ul>` de verdade (o leitor de tela anuncia "lista de 4 itens") que flui como uma linha.
+ * NÃO parece clicável de propósito: numa página quase toda de botões, cara de botão que não responde frustra.
+ */
+
+interface Props {
+  items: string[];
+}
+
+const { items }: Props = Astro.props;
+---
+
+<ul class="services">
+  {items.map((item) => <li>{item}</li>)}
+</ul>
+
+<style>
+  .services {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: baseline;
+    /* Mesmo vão dos dois lados do separador, para ele ficar no meio. */
+    gap: 4px 13px;
+
+    list-style: none;
+    margin: 0;
+    padding: 0;
+
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.5;
+    color: var(--site-color-text);
+  }
+
+  .services li {
+    display: flex;
+    align-items: baseline;
+    gap: 13px;
+  }
+
+  /* FORMA do tema (`ornament.separator`), não glifo: sem o glifo na fonte, cairia no emoji do sistema.
+     O 2º `content` zera o texto alternativo (o leitor de tela não anuncia a marca a cada serviço);
+     navegador que não o entende (antes de Safari 17.4, Firefox 122) fica com o 1º. */
+  .services li:not(:last-child)::after {
+    content: '';
+    content: '' / '';
+
+    flex: none;
+    align-self: center;
+    width: var(--site-ornament-separator-size);
+    height: var(--site-ornament-separator-size);
+    clip-path: var(--site-ornament-separator);
+    background: var(--site-color-brand);
+    opacity: 0.55;
+  }
+</style>

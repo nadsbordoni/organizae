@@ -1,0 +1,109 @@
+---
+import { formatDuration } from '@/lib/agenda';
+
+/** Horário antigo e horário novo lado a lado, para a troca do reagendamento ficar clara. */
+interface Slot {
+  date: string;
+  start: string;
+  end: string;
+  /** "Sexta-feira, 2025". */
+  weekday: string;
+}
+
+interface Props {
+  before: Slot;
+  after: Slot;
+  service: string;
+  minutes: number;
+  price?: string;
+  who: string;
+  /** Na revisão, o novo ainda é "Selecionado"; depois de confirmar, "Confirmado". */
+  confirmed?: boolean;
+}
+
+const { before, after, service, minutes, price, who, confirmed = false } = Astro.props;
+const detail = [service, who, price, formatDuration(minutes)].filter(Boolean).join(' · ');
+---
+
+<div class="swap">
+  <section class="swap__card" aria-labelledby="titulo-antes">
+    <h3 id="titulo-antes">Antes</h3>
+    <p class="swap__note">{confirmed ? 'Horário anterior · liberado' : 'Horário atual'}</p>
+    <span class="swap__tag">{confirmed ? 'Substituído' : 'Atual'}</span>
+    <p class="swap__when">{before.date} · {before.start}</p>
+    <p class="swap__time">{before.weekday} · {before.start}–{before.end}</p>
+    <p class="swap__detail">{detail}</p>
+  </section>
+
+  <section class="swap__card swap__card--new" aria-labelledby="titulo-depois">
+    <h3 id="titulo-depois">Depois</h3>
+    <p class="swap__note">{confirmed ? 'Novo horário confirmado' : 'Novo horário escolhido'}</p>
+    <span class="swap__tag swap__tag--new">{confirmed ? 'Confirmado' : 'Selecionado'}</span>
+    <p class="swap__when">{after.date} · {after.start}</p>
+    <p class="swap__time">{after.weekday} · {after.start}–{after.end}</p>
+    <p class="swap__detail">{detail}</p>
+  </section>
+</div>
+
+<style>
+  .swap {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .swap__card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 18px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  /* O novo em amarelo, como no protótipo. */
+  .swap__card--new {
+    border-color: color-mix(in srgb, var(--site-accent-yellow-soft) 70%, var(--site-color-border));
+    background: color-mix(in srgb, var(--site-accent-yellow-soft) 28%, var(--site-color-surface));
+  }
+
+  .swap__card h3 {
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .swap__note,
+  .swap__detail,
+  .swap__time {
+    font-size: 0.8125rem;
+    color: color-mix(in srgb, var(--site-color-text-muted) 80%, var(--site-color-text));
+  }
+
+  .swap__tag {
+    margin: 6px 0 4px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--site-color-brand-soft);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .swap__tag--new {
+    background: var(--site-accent-yellow-soft);
+  }
+
+  .swap__when {
+    font-family: var(--site-font-display);
+    font-size: 1.375rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  @media (max-width: 479px) {
+    .swap {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

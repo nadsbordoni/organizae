@@ -1,0 +1,28 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import ServiceForm from '@/components/painel/ServiceForm.astro';
+import { getSite } from '@/config';
+import { demoOptions, forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
+import { tenantNotConfigured } from '@/lib/painel';
+
+/** Novo serviço (quadro 04). Com a API: `POST /services`. */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const professionals = await forTenant(user.tenantSlug, demoOptions(Astro.url, Astro.cookies)).professionals();
+---
+
+<PanelLayout site={site} user={user} current="servicos" title="Novo serviço">
+  <PanelHeading eyebrow="Catálogo · Serviços" title="Novo serviço" intro="Preencha os detalhes que seus clientes verão ao agendar." />
+  <ServiceForm
+    action="/painel/servicos?novo"
+    cancelHref="/painel/servicos"
+    submitLabel="Salvar serviço"
+    agenda={site.agenda}
+    professionals={professionals}
+  />
+</PanelLayout>
