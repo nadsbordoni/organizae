@@ -1,0 +1,170 @@
+---
+import PanelLayout from './PanelLayout.astro';
+import Icon from '@/components/Icon.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import type { AuthenticatedUser } from '@/types/painel';
+import type { SiteConfig } from '@/types/site';
+
+/**
+ * Casca das Configurações: o mesmo título e o mesmo submenu em todas as áreas e subtelas, para a
+ * pessoa saber onde está e voltar de qualquer lugar. Área sem tela fica com "Em breve", sem link.
+ */
+export type SettingsSection = 'negocio' | 'equipe';
+
+interface Props {
+  site: SiteConfig;
+  user: AuthenticatedUser;
+  section: SettingsSection;
+  title: string;
+  /** Subtela da área (adicionar, editar): o item fica marcado, mas não como a página atual. */
+  subpage?: boolean;
+}
+
+const { site, user, section, title, subpage = false } = Astro.props;
+
+const SECTIONS: Array<{ key?: SettingsSection; label: string; href?: string }> = [
+  { key: 'negocio', label: 'Negócio', href: '/painel/configuracoes' },
+  { key: 'equipe', label: 'Equipe', href: '/painel/configuracoes/equipe' },
+  { label: 'Agendamento' },
+  { label: 'Página pública' },
+  { label: 'Notificações' },
+  { label: 'Plano e cobrança' },
+];
+---
+
+<PanelLayout site={site} user={user} current="configuracoes" title={title}>
+  <PanelHeading eyebrow="Preferências" title="Configurações" intro="Gerencie os detalhes da sua conta e operação." />
+
+  <div class="settings">
+    <nav class="sections" aria-label="Áreas das configurações">
+      <ul>
+        {
+          SECTIONS.map((item) => (
+            <li>
+              {item.href ? (
+                <a
+                  class="sections__item"
+                  href={item.href}
+                  aria-current={item.key === section ? (subpage ? 'true' : 'page') : undefined}
+                >
+                  {item.label}
+                  <Icon name="chevron-right" size={18} />
+                </a>
+              ) : (
+                <span class="sections__item" aria-disabled="true">
+                  {item.label}
+                  <span class="sections__soon">Em breve</span>
+                </span>
+              )}
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
+    <div class="settings__content">
+      <slot />
+    </div>
+  </div>
+</PanelLayout>
+
+<style>
+  .settings {
+    display: grid;
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+    align-items: start;
+    gap: 24px;
+    margin-top: 32px;
+  }
+
+  .sections {
+    position: sticky;
+    top: 98px;
+    padding: 10px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .sections ul {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    list-style: none;
+  }
+
+  .sections__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 48px;
+    padding: 0 14px;
+    border-radius: 12px;
+    color: var(--site-color-text);
+    font-size: 0.9375rem;
+    text-decoration: none;
+  }
+
+  a.sections__item:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  .sections__item[aria-current],
+  .sections__item[aria-current]:hover {
+    background: var(--site-accent-yellow-soft);
+    font-weight: 600;
+  }
+
+  .sections__item:focus-visible {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  .sections__item[aria-disabled='true'] {
+    cursor: default;
+    color: var(--site-color-text-muted);
+  }
+
+  .sections__soon {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--site-color-brand-soft);
+    color: var(--site-color-text);
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  .settings__content {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    min-width: 0;
+  }
+
+  /* Abaixo disso o submenu vira faixa rolável no topo, só com as áreas que existem. */
+  @media (max-width: 899px) {
+    .settings {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .sections {
+      position: static;
+      overflow-x: auto;
+    }
+
+    .sections ul {
+      flex-direction: row;
+    }
+
+    .sections li:has([aria-disabled='true']) {
+      display: none;
+    }
+
+    .sections__item :global(svg) {
+      display: none;
+    }
+  }
+</style>

@@ -1,0 +1,137 @@
+---
+import SettingsLayout from '@/layouts/SettingsLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import Callout from '@/components/Callout.astro';
+import LogoPicker from '@/components/LogoPicker.astro';
+import TextField from '@/components/TextField.astro';
+import SectionHeader from '@/components/painel/SectionHeader.astro';
+import { getSite } from '@/config';
+import { usuarioExemplo } from '@/lib/dados-exemplo';
+import { BUSINESS_SEGMENTS, formatPhone, tenantNotConfigured } from '@/lib/painel';
+
+/**
+ * Configurações do negócio (quadro 04). Com a API: `PATCH /businesses/{id}`; o e-mail comercial
+ * ainda não existe no back.
+ * PROTÓTIPO: salvar só valida e volta com `?salvo`.
+ */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const { profile } = site;
+const businessName = [profile.name, profile.nameSuffix].filter(Boolean).join(' ');
+// O segmento ainda não mora na configuração do site: o exemplo é de unhas.
+const segment = 'Unhas';
+const whatsapp = site.agenda?.request.phone;
+const saved = Astro.url.searchParams.has('salvo');
+---
+
+<SettingsLayout site={site} user={user} section="negocio" title="Configurações">
+  <SectionHeader title="Negócio" intro="Atualize as informações que aparecem para seus clientes.">
+    <span class="state" aria-live="polite" data-save-state>Salvo</span>
+  </SectionHeader>
+
+  {
+    saved && (
+      <Callout tone="success" icon="check-circle" title="Alterações salvas">
+        As informações do negócio foram atualizadas.
+      </Callout>
+    )
+  }
+
+  <form class="card" method="post" action="/painel/configuracoes?salvo" data-prototype="transient" data-settings-form>
+    <div class="card__logo">
+      <LogoPicker nameInput="negocio" name={businessName} />
+    </div>
+    <div class="card__row">
+      <TextField id="negocio" label="Nome do negócio" autocomplete="organization" maxlength={80} value={businessName} required />
+      <TextField id="categoria" label="Categoria" options={BUSINESS_SEGMENTS} value={segment} required />
+    </div>
+    <div class="card__row">
+      <TextField id="email" label="E-mail comercial" type="email" autocomplete="email" value={user.email} optional />
+      <TextField
+        id="telefone"
+        label="WhatsApp"
+        type="tel"
+        autocomplete="tel"
+        pattern="[0-9\(\)+ \-]{10,20}"
+        title="Só números, com DDD. Ex.: (81) 99999-9999"
+        value={whatsapp && formatPhone(whatsapp)}
+        required
+      />
+    </div>
+    <TextField id="descricao" label="Descrição pública" maxlength={120} value={profile.headline} optional />
+
+    <div class="card__actions">
+      <ActionButton label="Cancelar" variant="secondary" href="/painel/configuracoes" full={false} />
+      <ActionButton label="Salvar alterações" type="submit" full={false} />
+    </div>
+  </form>
+</SettingsLayout>
+
+<script>
+  import { wirePrototypeForms } from '@/lib/prototype-form';
+
+  wirePrototypeForms();
+
+  // "Salvo" vira aviso assim que algo muda, para a pessoa não sair achando que já gravou.
+  const form = document.querySelector<HTMLFormElement>('[data-settings-form]');
+  const state = document.querySelector<HTMLElement>('[data-save-state]');
+  form?.addEventListener(
+    'input',
+    () => {
+      if (state) state.textContent = 'Alterações não salvas';
+    },
+    { once: true },
+  );
+</script>
+
+<style>
+  .state {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--site-color-text-muted);
+  }
+
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 28px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .card__logo {
+    max-width: 460px;
+  }
+
+  .card__row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 16px;
+  }
+
+  .card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 12px;
+    padding-top: 20px;
+    border-top: 1px solid var(--site-color-border);
+  }
+
+  @media (max-width: 599px) {
+    .card {
+      padding: 20px;
+    }
+
+    .card__row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

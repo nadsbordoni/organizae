@@ -1,0 +1,67 @@
+---
+import BackLink from '@/components/BackLink.astro';
+
+/** Título de uma área dentro de uma casca que já tem o `<h1>` (como as Configurações), com ações à direita. */
+interface Props {
+  title: string;
+  intro?: string;
+  /** Volta para a lista, nas subtelas. */
+  back?: { href: string; label: string };
+}
+
+const { title, intro, back } = Astro.props;
+---
+
+<header class="head">
+  {back && <BackLink href={back.href} label={back.label} />}
+  <div class="head__row">
+    <div>
+      <h2 class="head__title">{title}</h2>
+      {intro && <p class="head__intro">{intro}</p>}
+    </div>
+    {
+      Astro.slots.has('default') && (
+        <div class="head__actions">
+          <slot />
+        </div>
+      )
+    }
+  </div>
+</header>
+
+<style>
+  .head {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .head__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .head__title {
+    font-family: var(--site-font-display);
+    font-size: 1.75rem;
+    font-weight: var(--site-font-display-weight);
+    letter-spacing: var(--site-font-display-tracking);
+    line-height: 1.15;
+  }
+
+  .head__intro {
+    margin-top: 6px;
+    font-size: 0.9375rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .head__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+  }
+</style>

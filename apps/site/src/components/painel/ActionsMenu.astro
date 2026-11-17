@@ -1,0 +1,89 @@
+---
+import Icon from '@/components/Icon.astro';
+
+/**
+ * Menu ⋯ de uma linha ou cartão, num popover nativo: fecha com Esc ou tocando fora, sem JavaScript.
+ * Os itens são links passados no slot.
+ */
+interface Props {
+  id: string;
+  /** Nome do botão para o leitor de tela: "Ações para Marina Costa". */
+  label: string;
+}
+
+const { id, label } = Astro.props;
+---
+
+<button class="more" type="button" popovertarget={id} aria-label={label} style={`anchor-name: --${id}`}>
+  <Icon name="more" size={20} />
+</button>
+<div class="menu" id={id} popover style={`position-anchor: --${id}`}>
+  <slot />
+</div>
+
+<style>
+  .more {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 0;
+    border-radius: 12px;
+    background: none;
+    color: var(--site-color-text);
+    cursor: pointer;
+  }
+
+  .more:hover {
+    background: var(--site-color-brand-soft);
+  }
+
+  .menu {
+    min-width: 220px;
+    padding: 6px;
+    border-radius: 14px;
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+    box-shadow: 0 16px 40px rgba(31, 31, 31, 0.14);
+  }
+
+  .menu :global(a) {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 10px;
+    color: var(--site-color-text);
+    font-size: 0.9375rem;
+    text-align: left;
+    text-decoration: none;
+  }
+
+  .menu :global(a:hover) {
+    background: var(--site-color-brand-soft);
+  }
+
+  .more:focus-visible,
+  .menu :global(a:focus-visible) {
+    outline: 3px solid var(--site-color-brand-deep);
+    outline-offset: 2px;
+  }
+
+  /* Abre colado no ⋯ onde há posicionamento por âncora; nos outros navegadores, no meio da tela. */
+  @supports (position-area: bottom) {
+    .menu {
+      inset: auto;
+      margin: 4px 0;
+      position-area: bottom span-left;
+      position-try-fallbacks: flip-block;
+    }
+  }
+
+  @supports not (position-area: bottom) {
+    .menu::backdrop {
+      background: rgba(31, 31, 31, 0.32);
+    }
+  }
+</style>

@@ -36,6 +36,35 @@ export interface ClientRow {
   whatsapp_opt_in: boolean;
 }
 
+/** Profissional do negócio, no formato de `GET /professionals`. */
+export interface ProfessionalRow {
+  id: string;
+  name: string;
+  phone: string | null;
+  /** Especialidade, mostrada na lista da equipe. */
+  description: string | null;
+  /** Desligado, não recebe agendamentos. */
+  is_active: boolean;
+  /** Ids do catálogo; a API devolve os serviços inteiros. */
+  service_ids: string[];
+  /** Os dois abaixo ainda NÃO existem no back: e-mail de acesso ao painel e quem administra. */
+  email: string | null;
+  role: 'owner' | 'professional';
+}
+
+/**
+ * Férias ou folga de alguém da equipe. Com a API, é um bloqueio de dia inteiro
+ * (`POST /appointments/blocks` com `professional_id`), com o motivo em `notes`.
+ */
+export interface TimeOffRow {
+  id: string;
+  professional_id: string;
+  /** 'AAAA-MM-DD'; os dois dias contam. */
+  starts_on: string;
+  ends_on: string;
+  reason: string;
+}
+
 export interface AppointmentRow {
   id: number;
   tenant_slug: string;

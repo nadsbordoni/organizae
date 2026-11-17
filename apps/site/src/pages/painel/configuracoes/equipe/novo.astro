@@ -1,0 +1,34 @@
+---
+import SettingsLayout from '@/layouts/SettingsLayout.astro';
+import ProfessionalForm from '@/components/painel/ProfessionalForm.astro';
+import SectionHeader from '@/components/painel/SectionHeader.astro';
+import { getSite } from '@/config';
+import { nowInBusinessTime } from '@/lib/agenda';
+import { usuarioExemplo } from '@/lib/dados-exemplo';
+import { tenantNotConfigured } from '@/lib/painel';
+
+/** Adicionar profissional (quadro 04). Com a API: `POST /professionals`. */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const hoje = nowInBusinessTime(site.agenda?.timezone ?? 'America/Sao_Paulo').date;
+---
+
+<SettingsLayout site={site} user={user} section="equipe" title="Adicionar profissional" subpage>
+  <SectionHeader
+    title="Adicionar profissional"
+    intro="Defina os dados de contato e os serviços que esta pessoa pode realizar."
+    back={{ href: '/painel/configuracoes/equipe', label: 'Voltar para a equipe' }}
+  />
+  <ProfessionalForm
+    action="/painel/configuracoes/equipe?novo"
+    cancelHref="/painel/configuracoes/equipe"
+    submitLabel="Salvar profissional"
+    ownerName={user.name ?? 'você'}
+    agenda={site.agenda}
+    today={hoje}
+  />
+</SettingsLayout>

@@ -1,5 +1,5 @@
 import { dayNumber, formatPrice } from './agenda';
-import { catalogCents, formatPhone, numericDate } from './painel';
+import { catalogCents, foldText, formatPhone, numericDate } from './painel';
 import type { PanelTone } from './painel';
 import type { IconName } from '@/types/blocks';
 import type { Agenda, IsoDate } from '@/types/agenda';
@@ -60,14 +60,12 @@ export function summarize(
   };
 }
 
-const fold = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
-
 /** Nome sem acento nem caixa; telefone a partir de 3 dígitos. Com a API, vira o `?search=` de `GET /clients`. */
 export function matchesSearch(client: ClientRow, query: string): boolean {
-  const term = fold(query);
+  const term = foldText(query);
   if (!term) return true;
   const digits = query.replace(/\D/g, '');
-  return fold(client.name).includes(term) || (digits.length >= 3 && client.phone.includes(digits));
+  return foldText(client.name).includes(term) || (digits.length >= 3 && client.phone.includes(digits));
 }
 
 /** Planilha para o Excel em português: `;` separa as colunas e o BOM faz os acentos abrirem certos. */

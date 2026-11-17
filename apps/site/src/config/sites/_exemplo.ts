@@ -131,9 +131,27 @@ export const exemplo: SiteConfig = {
         name: 'Unhas',
         description: 'Alongamento, manutenção, esmaltação',
         services: [
-          { id: 'alongamento', name: 'Alongamento em gel', durationMinutes: 120, price: 'R$ 160,00' },
-          { id: 'manutencao', name: 'Manutenção', durationMinutes: 90, price: 'R$ 90,00' },
-          { id: 'esmaltacao', name: 'Esmaltação', durationMinutes: 45, price: 'R$ 50,00' },
+          {
+            id: 'alongamento',
+            name: 'Alongamento em gel',
+            durationMinutes: 120,
+            price: 'R$ 160,00',
+            description: 'Gel moldado no formato e no comprimento que você escolher.',
+          },
+          {
+            id: 'manutencao',
+            name: 'Manutenção',
+            durationMinutes: 90,
+            price: 'R$ 90,00',
+            description: 'Reposição do gel e acabamento, a cada 3 ou 4 semanas.',
+          },
+          {
+            id: 'esmaltacao',
+            name: 'Esmaltação',
+            durationMinutes: 45,
+            price: 'R$ 50,00',
+            description: 'Cutilagem e esmaltação tradicional.',
+          },
         ],
       },
       {
@@ -141,8 +159,20 @@ export const exemplo: SiteConfig = {
         name: 'Pés',
         description: 'Pedicure e spa',
         services: [
-          { id: 'pedicure', name: 'Pedicure', durationMinutes: 60, price: 'R$ 60,00' },
-          { id: 'spa-dos-pes', name: 'Spa dos pés', durationMinutes: 75, soon: true },
+          {
+            id: 'pedicure',
+            name: 'Pedicure',
+            durationMinutes: 60,
+            price: 'R$ 60,00',
+            description: 'Cutilagem, lixamento e esmaltação dos pés.',
+          },
+          {
+            id: 'spa-dos-pes',
+            name: 'Spa dos pés',
+            durationMinutes: 75,
+            description: 'Esfoliação, hidratação e massagem.',
+            soon: true,
+          },
         ],
       },
     ],
