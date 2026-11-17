@@ -32,8 +32,8 @@ const aviso = erro ? (MENSAGENS[erro] ?? MENSAGENS.erro!) : null;
     )
   }
 
-  {/* PROTÓTIPO: sem autenticação. Troque pelo POST de login da API. */}
-  <form class="login__form" method="post" action="/painel" data-prototype>
+  {/* Vai para `/api/login`, no servidor: a senha nunca passa pela URL nem fica no navegador. */}
+  <form class="login__form" method="post" action="/api/login">
     {next && <input type="hidden" name="next" value={next} />}
     <TextField
       id="email"

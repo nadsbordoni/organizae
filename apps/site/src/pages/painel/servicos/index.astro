@@ -8,7 +8,6 @@ import PanelHeading from '@/components/painel/PanelHeading.astro';
 import { getSite } from '@/config';
 import { formatDuration } from '@/lib/agenda';
 import { SERVICE_STATE, serviceState } from '@/lib/catalog';
-import { usuarioExemplo } from '@/lib/dados-exemplo';
 import { compactPrice, tenantNotConfigured } from '@/lib/painel';
 
 /**
@@ -18,7 +17,7 @@ import { compactPrice, tenantNotConfigured } from '@/lib/painel';
  */
 export const prerender = false;
 
-const user = usuarioExemplo;
+const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 

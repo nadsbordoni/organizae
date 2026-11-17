@@ -6,7 +6,6 @@ import LogoPicker from '@/components/LogoPicker.astro';
 import TextField from '@/components/TextField.astro';
 import SectionHeader from '@/components/painel/SectionHeader.astro';
 import { getSite } from '@/config';
-import { usuarioExemplo } from '@/lib/dados-exemplo';
 import { BUSINESS_SEGMENTS, formatPhone, tenantNotConfigured } from '@/lib/painel';
 
 /**
@@ -16,7 +15,7 @@ import { BUSINESS_SEGMENTS, formatPhone, tenantNotConfigured } from '@/lib/paine
  */
 export const prerender = false;
 
-const user = usuarioExemplo;
+const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 

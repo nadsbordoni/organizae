@@ -51,8 +51,14 @@ services:
   frontend:
     build:
       context: ./apps/site
+    environment:
+      # O servidor do site chama a API pela rede do compose; o navegador nunca fala com ela.
+      ORGANIZAE_API_URL: http://api:8000
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-4321}:4321"
+    depends_on:
+      api:
+        condition: service_healthy
 
 volumes:
   postgres_data:

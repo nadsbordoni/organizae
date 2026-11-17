@@ -12,7 +12,6 @@ import StatCard from '@/components/painel/StatCard.astro';
 import { getSite } from '@/config';
 import { nowInBusinessTime } from '@/lib/agenda';
 import { csvHref } from '@/lib/csv';
-import { usuarioExemplo } from '@/lib/dados-exemplo';
 import { DEMO_OPENING_BALANCE } from '@/lib/demo-finance';
 import {
   cashOf,
@@ -34,7 +33,7 @@ import { numericDate, shortDayLabel, tenantNotConfigured } from '@/lib/painel';
 /** Financeiro, aba Visão geral (quadro 07). Números de DEMONSTRAÇÃO, os mesmos da Visão geral do painel. */
 export const prerender = false;
 
-const user = usuarioExemplo;
+const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 

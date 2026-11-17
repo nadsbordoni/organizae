@@ -4,13 +4,13 @@ import PanelHeading from '@/components/painel/PanelHeading.astro';
 import ServiceForm from '@/components/painel/ServiceForm.astro';
 import { getSite } from '@/config';
 import { catalogServices } from '@/lib/catalog';
-import { demoOptions, forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
+import { demoOptions, forTenant } from '@/lib/dados-exemplo';
 import { tenantNotConfigured } from '@/lib/painel';
 
 /** Editar serviço, aberto pelo catálogo. Com a API: `PATCH /services/{id}`. */
 export const prerender = false;
 
-const user = usuarioExemplo;
+const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 
