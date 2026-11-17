@@ -42,6 +42,8 @@ organizae/
 
 A API inclui uma assistente de texto integrada ao Google Gemini para orientar o usuário sobre o Organizaê. Consulte o [guia da assistente](docs/ASSISTANT.md) para configuração, execução, arquitetura, testes e limitações atuais.
 
+Os [insights financeiros automáticos](docs/FINANCIAL_INSIGHTS.md) identificam quedas de receitas, aumentos de despesas, resultado negativo e despesas vencidas a cada consulta autenticada, com orientações opcionais pelo Gemini.
+
 ## Dados de teste
 
 O [seed operacional manual](docs/OPERATIONAL_SEED.md) adiciona profissionais, serviços, clientes e agenda a uma empresa de testes existente, sem alterar dados financeiros. É opcional e pode usar o banco principal local de desenvolvimento ou um banco separado.

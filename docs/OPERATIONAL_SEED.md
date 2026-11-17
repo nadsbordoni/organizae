@@ -4,6 +4,19 @@ O comando manual `scripts.seed_operational` popula uma **empresa de testes já e
 
 ## Execução
 
+Para executar as seeds operacional e financeira com um único comando, em `apps/api/`:
+
+```bash
+uv run python -m scripts.seed --business-id "<UUID-da-empresa-de-testes>"
+```
+
+O comando executa primeiro a operacional e depois a financeira, mantendo as validações
+dos scripts individuais. Se uma falhar, a execução para. Cada seed tem sua própria
+transação: se a financeira falhar, os dados da operacional já concluída permanecem.
+Após corrigir o erro, o mesmo comando pode ser executado novamente. A empresa deve
+existir, as migrations devem estar aplicadas e o banco deve atender às restrições
+da seed financeira (`organizae`, `organizae_test[_...]` ou `organizae_dev[_...]`).
+
 Use Python 3.12+, as dependências do backend instaladas e um banco com as migrations atuais já aplicadas. O comando não cria empresa, usuário, banco ou tabelas e não executa migrations.
 
 Em `apps/api/`, para usar o banco local:
