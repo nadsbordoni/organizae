@@ -1,0 +1,92 @@
+---
+import ClientLayout from '@/layouts/ClientLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import Callout from '@/components/Callout.astro';
+import FlowStep from '@/components/FlowStep.astro';
+import PageHeading from '@/components/PageHeading.astro';
+import StepProgress from '@/components/StepProgress.astro';
+import BookingData from '@/components/agenda/BookingData.astro';
+import Calendar from '@/components/agenda/Calendar.astro';
+import SlotPicker from '@/components/agenda/SlotPicker.astro';
+import { bookingContext } from '@/lib/booking-context';
+import { whatsappUrl } from '@/lib/links';
+import { numericDate, shortWeekday } from '@/lib/painel';
+import { isUpcoming } from '@/lib/portal';
+import { describe, loadPortal } from '@/lib/portal-page';
+
+/**
+ * Reagendamento, passo 1 de 2 (quadro 14): o mesmo calendário e os mesmos horários do agendamento
+ * (`mountSchedule`), com o serviço do horário atual. A escolha viaja na query, como lá.
+ */
+export const prerender = false;
+
+const portal = await loadPortal(Astro.params.slug);
+if (!portal) return new Response(null, { status: 404 });
+const { site, agenda, now, client, appointments } = portal;
+
+const row = appointments.find((a) => String(a.id) === Astro.params.id);
+if (!row || !isUpcoming(row, now)) return new Response(null, { status: 404 });
+const info = describe(row, agenda);
+const details = `/${site.slug}/meus-agendamentos/${row.id}`;
+// Sem o serviço na query, o script do calendário voltaria para o início: a página já entra com ele.
+if (!Astro.url.searchParams.get('servicos')) return Astro.redirect(`${details}/reagendar?${info.query}`);
+
+const base = `${details}/reagendar`;
+const whatsappHref = whatsappUrl(agenda.request.phone, 'Oi! Queria remarcar meu horário, mas não achei vaga no site.');
+---
+
+<ClientLayout site={site} title="Reagendar" clientName={client.name}>
+  <PageHeading title="Reagendamento" backHref={details} backLabel="Voltar para o seu horário" />
+
+  <div class="progress">
+    <StepProgress steps={['Novo horário', 'Revisão']} current={1} />
+  </div>
+
+  <FlowStep title="Qual horário fica melhor?" intro="O horário atual continua reservado até você confirmar a troca.">
+    <div data-step-schedule>
+      <Callout
+        tone="info"
+        icon="info"
+        title={`Atual: ${shortWeekday(row.date).toLowerCase()}, ${numericDate(row.date)} · ${row.start_time}–${info.end}`}
+      >
+        {[info.service, site.profile.name, info.duration, info.price].filter(Boolean).join(' · ')}. O serviço continua o mesmo.
+      </Callout>
+
+      <p class="context" data-duration-note></p>
+      <Calendar label="Dias com horário livre para o seu serviço" />
+      <SlotPicker whatsappHref={whatsappHref} />
+
+      <ActionButton label="Revisar alteração" href={`${base}/revisao`} disabled data-next />
+      <ActionButton label="Manter horário atual" variant="secondary" href={details} />
+    </div>
+  </FlowStep>
+
+  <BookingData context={bookingContext(site, base)} />
+</ClientLayout>
+
+<script>
+  import { mountSchedule } from '@/lib/booking-ui';
+  import { readContext } from '@/lib/booking-context';
+
+  const root = document.querySelector<HTMLElement>('[data-step-schedule]');
+  const context = readContext();
+  if (root && context) mountSchedule(root, context, { keepBack: true });
+</script>
+
+<style>
+  .progress {
+    margin-bottom: 22px;
+  }
+
+  [data-step-schedule] {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .context {
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: var(--site-color-text-muted);
+  }
+</style>

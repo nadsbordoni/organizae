@@ -1,0 +1,118 @@
+---
+import ClientLayout from '@/layouts/ClientLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import Callout from '@/components/Callout.astro';
+import FlowStep from '@/components/FlowStep.astro';
+import PageHeading from '@/components/PageHeading.astro';
+import BeforeAfter from '@/components/agenda/BeforeAfter.astro';
+import { toClock, toMinutes } from '@/lib/agenda';
+import { readSelection } from '@/lib/booking-state';
+import { buildIcs } from '@/lib/ics';
+import { longDateLabel, numericDate, weekdayName } from '@/lib/painel';
+import { cancelRule } from '@/lib/portal';
+import { describe, loadPortal } from '@/lib/portal-page';
+
+/** Reagendamento confirmado (quadro 14). PROTÓTIPO: chega aqui sem gravar nada. */
+export const prerender = false;
+
+const portal = await loadPortal(Astro.params.slug);
+if (!portal) return new Response(null, { status: 404 });
+const { site, agenda, now, client, appointments } = portal;
+
+const row = appointments.find((a) => String(a.id) === Astro.params.id);
+if (!row) return new Response(null, { status: 404 });
+const info = describe(row, agenda);
+const home = `/${site.slug}/meus-agendamentos`;
+
+// Conclusão: não confere disponibilidade de novo, o horário pode ter vencido a antecedência no caminho.
+const selection = readSelection(agenda, Astro.url.search, now, { checkAvailability: false });
+if (!selection.date || !selection.time) return Astro.redirect(`${home}/${row.id}`);
+
+const end = toClock(toMinutes(selection.time) + row.duration_min);
+const newRule = cancelRule({ ...row, date: selection.date, start_time: selection.time }, agenda, now);
+const slot = (date: string, start: string, finish: string) => ({
+  date: longDateLabel(date).replace(/ de \d{4}$/, ''),
+  start,
+  end: finish,
+  weekday: `${weekdayName(date)}, ${date.slice(0, 4)}`,
+});
+const ics = buildIcs({
+  uid: `${selection.date}T${selection.time.replace(':', '')}-${row.id}@${Astro.url.host}`,
+  title: `${info.service} — ${site.profile.name}`,
+  date: selection.date,
+  start: selection.time,
+  durationMinutes: row.duration_min,
+  description: `Horário remarcado pela sua área.${info.price ? ` Valor: ${info.price}.` : ''}`,
+});
+---
+
+<ClientLayout site={site} title="Horário remarcado" clientName={client.name}>
+  <PageHeading title="Reagendamento" backHref={home} backLabel="Voltar aos meus agendamentos" />
+
+  <FlowStep title="Seu horário foi remarcado!" intro={`O novo encontro com ${site.profile.name} já está nos seus próximos agendamentos.`}>
+    <Callout tone="success" icon="check-circle" title="Reagendamento confirmado">
+      {numericDate(selection.date)} · {selection.time}–{end}. O horário anterior, de {numericDate(row.date)} às {row.start_time}, foi
+      liberado.
+    </Callout>
+
+    <BeforeAfter
+      before={slot(row.date, row.start_time, info.end)}
+      after={slot(selection.date, selection.time, end)}
+      service={info.service}
+      who={site.profile.name}
+      price={info.price}
+      minutes={row.duration_min}
+      confirmed
+    />
+
+    <section class="same" aria-labelledby="titulo-mesmo">
+      <h2 id="titulo-mesmo">O cuidado continua o mesmo</h2>
+      <p>Serviço, duração e valor continuam iguais.</p>
+      <small>Cancelamento do novo horário até {numericDate(newRule.until.date)}, às {newRule.until.time}.</small>
+    </section>
+
+    <div class="actions">
+      <ActionButton label="Ver meus agendamentos" href={home} />
+      <ActionButton
+        label="Adicionar à agenda"
+        icon="calendar"
+        variant="secondary"
+        href={`data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`}
+        download={`horario-${selection.date}.ics`}
+      />
+    </div>
+  </FlowStep>
+</ClientLayout>
+
+<style>
+  .same {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 18px;
+    border-radius: var(--site-radius-card);
+    border: 1px solid var(--site-color-border);
+    background: var(--site-color-surface);
+  }
+
+  .same h2 {
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+
+  .same p {
+    font-size: 0.875rem;
+  }
+
+  .same small {
+    font-size: 0.75rem;
+    color: var(--site-color-text-muted);
+  }
+
+  /* Largura toda, um embaixo do outro e a ação principal em cima, como no agendamento. */
+  .actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+</style>

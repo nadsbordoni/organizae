@@ -57,6 +57,11 @@ export function weekdayLabel(date: IsoDate): string {
   );
 }
 
+/** 'Quarta-feira'. */
+export function weekdayName(date: IsoDate): string {
+  return capitalize(new Intl.DateTimeFormat('pt-BR', { weekday: 'long', timeZone: 'UTC' }).format(at(date)));
+}
+
 /** 'setembro de 2026'. */
 export function monthLabel(date: IsoDate): string {
   return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(at(date));

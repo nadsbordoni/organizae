@@ -92,6 +92,9 @@ export interface Agenda {
   /** Antecedência mínima, em horas. Padrão 12. */
   minNoticeHours?: number;
 
+  /** Até quantas horas antes a cliente cancela sozinha pela área dela. Padrão 12. */
+  cancelNoticeHours?: number;
+
   /** Quantos dias à frente é possível marcar. Padrão 60. */
   horizonDays?: number;
 

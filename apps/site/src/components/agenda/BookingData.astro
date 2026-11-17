@@ -1,0 +1,19 @@
+---
+import type { BookingContext } from '@/lib/booking-ui';
+
+/** Embute o contexto do agendamento para os scripts dos passos (`readContext`). */
+interface Props {
+  context: BookingContext;
+}
+
+const { context } = Astro.props;
+---
+
+{/* O `<` escapado impede que um texto com `</script>` feche a tag.
+    NÃO tire quando o catálogo vier do banco. */}
+<script
+  type="application/json"
+  id="dados-agendamento"
+  set:html={JSON.stringify(context).replace(/</g, '\\u003c')}
+  is:inline
+></script>

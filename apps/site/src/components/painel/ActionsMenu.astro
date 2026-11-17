@@ -66,8 +66,10 @@ const { id, label, trigger } = Astro.props;
     background: var(--site-color-brand-soft);
   }
 
+  /* `margin: auto` centraliza onde não há âncora: o reset do site zera a margem do popover. */
   .menu {
     min-width: 220px;
+    margin: auto;
     padding: 6px;
     border-radius: 14px;
     border: 1px solid var(--site-color-border);

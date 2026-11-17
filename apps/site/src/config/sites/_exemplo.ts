@@ -118,6 +118,7 @@ export const exemplo: SiteConfig = {
     exceptions: [{ date: '2026-12-25', hours: null, reason: 'Natal' }],
 
     minNoticeHours: 6,
+    cancelNoticeHours: 12,
     request: { via: 'whatsapp', phone: '5511988887777' },
 
     policies: [
