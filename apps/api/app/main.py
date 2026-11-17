@@ -34,6 +34,13 @@ from app.modules.financial.route import router as financial_router
 from app.modules.financial_categories.exceptions import FinancialCategoryError
 from app.modules.financial_categories.route import financial_category_error_handler
 from app.modules.financial_categories.route import router as financial_categories_router
+from app.modules.financial_document_extraction.exceptions import DocumentExtractionError
+from app.modules.financial_document_extraction.route import (
+    document_extraction_error_handler,
+)
+from app.modules.financial_document_extraction.route import (
+    router as document_extraction_router,
+)
 from app.modules.financial_entries.exceptions import FinancialEntryError
 from app.modules.financial_entries.route import financial_entry_error_handler
 from app.modules.financial_entries.route import router as financial_entries_router
@@ -72,6 +79,8 @@ app.include_router(financial_categories_router, prefix="/api/v1")
 app.include_router(financial_entries_router, prefix="/api/v1")
 app.include_router(recurring_entries_router, prefix="/api/v1")
 app.include_router(financial_router, prefix="/api/v1")
+app.include_router(document_extraction_router, prefix="/api/v1")
+app.add_exception_handler(DocumentExtractionError, document_extraction_error_handler)
 app.include_router(financial_insights_router, prefix="/api/v1")
 app.add_exception_handler(FinancialReportError, financial_report_error_handler)
 app.add_exception_handler(RecurringEntryError, recurring_entry_error_handler)
