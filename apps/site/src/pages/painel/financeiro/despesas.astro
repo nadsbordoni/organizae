@@ -10,7 +10,6 @@ import PanelTable from '@/components/painel/PanelTable.astro';
 import StatCard from '@/components/painel/StatCard.astro';
 import { getSite } from '@/config';
 import { nowInBusinessTime } from '@/lib/agenda';
-import { usuarioExemplo } from '@/lib/dados-exemplo';
 import { change, entryStatus, inPeriod, money, monthName, monthTitle, percent, resultOf, wholeMonth } from '@/lib/finance';
 import { loadFinance } from '@/lib/finance-page';
 import { numericDate, tenantNotConfigured } from '@/lib/painel';
@@ -21,7 +20,7 @@ import { numericDate, tenantNotConfigured } from '@/lib/painel';
  */
 export const prerender = false;
 
-const user = usuarioExemplo;
+const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 

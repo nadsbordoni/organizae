@@ -3,13 +3,13 @@ import PanelLayout from '@/layouts/PanelLayout.astro';
 import PanelHeading from '@/components/painel/PanelHeading.astro';
 import ServiceForm from '@/components/painel/ServiceForm.astro';
 import { getSite } from '@/config';
-import { demoOptions, forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
+import { demoOptions, forTenant } from '@/lib/dados-exemplo';
 import { tenantNotConfigured } from '@/lib/painel';
 
 /** Novo serviço (quadro 04). Com a API: `POST /services`. */
 export const prerender = false;
 
-const user = usuarioExemplo;
+const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 

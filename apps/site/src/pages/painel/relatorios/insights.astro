@@ -10,7 +10,6 @@ import StatCard from '@/components/painel/StatCard.astro';
 import { getSite } from '@/config';
 import { formatDuration, nowInBusinessTime, parsePrice } from '@/lib/agenda';
 import { catalogServices, serviceState } from '@/lib/catalog';
-import { usuarioExemplo } from '@/lib/dados-exemplo';
 import { money } from '@/lib/finance';
 import { financialAlerts, highValue, quietestDay, recoveryAudience } from '@/lib/insights';
 import { loadIntelligence } from '@/lib/intelligence-page';
@@ -22,7 +21,7 @@ import { compactPrice, longDateLabel, numericDate, tenantNotConfigured, weekdayN
  */
 export const prerender = false;
 
-const user = usuarioExemplo;
+const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 

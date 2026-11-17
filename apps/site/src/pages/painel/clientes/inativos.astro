@@ -10,7 +10,7 @@ import StatCard from '@/components/painel/StatCard.astro';
 import { getSite } from '@/config';
 import { addDays, formatPrice, nowInBusinessTime } from '@/lib/agenda';
 import { AWAY_AFTER_DAYS, summarize } from '@/lib/clients';
-import { forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
+import { forTenant } from '@/lib/dados-exemplo';
 import { compactPrice, longDateLabel, numericDate, tenantNotConfigured } from '@/lib/painel';
 
 /**
@@ -26,7 +26,7 @@ const CHANNELS = [
   { value: 'todos', label: 'Todos os ausentes' },
 ];
 
-const user = usuarioExemplo;
+const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 

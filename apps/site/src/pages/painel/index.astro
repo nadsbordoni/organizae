@@ -10,7 +10,6 @@ import StatCard from '@/components/painel/StatCard.astro';
 import { getSite } from '@/config';
 import { nowInBusinessTime } from '@/lib/agenda';
 import { csvHref } from '@/lib/csv';
-import { usuarioExemplo } from '@/lib/dados-exemplo';
 import { change, money, moneyChange, monthName, monthShort, percent, pointsChange, rangeLabel, resultOf } from '@/lib/finance';
 import { loadFinance } from '@/lib/finance-page';
 import { financialAlerts } from '@/lib/insights';
@@ -23,7 +22,7 @@ import { tenantNotConfigured } from '@/lib/painel';
  */
 export const prerender = false;
 
-const user = usuarioExemplo;
+const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 

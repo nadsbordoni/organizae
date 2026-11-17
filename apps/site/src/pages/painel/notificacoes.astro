@@ -12,7 +12,7 @@ import StatCard from '@/components/painel/StatCard.astro';
 import { getSite } from '@/config';
 import { addDays, nowInBusinessTime, toMinutes } from '@/lib/agenda';
 import { occupiesSlot } from '@/lib/dashboard-status';
-import { avisosDemonstracao, forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
+import { avisosDemonstracao, forTenant } from '@/lib/dados-exemplo';
 import { numericDate, serviceNames, tenantNotConfigured } from '@/lib/painel';
 
 /**
@@ -21,7 +21,7 @@ import { numericDate, serviceNames, tenantNotConfigured } from '@/lib/painel';
  */
 export const prerender = false;
 
-const user = usuarioExemplo;
+const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 

@@ -15,12 +15,12 @@ import type {
 } from '@/types/painel';
 
 /**
- * Dados FICTÍCIOS do painel, no lugar do back-end. Saem quando a API existir: `forTenant`
- * vira chamadas HTTP com o mesmo formato de retorno, e `usuarioExemplo` vira a sessão de verdade.
+ * Dados FICTÍCIOS do painel, no lugar do back-end. Valem sem `ORGANIZAE_API_URL`: aí `usuarioExemplo` é
+ * quem está logado. Com a API, cada fatia ligada troca `forTenant` por chamadas no mesmo formato.
  */
 
 export const usuarioExemplo: AuthenticatedUser = {
-  userId: 1,
+  userId: 'exemplo',
   tenantSlug: 'exemplo',
   email: 'joana@exemplo.com',
   name: 'Joana',

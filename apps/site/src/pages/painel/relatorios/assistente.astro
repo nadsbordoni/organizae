@@ -7,7 +7,6 @@ import PanelHeading from '@/components/painel/PanelHeading.astro';
 import ReportTabs from '@/components/painel/ReportTabs.astro';
 import { getSite } from '@/config';
 import { nowInBusinessTime } from '@/lib/agenda';
-import { usuarioExemplo } from '@/lib/dados-exemplo';
 import { ROBOT_NAME, ROBOT_SPOKEN } from '@/lib/robot';
 import { DEMO_SERVICE_COSTS, DEMO_TAX_RATE } from '@/lib/demo-finance';
 import { change, inPeriod, money, moneyChange, monthName, monthShort, percent, resultOf, serviceShares } from '@/lib/finance';
@@ -22,7 +21,7 @@ import { firstName, longDateLabel, numericDate, tenantNotConfigured, weekdayName
  */
 export const prerender = false;
 
-const user = usuarioExemplo;
+const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 
