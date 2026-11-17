@@ -1,5 +1,6 @@
 import type { AstroCookies } from 'astro';
-import { addDays, nowInBusinessTime, weekdayOf } from './agenda';
+import { addDays, dayNumber, nowInBusinessTime, weekdayOf } from './agenda';
+import { DEMO_CATEGORIES, demoFinanceStart, demoFinancialEntries } from './demo-finance';
 import type { AppointmentStatus } from './dashboard-status';
 import type { AgendaException, IsoDate } from '@/types/agenda';
 import type {
@@ -7,6 +8,8 @@ import type {
   AppointmentRow,
   AuthenticatedUser,
   ClientRow,
+  FinancialCategoryRow,
+  FinancialEntryRow,
   ProfessionalRow,
   TimeOffRow,
 } from '@/types/painel';
@@ -54,8 +57,21 @@ const MODELO = [
   },
 ];
 
-function statusDe(indice: number, quando: 'passado' | 'hoje' | 'futuro'): AppointmentStatus {
-  if (quando === 'passado') return indice === 2 ? 'cancelled' : 'done';
+/** Horários que caíram, por mês: sem isso, um mês do exemplo seria igual ao outro nos relatórios. */
+const FOLGA_DO_MES = [1, 2, 0, 1, 3, 0, 2, 1, 0, 2, 1, 3];
+
+function caiu(date: IsoDate, indice: number): boolean {
+  let hash = 0;
+  for (const char of `${date}${indice}`) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return hash % 10 < FOLGA_DO_MES[Number(date.slice(5, 7)) - 1]!;
+}
+
+function statusDe(indice: number, quando: 'passado' | 'hoje' | 'futuro', date: IsoDate, hoje: IsoDate): AppointmentStatus {
+  if (quando === 'passado') {
+    if (indice === 2) return 'cancelled';
+    // Só antes da última semana: a semana que aparece na Agenda continua como estava.
+    return dayNumber(hoje) - dayNumber(date) > 7 && caiu(date, indice) ? 'cancelled' : 'done';
+  }
   if (quando === 'hoje') return (['done', 'done', 'confirmed', 'confirmed', 'pending'] as const)[indice]!;
   return indice % 2 === 0 ? 'confirmed' : 'pending';
 }
@@ -87,7 +103,7 @@ function doDia(date: IsoDate, hoje: IsoDate): AppointmentRow[] {
     client_name: m.nome,
     client_phone: m.telefone,
     notes: m.obs,
-    status: i === cancelado ? 'cancelled' : statusDe(i, quando),
+    status: i === cancelado ? 'cancelled' : statusDe(i, quando, date, hoje),
     origin: i % 2 === 0 ? ('site' as const) : ('panel' as const),
     created_at: `${date}T08:00:00Z`,
     updated_at: `${date}T08:00:00Z`,
@@ -102,6 +118,11 @@ export interface DemoOptions {
 export function forTenant(_tenantSlug: string, demo: DemoOptions = {}) {
   const hoje = nowInBusinessTime('America/Sao_Paulo').date;
   const team = demo.team ? TEAM : TEAM.filter((p) => p.role === 'owner');
+  const between = (from: IsoDate, to: IsoDate) => {
+    const rows: AppointmentRow[] = [];
+    for (let d = from; d <= to; d = addDays(d, 1)) rows.push(...doDia(d, hoje));
+    return rows;
+  };
 
   return {
     async appointmentsOn(date: IsoDate): Promise<AppointmentRow[]> {
@@ -109,9 +130,7 @@ export function forTenant(_tenantSlug: string, demo: DemoOptions = {}) {
     },
 
     async appointmentsBetween(from: IsoDate, to: IsoDate): Promise<AppointmentRow[]> {
-      const rows: AppointmentRow[] = [];
-      for (let d = from; d <= to; d = addDays(d, 1)) rows.push(...doDia(d, hoje));
-      return rows;
+      return between(from, to);
     },
 
     async exceptionsBetween(_from: IsoDate, _to: IsoDate): Promise<AgendaException[]> {
@@ -131,6 +150,15 @@ export function forTenant(_tenantSlug: string, demo: DemoOptions = {}) {
     async clientAppointments(id: string): Promise<AppointmentRow[]> {
       const index = CLIENTS.findIndex((c) => c.id === id);
       return index < 0 ? [] : clientHistory(CLIENTS[index]!, index, hoje);
+    },
+
+    async financialCategories(): Promise<FinancialCategoryRow[]> {
+      return DEMO_CATEGORIES;
+    },
+
+    /** Com a API, `GET /financial-entries` no período pedido. */
+    async financialEntries(): Promise<FinancialEntryRow[]> {
+      return demoFinancialEntries(hoje, between(demoFinanceStart(hoje), addDays(hoje, 21)));
     },
 
     async professionals(): Promise<ProfessionalRow[]> {
@@ -486,36 +514,6 @@ function clientHistory(c: DemoClient, index: number, today: IsoDate): Appointmen
     };
   });
 }
-
-/**
- * Números de DEMONSTRAÇÃO, iguais ao protótipo (quadro 05). NÃO saem dos agendamentos acima e
- * não batem com eles, a pedido. Saem quando a API devolver o resumo do mês.
- */
-export const resumoDemonstracao = {
-  faturamentoCentavos: 2_143_000,
-  variacaoFaturamento: 12.4,
-  agendamentos: 148,
-  ocupacao: 92,
-  novosClientes: 24,
-  novosNoMes: 8,
-  taxaRetorno: 76,
-  /** Últimos 7 meses, do mais antigo ao atual, em reais. */
-  movimento: [
-    { receitas: 4_800, despesas: 1_400 },
-    { receitas: 9_200, despesas: 5_600 },
-    { receitas: 15_400, despesas: 4_600 },
-    { receitas: 13_100, despesas: 7_500 },
-    { receitas: 18_900, despesas: 8_200 },
-    { receitas: 19_100, despesas: 10_800 },
-    { receitas: 21_430, despesas: 11_300 },
-  ],
-  /** Ids de `config/sites/_exemplo.ts`; o valor sai do preço do catálogo. */
-  servicosMaisAgendados: [
-    { id: 'manutencao', agendamentos: 58 },
-    { id: 'alongamento', agendamentos: 41 },
-    { id: 'esmaltacao', agendamentos: 29 },
-  ],
-};
 
 /** Avisos de DEMONSTRAÇÃO, como no protótipo (quadro 05), apontando para atendimentos do exemplo. */
 export function avisosDemonstracao(hoje: IsoDate): AgendaNotification[] {

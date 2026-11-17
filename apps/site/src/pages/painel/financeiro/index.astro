@@ -1,0 +1,235 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import Callout from '@/components/Callout.astro';
+import ActionsMenu from '@/components/painel/ActionsMenu.astro';
+import BarChart from '@/components/painel/BarChart.astro';
+import FinanceTabs from '@/components/painel/FinanceTabs.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import PanelSection from '@/components/painel/PanelSection.astro';
+import StatCard from '@/components/painel/StatCard.astro';
+import { getSite } from '@/config';
+import { nowInBusinessTime } from '@/lib/agenda';
+import { csvHref } from '@/lib/csv';
+import { usuarioExemplo } from '@/lib/dados-exemplo';
+import { DEMO_OPENING_BALANCE } from '@/lib/demo-finance';
+import {
+  cashOf,
+  change,
+  counterpart,
+  entriesSheet,
+  flowBy,
+  inPeriod,
+  money,
+  monthName,
+  monthTitle,
+  percent,
+  resultOf,
+  slices,
+} from '@/lib/finance';
+import { loadFinance } from '@/lib/finance-page';
+import { numericDate, shortDayLabel, tenantNotConfigured } from '@/lib/painel';
+
+/** Financeiro, aba Visão geral (quadro 07). Números de DEMONSTRAÇÃO, os mesmos da Visão geral do painel. */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const hoje = nowInBusinessTime(site.agenda?.timezone ?? 'America/Sao_Paulo').date;
+const { entries, categories, groups, months, period } = await loadFinance(Astro.url, user.tenantSlug, hoje);
+
+const now = resultOf(entries, period, groups);
+const before = resultOf(entries, period.previous, groups);
+const cash = cashOf(entries, period, DEMO_OPENING_BALANCE);
+const weeks = flowBy(entries, slices(period, 7), 'cash').map((w, i) => ({ ...w, label: `S${i + 1}` }));
+
+const upcoming = entries
+  .filter((e) => e.type === 'INCOME' && e.status === 'PENDING' && e.due_date >= hoje)
+  .sort((a, b) => a.due_date.localeCompare(b.due_date))
+  .slice(0, 5);
+const csv = csvHref(entriesSheet(inPeriod(entries, period), categories, hoje));
+const query = Astro.url.searchParams.get('mes') ? period.key : undefined;
+---
+
+<PanelLayout site={site} user={user} current="financeiro" title="Financeiro">
+  <PanelHeading eyebrow="Gestão financeira" title="Financeiro" intro="Acompanhe entradas, saídas e o resultado do seu negócio.">
+    <ActionButton
+      label="Exportar"
+      variant="secondary"
+      icon="download"
+      iconPosition="end"
+      href={csv}
+      download={`lancamentos-${period.key}.csv`}
+      full={false}
+    />
+    <ActionButton label="Nova movimentação" icon="plus" iconPosition="end" href="/painel/financeiro/lancar" full={false} />
+  </PanelHeading>
+
+  <div class="tabs">
+    <FinanceTabs current="visao-geral" month={query} />
+  </div>
+
+  {
+    Astro.url.searchParams.has('salvo') && (
+      <div class="notice">
+        <Callout tone="success" icon="check-circle" title="Lançamento salvo">
+          As alterações já valem para o caixa e para o resultado.
+        </Callout>
+      </div>
+    )
+  }
+
+  <div class="stats">
+    <StatCard
+      label="Receita no mês"
+      value={money(now.income)}
+      note={`${change(now.income, before.income) ?? '—'} comparado a ${monthName(period.previous.from)}`}
+      tone="pink"
+    />
+    <StatCard
+      label="Recebido"
+      value={money(cash.received)}
+      note={now.income ? `${percent((cash.received / now.income) * 100, 0)} da receita` : 'Sem receita no período'}
+      tone="green"
+    />
+    <StatCard
+      label="A receber"
+      value={money(cash.receivable)}
+      note={`${cash.receivableCount} ${cash.receivableCount === 1 ? 'pagamento' : 'pagamentos'}`}
+      tone="blue"
+    />
+    <StatCard
+      label="Resultado"
+      value={money(now.result)}
+      note={now.margin === undefined ? '—' : `${percent(now.margin)} de margem`}
+      tone="yellow"
+    />
+  </div>
+
+  <div class="grid">
+    <PanelSection title="Fluxo de caixa" subtitle="Entradas e saídas por semana" id="titulo-fluxo">
+      <ActionsMenu slot="aside" id="mes-fluxo" label="Trocar o mês" trigger={monthTitle(period.key).split(' ')[0]}>
+        {
+          months.map((m) => (
+            <a href={`/painel/financeiro?mes=${m}`} aria-current={m === period.key ? 'true' : undefined}>
+              {monthTitle(m)}
+            </a>
+          ))
+        }
+      </ActionsMenu>
+      <BarChart groups={weeks} label="Entradas e saídas por semana" />
+    </PanelSection>
+
+    <PanelSection title="Próximos recebimentos" subtitle="Valores previstos" id="titulo-recebimentos">
+      {
+        upcoming.length ? (
+          <ul class="next">
+            {upcoming.map((e) => (
+              <li>
+                <span class="next__when">{e.due_date === hoje ? 'Hoje' : shortDayLabel(e.due_date).replace(' de', '').replace('.', '')}</span>
+                <span class="next__who">
+                  {counterpart(e)}
+                  <small>
+                    {e.payment_method === 'card'
+                      ? `Cartão do atendimento de ${numericDate(e.competence, false)}`
+                      : e.competence === hoje
+                        ? 'Atendimento de hoje'
+                        : `Atendimento em ${numericDate(e.competence, false)}`}
+                  </small>
+                </span>
+                <strong>{money(e.amount_cents)}</strong>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p class="empty">Nada previsto para os próximos dias.</p>
+        )
+      }
+    </PanelSection>
+  </div>
+</PanelLayout>
+
+<style>
+  .tabs {
+    margin-top: 28px;
+  }
+
+  .notice {
+    margin-top: 20px;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.94fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 16px;
+    margin-top: 16px;
+  }
+
+  .next {
+    list-style: none;
+  }
+
+  .next li {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+    border-bottom: 1px solid var(--site-color-border);
+    font-size: 0.875rem;
+  }
+
+  .next__when {
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+
+  .next__who {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 8px 0;
+  }
+
+  .next__who small {
+    font-size: 0.75rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .next strong {
+    font-weight: 700;
+  }
+
+  .empty {
+    font-size: 0.875rem;
+    color: var(--site-color-text-muted);
+  }
+
+  @media (max-width: 1299px) {
+    .stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 1099px) {
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 599px) {
+    .stats {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

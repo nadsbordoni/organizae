@@ -68,11 +68,9 @@ export function matchesSearch(client: ClientRow, query: string): boolean {
   return foldText(client.name).includes(term) || (digits.length >= 3 && client.phone.includes(digits));
 }
 
-/** Planilha para o Excel em português: `;` separa as colunas e o BOM faz os acentos abrirem certos. */
-export function clientsCsv(rows: ClientSummary[]): string {
-  // Célula que começa com = + - @ vira fórmula no Excel; o apóstrofo a mantém como texto.
-  const cell = (value: string) => `"${value.replace(/^[=+\-@\t\r]/, "'$&").replace(/"/g, '""')}"`;
-  const lines = [
+/** Linhas da planilha de clientes, com cabeçalho. */
+export function clientsSheet(rows: ClientSummary[]): string[][] {
+  return [
     ['Nome', 'Telefone', 'E-mail', 'Situação', 'Atendimentos', 'Valor total', 'Último atendimento'],
     ...rows.map((r) => [
       r.client.name,
@@ -84,5 +82,4 @@ export function clientsCsv(rows: ClientSummary[]): string {
       r.lastVisit ? numericDate(r.lastVisit) : '',
     ]),
   ];
-  return `\uFEFF${lines.map((line) => line.map(cell).join(';')).join('\r\n')}`;
 }

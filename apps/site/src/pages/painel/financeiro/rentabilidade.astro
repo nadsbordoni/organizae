@@ -1,0 +1,262 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import FinanceTabs from '@/components/painel/FinanceTabs.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import PanelSection from '@/components/painel/PanelSection.astro';
+import RankBars from '@/components/painel/RankBars.astro';
+import StatCard from '@/components/painel/StatCard.astro';
+import { getSite } from '@/config';
+import { nowInBusinessTime } from '@/lib/agenda';
+import { csvHref } from '@/lib/csv';
+import { usuarioExemplo } from '@/lib/dados-exemplo';
+import { DEMO_SERVICE_COSTS, DEMO_TAX_RATE } from '@/lib/demo-finance';
+import {
+  breakEven,
+  money,
+  monthName,
+  monthTitle,
+  percent,
+  pointsChange,
+  resultOf,
+  serviceShares,
+  wholeMonth,
+} from '@/lib/finance';
+import { loadFinance } from '@/lib/finance-page';
+import { numericDate, tenantNotConfigured } from '@/lib/painel';
+
+/**
+ * Financeiro, aba Rentabilidade (quadro 07). A margem por serviço usa o custo de material de cada um,
+ * que ainda não existe no back (`DEMO_SERVICE_COSTS`); o ponto de equilíbrio sai dos custos fixos.
+ */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const hoje = nowInBusinessTime(site.agenda?.timezone ?? 'America/Sao_Paulo').date;
+const { dados, entries, groups, period } = await loadFinance(Astro.url, user.tenantSlug, hoje);
+
+const now = resultOf(entries, period, groups);
+const before = resultOf(entries, period.previous, groups);
+const shares = serviceShares(await dados.appointmentsBetween(period.from, period.to), site.agenda, DEMO_SERVICE_COSTS, DEMO_TAX_RATE);
+const best = [...shares].sort((a, b) => b.margin - a.margin)[0];
+const even = breakEven(entries, period, wholeMonth(period), groups);
+const current = period.to === hoje;
+
+// Fatias da receita: o que sobrou, os custos e os impostos. Resultado negativo não vira fatia.
+const share = (cents: number) => (now.income ? Math.max(0, (cents / now.income) * 100) : 0);
+const parts = [
+  { label: 'Lucro', cents: now.result, tone: 'green' },
+  { label: 'Custos', cents: now.costs, tone: 'yellow-soft' },
+  { label: 'Impostos', cents: now.taxes, tone: 'pink-soft' },
+].map((p) => ({ ...p, share: share(p.cents) }));
+
+const csv = csvHref([
+  ['Serviço', 'Atendimentos', 'Valor agendado', 'Margem estimada'],
+  ...shares.map((s) => [s.name, String(s.count), money(s.cents), percent(s.margin, 0)]),
+  [],
+  ['Receita', money(now.income)],
+  ['Custos', money(now.costs)],
+  ['Impostos', money(now.taxes)],
+  ['Lucro', money(now.result)],
+]);
+const query = Astro.url.searchParams.get('mes') ? period.key : undefined;
+---
+
+<PanelLayout site={site} user={user} current="financeiro" title="Rentabilidade">
+  <PanelHeading eyebrow="Financeiro" title="Rentabilidade" intro="Entenda o resultado de cada serviço e tome decisões melhores.">
+    <ActionButton
+      label="Exportar análise"
+      variant="secondary"
+      icon="download"
+      iconPosition="end"
+      href={csv}
+      download={`rentabilidade-${period.key}.csv`}
+      full={false}
+    />
+  </PanelHeading>
+
+  <div class="tabs">
+    <FinanceTabs current="rentabilidade" month={query} />
+  </div>
+
+  <div class="stats">
+    <StatCard
+      label="Margem líquida"
+      value={now.margin === undefined ? '—' : percent(now.margin)}
+      note={`${pointsChange(now.margin, before.margin) ?? '—'} vs. ${monthName(period.previous.from)}`}
+      tone="green"
+    />
+    <StatCard
+      label="Lucro estimado"
+      value={money(now.result)}
+      note={current ? 'Neste mês, até hoje' : `Em ${monthName(period.from)}`}
+      tone="pink"
+    />
+    <StatCard
+      label="Melhor serviço"
+      value={best?.name ?? '—'}
+      note={best ? `${percent(best.margin, 0)} de margem` : 'Sem atendimentos no período'}
+      tone="yellow"
+    />
+    <StatCard
+      label="Ponto de equilíbrio"
+      value={even ? money(even.target) : '—'}
+      note={even?.reachedOn ? `Atingido em ${numericDate(even.reachedOn, false)}` : 'Ainda não atingido'}
+      tone="blue"
+    />
+  </div>
+
+  <div class="grid">
+    <PanelSection title="Valor agendado" subtitle="Margem estimada por serviço" id="titulo-valor">
+      <RankBars
+        label="Serviços do período, do que mais fatura para o que menos fatura"
+        items={shares.map((s) => ({
+          name: s.name,
+          detail: `${money(s.cents)} agendado · ${s.count} ${s.count === 1 ? 'atendimento' : 'atendimentos'}`,
+          fill: s.margin / 100,
+          value: percent(s.margin, 0),
+        }))}
+      />
+    </PanelSection>
+
+    <PanelSection title="Composição financeira" subtitle={monthTitle(period.key)} id="titulo-composicao">
+      <div class="mix">
+        <p class="mix__big">{now.margin === undefined ? '—' : percent(now.margin)}</p>
+        <p class="mix__caption">Margem líquida sobre a receita</p>
+        <div class="mix__bar" aria-hidden="true">
+          {parts.map((p) => <span style={`--w: ${p.share}%; --tone: var(--site-accent-${p.tone})`} />)}
+        </div>
+        <div class="mix__shares" aria-hidden="true">
+          {parts.map((p) => <span style={`--w: ${p.share}%`}>{percent(p.share)}</span>)}
+        </div>
+        <ul class="mix__legend">
+          {
+            parts.map((p) => (
+              <li>
+                <span class="mix__dot" style={`--tone: var(--site-accent-${p.tone})`} aria-hidden="true" />
+                {p.label}
+                <span class="sr-only">: {percent(p.share)} da receita,</span>
+                <strong>{money(p.cents)}</strong>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </PanelSection>
+  </div>
+</PanelLayout>
+
+<style>
+  .tabs {
+    margin-top: 28px;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.94fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 16px;
+    margin-top: 16px;
+  }
+
+  .mix {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .mix__big {
+    font-family: var(--site-font-display);
+    font-size: 2.5rem;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+  }
+
+  .mix__caption {
+    font-size: 0.875rem;
+    color: var(--site-color-text-muted);
+  }
+
+  .mix__bar,
+  .mix__shares {
+    display: flex;
+    width: 100%;
+  }
+
+  .mix__bar {
+    height: 28px;
+    margin-top: 28px;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .mix__bar span {
+    width: var(--w);
+    background: var(--tone);
+  }
+
+  .mix__shares span {
+    width: var(--w);
+    padding-top: 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .mix__legend {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    margin-top: 36px;
+    list-style: none;
+    font-size: 0.875rem;
+  }
+
+  .mix__legend li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .mix__legend strong {
+    margin-left: auto;
+    font-weight: 700;
+  }
+
+  .mix__dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--tone);
+  }
+
+  @media (max-width: 1299px) {
+    .stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 1099px) {
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 599px) {
+    .stats {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>
