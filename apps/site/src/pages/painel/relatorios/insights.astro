@@ -1,0 +1,261 @@
+---
+import PanelLayout from '@/layouts/PanelLayout.astro';
+import ActionButton from '@/components/ActionButton.astro';
+import Callout from '@/components/Callout.astro';
+import PanelHeading from '@/components/painel/PanelHeading.astro';
+import PanelSection from '@/components/painel/PanelSection.astro';
+import PanelTable from '@/components/painel/PanelTable.astro';
+import ReportTabs from '@/components/painel/ReportTabs.astro';
+import StatCard from '@/components/painel/StatCard.astro';
+import { getSite } from '@/config';
+import { formatDuration, nowInBusinessTime, parsePrice } from '@/lib/agenda';
+import { catalogServices, serviceState } from '@/lib/catalog';
+import { usuarioExemplo } from '@/lib/dados-exemplo';
+import { money } from '@/lib/finance';
+import { financialAlerts, highValue, quietestDay, recoveryAudience } from '@/lib/insights';
+import { loadIntelligence } from '@/lib/intelligence-page';
+import { compactPrice, longDateLabel, numericDate, tenantNotConfigured, weekdayName } from '@/lib/painel';
+
+/**
+ * Insights (quadro 17): alertas do financeiro (as regras de `GET /financial/insights`), o dia mais
+ * vazio da semana com a sugestão de promoção, quem mais gastou e o público da recuperação.
+ */
+export const prerender = false;
+
+const user = usuarioExemplo;
+const site = getSite(user.tenantSlug);
+if (!site) return tenantNotConfigured(user.tenantSlug);
+
+const hoje = nowInBusinessTime(site.agenda?.timezone ?? 'America/Sao_Paulo').date;
+const { entries, period, summaries, nextWeek } = await loadIntelligence(Astro.url, site, hoje);
+
+const alert = financialAlerts(entries, period, period.previous, hoje)[0];
+const quiet = site.agenda ? quietestDay(site.agenda, nextWeek, hoje) : undefined;
+const openMinutes = quiet ? quiet.windows.reduce((sum, w) => sum + w.minutes, 0) : 0;
+const freeSlots = Math.floor(openMinutes / 30);
+
+// O serviço da promoção: o mais caro que cabe na maior janela livre do dia.
+const services = catalogServices(site.agenda)
+  .map(({ service }) => service)
+  .filter((s) => serviceState(s) === 'active' && parsePrice(s.price) !== undefined);
+const widest = quiet ? Math.max(0, ...quiet.windows.map((w) => w.minutes)) : 0;
+const fits = (minutes: number) =>
+  services.filter((s) => s.durationMinutes <= minutes).sort((a, b) => parsePrice(b.price)! - parsePrice(a.price)!)[0];
+const promo = fits(widest);
+const promoPrice = promo ? Math.round((parsePrice(promo.price)! * 0.9) / 50) * 50 : 0;
+const busiest = quiet?.windows.reduce((a, b) => (b.minutes > a.minutes ? b : a), quiet.windows[0]!);
+
+const top = highValue(summaries);
+const awayTop = top.find((s) => s.status === 'away');
+const keep = top.filter((s) => s !== awayTop).slice(0, 2);
+const { eligible } = recoveryAudience(summaries);
+---
+
+<PanelLayout site={site} user={user} current="relatorios" title="Insights">
+  <PanelHeading
+    eyebrow="Inteligência do negócio"
+    title="Boas oportunidades, com contexto"
+    intro={`Leituras de ${site.profile.name} para apoiar suas decisões.`}
+  />
+
+  <div class="tabs">
+    <ReportTabs current="insights" />
+  </div>
+
+  <div class="notice">
+    {
+      alert ? (
+        <Callout tone="attention" icon="alert" title={alert.title}>
+          {alert.description}
+        </Callout>
+      ) : (
+        <Callout tone="success" icon="check-circle" title="Nenhum alerta no período">
+          Receita e despesas dentro do esperado, e nenhuma conta vencida.
+        </Callout>
+      )
+    }
+  </div>
+
+  <div class="grid">
+    {
+      quiet && (
+        <PanelSection
+          title={`${weekdayName(quiet.date)} tem espaço para mais cuidado`}
+          subtitle={`${longDateLabel(quiet.date)} · Agenda de ${site.profile.name}`}
+          id="titulo-espaco"
+        >
+          <div class="stats">
+            <StatCard label="Ocupação prevista" value={`${quiet.occupancy}%`} note="Do tempo de atendimento do dia" tone="yellow" />
+            <StatCard
+              label="Horários livres"
+              value={String(freeSlots)}
+              note={busiest ? `Maior janela entre ${busiest.from} e ${busiest.to}` : 'Dia cheio'}
+              tone="blue"
+            />
+          </div>
+
+          <h3 class="sub">Disponibilidade identificada</h3>
+          <PanelTable label="Horários livres do dia">
+            <thead>
+              <tr>
+                <th scope="col">Horário livre</th>
+                <th scope="col">Tempo</th>
+                <th scope="col">Serviço que cabe</th>
+              </tr>
+            </thead>
+            <tbody>
+              {quiet.windows.map((w) => (
+                <tr>
+                  <td class="strong">
+                    {w.from}–{w.to}
+                  </td>
+                  <td>{formatDuration(w.minutes)}</td>
+                  <td>{fits(w.minutes)?.name ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </PanelTable>
+
+          {promo && (
+            <>
+              <Callout tone="info" icon="info" title={`Sugestão: 10% em ${promo.name}`}>
+                De {compactPrice(promo.price!)} por {money(promoPrice).replace(/^R\$ /, 'R$ ')}
+                {promoPrice % 100 ? `,${String(promoPrice % 100).padStart(2, '0')}` : ''}, {weekdayName(quiet.date).toLowerCase()}{' '}
+                {numericDate(quiet.date, false)}, só nos horários livres. Criar o conteúdo não publica a promoção.
+              </Callout>
+              <ActionButton
+                label="Criar conteúdo da promoção"
+                href={`/painel/relatorios/marketing?servico=${promo.id}&data=${quiet.date}`}
+                full={false}
+              />
+            </>
+          )}
+        </PanelSection>
+      )
+    }
+
+    <div class="side">
+      <PanelSection title="Clientes de alto valor" subtitle={`Gasto acumulado até ${numericDate(hoje)}`} id="titulo-valor">
+        <PanelTable label="Clientes que mais gastaram">
+          <thead>
+            <tr>
+              <th scope="col">Cliente</th>
+              <th scope="col">Total gasto</th>
+              <th scope="col" data-wide>
+                Última visita
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {top.map((s) => (
+              <tr>
+                <td class="strong">
+                  <a href={`/painel/clientes/${s.client.id}`}>{s.client.name}</a>
+                </td>
+                <td>{money(s.spentCents ?? 0)}</td>
+                <td data-wide>{s.lastVisit ? numericDate(s.lastVisit) : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </PanelTable>
+        <p class="hint">
+          Sugestão: convidar {keep.map((s) => s.client.name.split(' ')[0]).join(' e ')} para um retorno personalizado.
+          {awayTop && ` ${awayTop.client.name.split(' ')[0]} está há ${awayTop.daysAway} dias sem atendimento e merece uma abordagem de recuperação.`}
+        </p>
+      </PanelSection>
+
+      <PanelSection title="Recupere vínculos, não só horários" id="titulo-vinculos">
+        <span class="chip">{eligible.length} {eligible.length === 1 ? 'cliente elegível' : 'clientes elegíveis'}</span>
+        <p class="text">
+          Mais de 60 dias sem atendimento, com WhatsApp e permissão de contato. A mensagem passa pela sua revisão antes da aprovação.
+        </p>
+        <ActionButton label="Preparar recuperação" variant="secondary" href="/painel/relatorios/marketing/recuperar" full={false} />
+      </PanelSection>
+    </div>
+  </div>
+</PanelLayout>
+
+<style>
+  .tabs {
+    margin-top: 28px;
+  }
+
+  .notice {
+    margin-top: 20px;
+  }
+
+  /* Colunas da mesma altura: na da direita, o último cartão estica até o fim da esquerda. */
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+    align-items: stretch;
+    gap: 16px;
+    margin-top: 16px;
+  }
+
+  .side {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .side > :global(:last-child) {
+    flex: 1;
+  }
+
+  /* O botão desce para o fim do cartão esticado, alinhado com o da outra coluna. */
+  .side > :global(:last-child) > :global(.action) {
+    margin-top: auto;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .sub {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .strong {
+    font-weight: 600;
+  }
+
+  .strong a {
+    color: var(--site-color-text);
+  }
+
+  .hint {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--site-color-text-muted);
+  }
+
+  .chip {
+    align-self: flex-start;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--site-accent-pink-soft);
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .text {
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+
+  @media (max-width: 1099px) {
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 599px) {
+    .stats {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

@@ -11,7 +11,7 @@ import type { SiteConfig } from '@/types/site';
 /**
  * Casca do painel com o tema do negócio. Item do menu sem tela NÃO é link (seria 404 na mão da
  * dona do negócio): ganha `href` quando a tela existir.
- * PROTÓTIPO: busca e "Conversar" aparecem como no desenho, sem ação.
+ * PROTÓTIPO: a busca aparece como no desenho, sem ação.
  */
 
 export type PanelPage =
@@ -106,8 +106,7 @@ const seo = { title: `${title} • ${profile.name}`, description: 'Painel do neg
           <img src="/marca/mascote-atendimento-rosto.webp" alt="" width="64" height="64" />
         </span>
         <strong>Precisa de ajuda?</strong>
-        {/* PROTÓTIPO: sem ação. Vai abrir a assistente quando ela tiver tela. */}
-        <button class="side__help-button" type="button">Conversar</button>
+        <a class="side__help-button" href="/painel/relatorios/assistente">Conversar</a>
       </div>
 
       <div class="side__user">
@@ -434,8 +433,11 @@ const seo = { title: `${title} • ${profile.name}`, description: 'Painel do neg
   }
 
   .side__help-button {
+    display: grid;
+    place-items: center;
     width: 100%;
     min-height: 48px;
+    text-decoration: none;
     border: 0;
     border-radius: 12px;
     background: var(--site-accent-yellow-soft);

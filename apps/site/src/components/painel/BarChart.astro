@@ -12,9 +12,11 @@ interface Props {
   /** Valor em cima de cada barra. */
   values?: boolean;
   series?: [string, string];
+  /** Ocupa a altura que sobrar no cartão, em vez dos 240px fixos. */
+  grow?: boolean;
 }
 
-const { groups, label, values = false, series = ['Entradas', 'Saídas'] } = Astro.props;
+const { groups, label, values = false, series = ['Entradas', 'Saídas'], grow = false } = Astro.props;
 
 const peak = Math.max(1, ...groups.flatMap((g) => [g.income, g.expenses]));
 const height = (cents: number) => `${Math.max(2, Math.round((cents / peak) * 100))}%`;
@@ -22,8 +24,8 @@ const height = (cents: number) => `${Math.max(2, Math.round((cents / peak) * 100
 const short = (cents: number) => Math.round(cents / 100).toLocaleString('pt-BR');
 ---
 
-<figure class="bars" style={`--groups: ${groups.length}`}>
-  <div aria-hidden="true">
+<figure class="bars" data-grow={grow ? '' : undefined} style={`--groups: ${groups.length}`}>
+  <div class="bars__body" aria-hidden="true">
     <div class="bars__plot">
       {
         groups.map((g) => (
@@ -69,6 +71,19 @@ const short = (cents: number) => Math.round(cents / 100).toLocaleString('pt-BR')
 <style>
   .bars {
     margin: 0;
+  }
+
+  .bars[data-grow],
+  .bars[data-grow] .bars__body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+  }
+
+  .bars[data-grow] .bars__plot {
+    flex: 1;
+    height: auto;
+    min-height: 240px;
   }
 
   /* Mesma grade nas barras e nos rótulos, para cada rótulo cair embaixo do seu par. */

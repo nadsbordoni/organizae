@@ -19,28 +19,28 @@ const total = items.reduce((sum, item) => sum + item.value, 0) || 1;
 let start = 0;
 const slices = items.map((item) => {
   const share = (item.value / total) * 100;
-  const slice = { ...item, share, offset: start };
+  const slice = { ...item, share, from: start };
   start += share;
   return slice;
 });
+
+// Cada fatia é um arco próprio. Com traço tracejado num círculo só, o navegador desenha um bico onde
+// o círculo começa e termina, bem na emenda de duas fatias.
+const R = 78;
+const point = (percent: number) => {
+  const angle = (percent / 100) * 2 * Math.PI - Math.PI / 2;
+  return `${(100 + R * Math.cos(angle)).toFixed(2)} ${(100 + R * Math.sin(angle)).toFixed(2)}`;
+};
+const arc = (from: number, share: number) =>
+  share >= 99.99
+    ? `M ${point(0)} A ${R} ${R} 0 1 1 ${point(50)} A ${R} ${R} 0 1 1 ${point(0)}`
+    : `M ${point(from)} A ${R} ${R} 0 ${share > 50 ? 1 : 0} 1 ${point(from + share)}`;
 ---
 
 <figure class="donut">
   <div class="donut__ring" aria-hidden="true">
     <svg viewBox="0 0 200 200" focusable="false">
-      {
-        slices.map((s) => (
-          <circle
-            cx="100"
-            cy="100"
-            r="78"
-            pathLength="100"
-            stroke={`var(--site-accent-${s.tone})`}
-            stroke-dasharray={`${s.share} ${100 - s.share}`}
-            stroke-dashoffset={-s.offset}
-          />
-        ))
-      }
+      {slices.filter((s) => s.share > 0).map((s) => <path d={arc(s.from, s.share)} stroke={`var(--site-accent-${s.tone})`} />)}
     </svg>
     <span class="donut__center">
       <strong>{center}</strong>
@@ -76,14 +76,13 @@ const slices = items.map((item) => {
     aspect-ratio: 1;
   }
 
-  /* Começa no topo, como um relógio. */
   .donut__ring svg {
     width: 100%;
     height: 100%;
-    rotate: -90deg;
   }
 
-  .donut__ring circle {
+  /* Começa no topo, como um relógio (o ângulo sai de -90° em `point`). */
+  .donut__ring path {
     fill: none;
     stroke-width: 30;
   }

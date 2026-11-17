@@ -16,7 +16,7 @@ import { compactPrice, longDateLabel, numericDate, tenantNotConfigured } from '@
 /**
  * Recuperar clientes (quadro 06): quem está sem atendimento há mais de N dias. Corte e canal vivem na
  * URL (`?dias=` e `?canal=`). Só entra na seleção quem autorizou mensagens pelo WhatsApp.
- * PROTÓTIPO: "Recuperar clientes" ainda não leva à revisão da campanha (quadro 17).
+ * "Recuperar clientes" leva as marcadas para a campanha de recuperação (quadro 17).
  */
 export const prerender = false;
 
@@ -55,7 +55,13 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
     title="Vamos trazer seus clientes de volta?"
     intro={`Encontre quem está há mais de ${days} dias sem atendimento.`}
   >
-    <ActionButton label="Recuperar clientes" disabled={!eligible.length} full={false} data-recover="" />
+    <ActionButton
+      label="Recuperar clientes"
+      href="/painel/relatorios/marketing/recuperar"
+      disabled={!eligible.length}
+      full={false}
+      data-recover=""
+    />
   </PanelHeading>
 
   <div class="stats">
@@ -176,15 +182,26 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
   wireAutoSubmit();
 
-  // O botão diz quantas pessoas vão receber e desliga sem ninguém marcado.
-  const button = document.querySelector<HTMLButtonElement>('[data-recover]');
-  const label = button?.querySelector('.action__label');
+  // O botão diz quantas pessoas vão receber, leva as marcadas para a campanha e desliga sem ninguém.
+  const link = document.querySelector<HTMLAnchorElement>('[data-recover]');
+  const label = link?.querySelector('.action__label');
   const boxes = [...document.querySelectorAll<HTMLInputElement>('[data-recipient]')];
   const sync = () => {
-    const count = boxes.filter((box) => box.checked).length;
-    if (label) label.textContent = count ? `Recuperar ${count} ${count === 1 ? 'cliente' : 'clientes'}` : 'Recuperar clientes';
-    if (button) button.disabled = count === 0;
+    const chosen = boxes.filter((box) => box.checked);
+    if (label) label.textContent = chosen.length ? `Recuperar ${chosen.length} ${chosen.length === 1 ? 'cliente' : 'clientes'}` : 'Recuperar clientes';
+    if (!link) return;
+    link.href = `/painel/relatorios/marketing/recuperar?clientes=${chosen.map((box) => box.value).join(',')}`;
+    if (chosen.length) {
+      link.removeAttribute('aria-disabled');
+      link.removeAttribute('tabindex');
+    } else {
+      link.setAttribute('aria-disabled', 'true');
+      link.setAttribute('tabindex', '-1');
+    }
   };
+  link?.addEventListener('click', (event) => {
+    if (link.getAttribute('aria-disabled') === 'true') event.preventDefault();
+  });
   for (const box of boxes) box.addEventListener('change', sync);
   sync();
 </script>

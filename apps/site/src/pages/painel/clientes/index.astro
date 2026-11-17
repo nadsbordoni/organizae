@@ -12,7 +12,7 @@ import StatCard from '@/components/painel/StatCard.astro';
 import StatusBadge from '@/components/painel/StatusBadge.astro';
 import { getSite } from '@/config';
 import { formatPrice, nowInBusinessTime } from '@/lib/agenda';
-import { AWAY_AFTER_DAYS, CLIENT_STATUS, clientsSheet, matchesSearch, summarize } from '@/lib/clients';
+import { AWAY_AFTER_DAYS, CLIENT_STATUS, clientsSheet, matchesSearch, statusDetail, summarize } from '@/lib/clients';
 import { csvHref } from '@/lib/csv';
 import type { ClientStatus } from '@/lib/clients';
 import { forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
@@ -40,8 +40,8 @@ const all = await Promise.all(
 
 const FILTERS: Array<{ value: string; label: string; status?: ClientStatus }> = [
   { value: '', label: 'Todos os clientes' },
-  { value: 'em-dia', label: 'Em dia', status: 'regular' },
-  { value: 'recentes', label: 'Recentes', status: 'new' },
+  { value: 'com-visita', label: `Visitaram nos últimos ${AWAY_AFTER_DAYS} dias`, status: 'regular' },
+  { value: 'recentes', label: 'Cadastros recentes', status: 'new' },
   { value: 'ausentes', label: 'Ausentes', status: 'away' },
 ];
 const query = (Astro.url.searchParams.get('q') ?? '').slice(0, 80);
@@ -56,7 +56,7 @@ const newThisMonth = all.filter((s) => s.client.created_at.startsWith(hoje.slice
 
 // PROTÓTIPO: o formulário de novo cliente volta para cá com `?novo`, sem gravar nada.
 const created = Astro.url.searchParams.has('novo');
-const csv = csvHref(clientsSheet(shown));
+const csv = csvHref(clientsSheet(shown, hoje));
 ---
 
 <PanelLayout site={site} user={user} current="clientes" title="Clientes">
@@ -169,7 +169,7 @@ const csv = csvHref(clientsSheet(shown));
                     {s.spentCents === undefined ? '—' : compactPrice(formatPrice(s.spentCents))}
                   </td>
                   <td>
-                    <StatusBadge {...CLIENT_STATUS[s.status]} />
+                    <StatusBadge {...CLIENT_STATUS[s.status]} label={statusDetail(s, hoje)} />
                   </td>
                   <td class="actions">
                     <ActionsMenu id={`menu-${s.client.id}`} label={`Ações para ${s.client.name}`}>
