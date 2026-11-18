@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.modules.auth.exceptions import AuthConfigurationError, InvalidAccessTokenError
 from app.modules.auth.service import AuthService
+from app.modules.professionals.models import Professional
 from app.modules.users.models import User
 
 bearer_scheme = HTTPBearer(auto_error=False, bearerFormat="JWT")
@@ -60,3 +61,23 @@ def get_owned_business_id(
             status_code=status.HTTP_404_NOT_FOUND, detail="Business not found"
         )
     return current_business_id
+
+
+def get_current_professional(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[Session, Depends(get_db)],
+) -> Professional:
+    """Professional logged in. Owners are refused here, as professionals are on owner routes."""
+    if current_user.professional_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User is not a professional",
+        )
+    professional = session.get(Professional, current_user.professional_id)
+    # Deactivating the professional also turns off their login.
+    if professional is None or not professional.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Professional access is disabled",
+        )
+    return professional

@@ -16,11 +16,13 @@ class UserRepository:
         name: str,
         email: str,
         password_hash: str,
+        professional_id: UUID | None = None,
     ) -> User:
         user = User(
             name=name,
             email=email,
             password_hash=password_hash,
+            professional_id=professional_id,
         )
 
         self.session.add(user)
@@ -42,6 +44,10 @@ class UserRepository:
 
     def get_by_email(self, email: str) -> User | None:
         statement = select(User).where(User.email == email)
+        return self.session.scalar(statement)
+
+    def get_by_professional_id(self, professional_id: UUID) -> User | None:
+        statement = select(User).where(User.professional_id == professional_id)
         return self.session.scalar(statement)
 
     def update(self, user: User, **fields: object) -> User:

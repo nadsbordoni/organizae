@@ -155,6 +155,10 @@ class AppointmentRepository:
         self.session.flush()
         return appointment
 
+    def delete(self, appointment: Appointment) -> None:
+        self.session.delete(appointment)
+        self.session.flush()
+
     def get_by_id(
         self, appointment_id: UUID, *, business_id: UUID
     ) -> Appointment | None:

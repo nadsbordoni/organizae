@@ -236,6 +236,24 @@ class AppointmentService:
             self.session.refresh(appointment)
         return appointment
 
+    def cancel_professional_block(
+        self, block_id: UUID, *, business_id: UUID, professional_id: UUID
+    ) -> None:
+        with self._transaction():
+            self._lock_business(business_id)
+            block = self.repository.get_by_id(block_id, business_id=business_id)
+            # Bookings and other people's blocks look "not found" to the professional.
+            if (
+                block is None
+                or block.status != AppointmentStatus.BLOCKED
+                or block.professional_id != professional_id
+            ):
+                raise AppointmentNotFoundError("Block not found")
+            # Removed, not CANCELLED: a cancelled row must have customer data
+            # (ck_appointments_customer), and a block has none.
+            self.repository.delete(block)
+            self.session.commit()
+
     def update_status(
         self,
         appointment_id: UUID,

@@ -28,7 +28,7 @@ def service() -> BusinessService:
     service.repository = Mock(spec=BusinessRepository)
     service.user_repository = Mock(spec=UserRepository)
     service.user_repository.get_by_id_for_update.return_value = Mock(
-        spec=User, business_id=None, is_active=True
+        spec=User, business_id=None, professional_id=None, is_active=True
     )
     return service
 

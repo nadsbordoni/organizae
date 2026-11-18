@@ -8,6 +8,13 @@ from app.modules.users.repository import UserRepository
 from app.modules.users.schemas import UserCreate
 
 
+def normalize_email(email: str) -> str:
+    normalized = email.strip().lower()
+    if len(normalized) > 255:
+        raise InvalidUserDataError("Email must contain at most 255 characters")
+    return normalized
+
+
 class UserService:
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -15,9 +22,7 @@ class UserService:
 
     def create(self, user_data: UserCreate) -> User:
         try:
-            email = str(user_data.email).strip().lower()
-            if len(email) > 255:
-                raise InvalidUserDataError("Email must contain at most 255 characters")
+            email = normalize_email(str(user_data.email))
             if self.repository.get_by_email(email) is not None:
                 raise UserConflictError("Email is already registered")
 

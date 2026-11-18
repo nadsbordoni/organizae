@@ -116,6 +116,22 @@ class BlockCreateRequest(BaseModel):
         return self
 
 
+class ProfessionalBlockCreate(BaseModel):
+    """Block made by the professional: always on their own agenda, so no professional_id."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    starts_at: AwareDatetime
+    ends_at: AwareDatetime
+    notes: Notes | None = None
+
+    @model_validator(mode="after")
+    def validate_range(self) -> "ProfessionalBlockCreate":
+        if self.ends_at <= self.starts_at:
+            raise ValueError("ends_at must be after starts_at")
+        return self
+
+
 class AppointmentStatusUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

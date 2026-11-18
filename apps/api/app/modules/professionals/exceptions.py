@@ -16,3 +16,7 @@ class InvalidProfessionalServicesError(ProfessionalError):
 
 class InvalidProfessionalPaginationError(ProfessionalError):
     pass
+
+
+class InvalidProfessionalAccessError(ProfessionalError):
+    pass

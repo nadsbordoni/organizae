@@ -6,6 +6,7 @@ from pydantic import (
     AfterValidator,
     BaseModel,
     ConfigDict,
+    EmailStr,
     Field,
     StringConstraints,
     model_validator,
@@ -81,3 +82,20 @@ class ProfessionalResponse(BaseModel):
     description: str | None = None
     is_active: bool
     services: list[ServiceResponse]
+
+
+class ProfessionalAccessCreate(BaseModel):
+    """Login the owner creates for a professional (Figma 04.03, "E-mail de acesso")."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+
+
+class ProfessionalAccessResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    user_id: UUID4
+    professional_id: UUID4
+    email: EmailStr
