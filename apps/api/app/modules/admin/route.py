@@ -1,8 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -16,12 +15,8 @@ from app.modules.admin.schemas import (
 )
 from app.modules.admin.service import AdminService
 from app.modules.auth.dependencies import get_platform_admin
-from app.modules.subscriptions.exceptions import (
-    InvalidSubscriptionTransitionError,
-    SubscriptionError,
-    SubscriptionNotFoundError,
-)
 from app.modules.subscriptions.models import SubscriptionStatus
+from app.modules.subscriptions.route import OptionalGatewayDep
 from app.modules.subscriptions.service import SubscriptionService
 
 # Everything here is for the platform's own staff.
@@ -44,22 +39,6 @@ def get_admin_service(session: Annotated[Session, Depends(get_db)]) -> AdminServ
 
 
 ServiceDep = Annotated[AdminService, Depends(get_admin_service)]
-
-
-async def subscription_error_handler(
-    request: Request, exc: SubscriptionError
-) -> JSONResponse:
-    details = {
-        SubscriptionNotFoundError: (status.HTTP_404_NOT_FOUND, "Subscription not found"),
-        InvalidSubscriptionTransitionError: (
-            status.HTTP_409_CONFLICT,
-            "This action is not allowed for the current subscription status",
-        ),
-    }
-    code, detail = details.get(
-        type(exc), (status.HTTP_500_INTERNAL_SERVER_ERROR, "Internal server error")
-    )
-    return JSONResponse(status_code=code, content={"detail": detail})
 
 
 @router.get("/metrics", response_model=PlatformMetrics)
@@ -107,5 +86,7 @@ def reactivate(
 
 
 @router.post("/businesses/{business_id}/cancel", response_model=AdminBusinessDetail)
-def cancel(business_id: UUID, service: ServiceDep):
-    return service.cancel(business_id)
+def cancel(
+    business_id: UUID, service: ServiceDep, gateway: OptionalGatewayDep
+):
+    return service.cancel(business_id, gateway=gateway)

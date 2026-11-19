@@ -3,7 +3,6 @@ from fastapi.exceptions import RequestValidationError
 
 from app.core.exception_handlers import request_validation_error_handler
 from app.modules.admin.route import router as admin_router
-from app.modules.admin.route import subscription_error_handler
 from app.modules.appointments.exceptions import AppointmentError
 from app.modules.appointments.route import appointment_error_handler
 from app.modules.appointments.route import public_router as online_booking_router
@@ -61,6 +60,8 @@ from app.modules.subscriptions.guard import (
     require_public_booking_open,
     require_write_access,
 )
+from app.modules.subscriptions.route import router as subscription_router
+from app.modules.subscriptions.route import subscription_error_handler, webhook_router
 from app.modules.users.exceptions import UserError
 from app.modules.users.route import router as users_router
 from app.modules.users.route import user_error_handler
@@ -82,6 +83,8 @@ app.include_router(assistant_router, prefix="/api/v1", dependencies=guarded)
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
+app.include_router(subscription_router, prefix="/api/v1")
+app.include_router(webhook_router, prefix="/api/v1")
 app.include_router(appointments_router, prefix="/api/v1", dependencies=guarded)
 app.include_router(
     online_booking_router,

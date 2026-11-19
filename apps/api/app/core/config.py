@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     BUSINESS_TIMEZONE: str = "America/Sao_Paulo"
     TRIAL_DAYS: int = Field(default=15, gt=0)
     GRACE_DAYS: int = Field(default=5, gt=0)
+    ASAAS_API_KEY: SecretStr = SecretStr("")
+    ASAAS_BASE_URL: str = "https://sandbox.asaas.com/api/v3"
+    ASAAS_WEBHOOK_TOKEN: SecretStr = SecretStr("")
 
     model_config = SettingsConfigDict(env_file=ROOT_DIR / ".env", extra="ignore")
 

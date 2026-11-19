@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.modules.admin.repository import AdminRepository
 from app.modules.businesses.exceptions import BusinessNotFoundError
+from app.modules.subscriptions.exceptions import GatewayError
+from app.modules.subscriptions.gateway import PaymentGateway
 from app.modules.subscriptions.models import SubscriptionStatus
 from app.modules.subscriptions.service import SubscriptionService
 
@@ -61,10 +63,19 @@ class AdminService:
             self.session.commit()
         return self.get_business(business_id)
 
-    def cancel(self, business_id: UUID) -> Row:
+    def cancel(self, business_id: UUID, *, gateway: PaymentGateway | None) -> Row:
         with self._transaction():
             self.subscriptions.cancel(business_id, now=datetime.now(UTC))
             self.session.commit()
+        # Also stop the charges. If the gateway fails the business stays canceled
+        # here and the same call can be repeated: the gateway id is kept.
+        subscription = self.subscriptions.repository.get_by_business_id(business_id)
+        if subscription.gateway_subscription_id is not None:
+            if gateway is None:
+                raise GatewayError("The payment gateway is not configured")
+            self.subscriptions.release_gateway_subscription(
+                business_id, gateway=gateway
+            )
         return self.get_business(business_id)
 
     def metrics(self) -> dict:
