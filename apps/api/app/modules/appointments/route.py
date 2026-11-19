@@ -27,6 +27,7 @@ from app.modules.appointments.schemas import (
     OnlineBookingResponse,
     PublicProfessionalResponse,
     PublicServiceResponse,
+    RescheduleRequest,
 )
 from app.modules.appointments.service import AppointmentService
 from app.modules.auth.dependencies import get_current_business_id
@@ -102,6 +103,18 @@ def book_online(
     business_id: UUID4, booking: OnlineBookingRequest, service: ServiceDep
 ) -> Appointment:
     return service.book_online(booking, business_id=business_id)
+
+
+@public_router.patch(
+    "/appointments/{appointment_id}/reschedule", response_model=OnlineBookingResponse
+)
+def reschedule_online(
+    business_id: UUID4,
+    appointment_id: UUID4,
+    data: RescheduleRequest,
+    service: ServiceDep,
+) -> Appointment:
+    return service.reschedule_online(appointment_id, data, business_id=business_id)
 
 
 @router.get("/business-hours", response_model=list[BusinessHourItem])
