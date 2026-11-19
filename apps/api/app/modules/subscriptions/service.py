@@ -20,7 +20,8 @@ ALLOWED_TRANSITIONS: dict[S, set[S]] = {
     S.TRIALING: {S.ACTIVE, S.SUSPENDED, S.CANCELED},
     S.ACTIVE: {S.PAST_DUE, S.SUSPENDED, S.CANCELED},
     S.PAST_DUE: {S.ACTIVE, S.SUSPENDED, S.CANCELED},
-    S.SUSPENDED: {S.ACTIVE, S.CANCELED},
+    # SUSPENDED -> TRIALING is only reachable through extend_trial.
+    S.SUSPENDED: {S.ACTIVE, S.CANCELED, S.TRIALING},
     S.CANCELED: {S.ACTIVE},
 }
 
@@ -81,6 +82,23 @@ class SubscriptionService:
             subscription.current_period_end = paid_until
         subscription.grace_ends_at = None
         subscription.canceled_at = None
+        return subscription
+
+    def extend_trial(
+        self, business_id: UUID, *, days: int, now: datetime
+    ) -> Subscription:
+        """Gives a trial (or a suspended business) more days to try the product.
+
+        Counts from the current end, or from now when the trial already ended.
+        """
+        if days < 1:
+            raise ValueError("days must be at least 1")
+        subscription = self._locked(business_id)
+        # Only TRIALING and SUSPENDED may go (or stay) TRIALING; the rest raise.
+        self._move(subscription, S.TRIALING)
+        current = subscription.trial_ends_at
+        start = now if current is None or to_utc(current) < to_utc(now) else current
+        subscription.trial_ends_at = start + timedelta(days=days)
         return subscription
 
     def mark_overdue(self, business_id: UUID, *, now: datetime) -> Subscription:

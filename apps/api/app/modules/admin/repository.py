@@ -58,6 +58,26 @@ class AdminRepository:
         statement = statement.order_by(Business.name, Business.id)
         return list(self.session.execute(statement.limit(limit).offset(offset)))
 
+    def count_by_status(self) -> dict[SubscriptionStatus, int]:
+        rows = self.session.execute(
+            select(Subscription.status, func.count()).group_by(Subscription.status)
+        )
+        return {status: count for status, count in rows}
+
+    def paying_total_cents(self) -> int:
+        """Sum of the plan price of every subscription that is billed."""
+        total = self.session.scalar(
+            select(func.coalesce(func.sum(Plan.price_cents), 0))
+            .select_from(Subscription)
+            .join(Plan, Plan.id == Subscription.plan_id)
+            .where(
+                Subscription.status.in_(
+                    (SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE)
+                )
+            )
+        )
+        return int(total)
+
     def get_business(self, business_id: UUID) -> Row | None:
         return self.session.execute(
             self._base().where(Business.id == business_id)
