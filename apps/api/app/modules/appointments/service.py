@@ -229,6 +229,8 @@ class AppointmentService:
                 raise AppointmentConflictError("This time is no longer available")
             appointment.starts_at = starts_at
             appointment.ends_at = starts_at + timedelta(minutes=service.duration_minutes)
+            # The new time gets its own reminder.
+            appointment.reminder_sent_at = None
             self.session.flush()
             self.session.commit()
             self.session.refresh(appointment)
