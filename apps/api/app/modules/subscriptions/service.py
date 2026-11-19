@@ -161,7 +161,62 @@ class SubscriptionService:
             return AccessLevel.READ_ONLY
         if status == S.PAST_DUE and has_passed(subscription.grace_ends_at, now):
             return AccessLevel.READ_ONLY
+        period_end = subscription.current_period_end
+        # A paid period nobody renewed does not last forever.
+        if (
+            status == S.ACTIVE
+            and period_end is not None
+            and has_passed(to_utc(period_end) + timedelta(days=self.grace_days), now)
+        ):
+            return AccessLevel.READ_ONLY
         return AccessLevel.FULL
+
+    def process_due(self, *, now: datetime, batch_size: int = 500) -> dict[str, int]:
+        """Moves forward what time alone has made overdue; commits per batch.
+
+        Order matters: an ACTIVE business whose period and grace both ended
+        goes through PAST_DUE and is suspended in the same run.
+        """
+        if batch_size < 1:
+            raise ValueError("batch_size must be at least 1")
+        return {
+            "trial_suspended": self._drain(
+                self.repository.list_trials_ended, self._suspend, now, batch_size
+            ),
+            "period_lapsed": self._drain(
+                self.repository.list_period_lapsed, self._lapse, now, batch_size
+            ),
+            "grace_suspended": self._drain(
+                self.repository.list_grace_ended, self._suspend, now, batch_size
+            ),
+        }
+
+    def _drain(self, fetch, apply, now: datetime, batch_size: int) -> int:
+        handled = 0
+        while True:
+            batch = fetch(now, batch_size)
+            if not batch:
+                return handled
+            try:
+                for subscription in batch:
+                    apply(subscription)
+                self.session.commit()
+            except Exception:
+                self.session.rollback()
+                raise
+            handled += len(batch)
+            if len(batch) < batch_size:
+                return handled
+
+    def _suspend(self, subscription: Subscription) -> None:
+        self._move(subscription, S.SUSPENDED)
+
+    def _lapse(self, subscription: Subscription) -> None:
+        self._move(subscription, S.PAST_DUE)
+        # Grace counts from when the period ended, not from when the job ran.
+        subscription.grace_ends_at = to_utc(subscription.current_period_end) + timedelta(
+            days=self.grace_days
+        )
 
     def overview(self, business_id: UUID, *, now: datetime) -> dict:
         subscription = self.repository.get_by_business_id(business_id)

@@ -1,9 +1,15 @@
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.modules.subscriptions.models import GatewayEvent, Plan, Subscription
+from app.modules.subscriptions.models import (
+    GatewayEvent,
+    Plan,
+    Subscription,
+    SubscriptionStatus,
+)
 
 DEFAULT_PLAN_CODE = "standard"
 
@@ -40,6 +46,38 @@ class SubscriptionRepository:
         self.session.add(GatewayEvent(event_id=event_id))
         self.session.flush()
         return True
+
+    def list_trials_ended(self, now: datetime, limit: int) -> list[Subscription]:
+        return self._locked_batch(
+            Subscription.status == SubscriptionStatus.TRIALING,
+            Subscription.trial_ends_at <= now,
+            limit=limit,
+        )
+
+    def list_period_lapsed(self, now: datetime, limit: int) -> list[Subscription]:
+        return self._locked_batch(
+            Subscription.status == SubscriptionStatus.ACTIVE,
+            Subscription.current_period_end <= now,
+            limit=limit,
+        )
+
+    def list_grace_ended(self, now: datetime, limit: int) -> list[Subscription]:
+        return self._locked_batch(
+            Subscription.status == SubscriptionStatus.PAST_DUE,
+            Subscription.grace_ends_at <= now,
+            limit=limit,
+        )
+
+    def _locked_batch(self, *conditions, limit: int) -> list[Subscription]:
+        """Rows another run already holds are skipped, so two runs never overlap."""
+        statement = (
+            select(Subscription)
+            .where(*conditions)
+            .order_by(Subscription.id)
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+        )
+        return list(self.session.scalars(statement))
 
     def get_plan(self, plan_id: UUID) -> Plan:
         return self.session.get(Plan, plan_id)
