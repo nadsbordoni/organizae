@@ -1,20 +1,32 @@
 import os
+import warnings
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, time, timedelta
 from threading import Event
 from time import monotonic, sleep
+from unittest.mock import patch
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import create_engine, event, func, insert, select, text
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import SAWarning
 from sqlalchemy.orm import Session
 
 from app.db.base import Base
 from app.modules.appointments.exceptions import AppointmentConflictError
-from app.modules.appointments.models import Appointment, BusinessHour
-from app.modules.appointments.schemas import BlockCreateRequest, OnlineBookingRequest
+from app.modules.appointments.models import (
+    Appointment,
+    AppointmentStatus,
+    BusinessHour,
+)
+from app.modules.appointments.schemas import (
+    AppointmentStatusUpdate,
+    BlockCreateRequest,
+    OnlineBookingRequest,
+    RescheduleRequest,
+)
 from app.modules.appointments.service import AppointmentService
 from app.modules.business_categories.models import BusinessCategory
 from app.modules.businesses.models import Business, ServiceMode
@@ -264,3 +276,113 @@ def test_postgresql_allows_parallel_times_for_different_professionals(postgres_a
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = list(executor.map(book, (professional_id, other_professional)))
     assert len(set(results)) == 2
+
+
+def test_postgresql_reschedule_frees_old_time_and_ignores_own_interval(postgres_agenda):
+    engine, business_id, _, professional_id, _, start = postgres_agenda
+    long_service = uuid4()
+    with Session(engine) as session:
+        session.add(
+            Service(
+                id=long_service,
+                business_id=business_id,
+                name="Long",
+                price=10,
+                duration_minutes=60,
+            )
+        )
+        session.flush()
+        session.execute(
+            insert(professional_services),
+            [
+                {
+                    "business_id": business_id,
+                    "service_id": long_service,
+                    "professional_id": professional_id,
+                }
+            ],
+        )
+        session.commit()
+
+    def booking(service_id, starts_at, phone):
+        return OnlineBookingRequest(
+            service_id=service_id,
+            professional_id=professional_id,
+            starts_at=starts_at,
+            customer_name="Customer",
+            customer_phone=phone,
+        )
+
+    with Session(engine) as session:
+        service = AppointmentService(session, ZoneInfo("UTC"))
+        mine = service.book_online(
+            booking(long_service, start, "85999999999"), business_id=business_id
+        )
+        mine_id = mine.id
+        service.update_status(
+            mine_id,
+            AppointmentStatusUpdate(status=AppointmentStatus.CONFIRMED),
+            business_id=business_id,
+        )
+        # 10:00-11:00 -> 10:30-11:30 overlaps the booking's own old interval.
+        moved = service.reschedule_online(
+            mine_id,
+            RescheduleRequest(
+                starts_at=start + timedelta(minutes=30), customer_phone="85999999999"
+            ),
+            business_id=business_id,
+        )
+        assert moved.starts_at == start + timedelta(minutes=30)
+        assert moved.ends_at == start + timedelta(minutes=90)
+
+        # The freed 10:00 slot can be booked by someone else...
+        service.book_online(
+            booking(long_service, start - timedelta(minutes=30), "85988888888"),
+            business_id=business_id,
+        )
+        # ...but a time taken by another booking is still refused, and nothing moves.
+        with pytest.raises(AppointmentConflictError):
+            service.reschedule_online(
+                mine_id,
+                RescheduleRequest(
+                    starts_at=start - timedelta(minutes=30),
+                    customer_phone="85999999999",
+                ),
+                business_id=business_id,
+            )
+    with Session(engine) as session:
+        assert session.get(Appointment, mine_id).starts_at == start + timedelta(
+            minutes=30
+        )
+        assert session.scalar(select(func.count()).select_from(Appointment)) == 2
+
+
+def test_postgresql_confirmation_email_names_service_and_professional(postgres_agenda):
+    engine, business_id, service_id, professional_id, _, start = postgres_agenda
+    with Session(engine) as session:
+        service = AppointmentService(session, ZoneInfo("UTC"))
+        booked = service.book_online(
+            OnlineBookingRequest(
+                service_id=service_id,
+                professional_id=professional_id,
+                starts_at=start,
+                customer_name="Maria Silva",
+                customer_phone="85999999999",
+                customer_email="maria@example.com",
+            ),
+            business_id=business_id,
+        )
+        with (
+            patch("app.modules.appointments.service.send_email") as send_email,
+            warnings.catch_warnings(),
+        ):
+            warnings.simplefilter("error", SAWarning)  # e.g. a cartesian product
+            service.update_status(
+                booked.id,
+                AppointmentStatusUpdate(status=AppointmentStatus.CONFIRMED),
+                business_id=business_id,
+            )
+    to, _, body = send_email.call_args.args
+    assert to == "maria@example.com"
+    assert "Serviço: Test" in body and "Profissional: Test" in body
+    assert f"Horário: {start:%H:%M}" in body

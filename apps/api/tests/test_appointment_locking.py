@@ -14,6 +14,7 @@ from test_appointments import (
 )
 
 from app.modules.appointments.exceptions import AppointmentConflictError
+from app.modules.appointments.models import Appointment, AppointmentStatus
 from app.modules.appointments.repository import AppointmentRepository
 from app.modules.appointments.schemas import (
     AppointmentStatusUpdate,
@@ -50,6 +51,10 @@ def test_every_agenda_write_locks_before_reading_rules_or_writing(service, opera
     elif operation == "hours":
         service.replace_hours(BusinessHoursUpdate(hours=[]), business_id=business_id)
     else:
+        # A real booking without e-mail: nothing is sent after the commit.
+        repository.get_by_id.return_value = Appointment(
+            status=AppointmentStatus.PENDING
+        )
         service.update_status(
             professional_id,
             AppointmentStatusUpdate(status="CONFIRMED"),

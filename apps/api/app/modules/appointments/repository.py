@@ -126,6 +126,7 @@ class AppointmentRepository:
         professional_id: UUID,
         starts_at: datetime,
         ends_at: datetime,
+        exclude_appointment_id: UUID | None = None,
     ) -> list[tuple[datetime, datetime]]:
         statement = select(Appointment.starts_at, Appointment.ends_at).where(
             Appointment.business_id == business_id,
@@ -137,7 +138,28 @@ class AppointmentRepository:
             Appointment.starts_at < ends_at,
             Appointment.ends_at > starts_at,
         )
+        if exclude_appointment_id is not None:
+            statement = statement.where(Appointment.id != exclude_appointment_id)
         return [(row.starts_at, row.ends_at) for row in self.session.execute(statement)]
+
+    def get_booking_names(
+        self, *, business_id: UUID, service_id: UUID, professional_id: UUID
+    ) -> tuple[str, str] | None:
+        """(service name, professional name), both from the given business."""
+        statement = (
+            select(Service.name, Professional.name)
+            .join_from(
+                Service, Professional, Service.business_id == Professional.business_id
+            )
+            .where(
+                Service.id == service_id,
+                Service.business_id == business_id,
+                Professional.id == professional_id,
+                Professional.business_id == business_id,
+            )
+        )
+        row = self.session.execute(statement).first()
+        return (row[0], row[1]) if row else None
 
     def count_future_by_phone(
         self, *, business_id: UUID, phone: str, now: datetime
