@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, ForeignKey, String, Uuid
+from sqlalchemy import Boolean, ForeignKey, String, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -41,6 +41,15 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         default=True,
+        nullable=False,
+    )
+
+    # Staff of the platform, not of a business. Only scripts.create_platform_admin
+    # sets it: no schema or route may accept it from a client.
+    is_platform_admin: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default=text("false"),
         nullable=False,
     )
 
