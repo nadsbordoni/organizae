@@ -25,6 +25,7 @@ with patch.dict(
 
 from app.modules.appointments.exceptions import (
     AppointmentConflictError,
+    AppointmentNotFoundError,
     InvalidBookingError,
 )
 from app.modules.appointments.models import (
@@ -37,6 +38,7 @@ from app.modules.appointments.repository import AppointmentRepository
 from app.modules.appointments.schemas import (
     BusinessHoursUpdate,
     OnlineBookingRequest,
+    RescheduleRequest,
 )
 from app.modules.appointments.service import AppointmentService, build_slots
 from app.modules.businesses.exceptions import BusinessNotFoundError
@@ -327,3 +329,155 @@ def test_migration_is_in_history_and_postgresql_sql_is_valid() -> None:
     assert "CREATE TABLE business_hours" in sql and "CREATE TABLE appointments" in sql
     assert "EXCLUDE USING gist" in sql
     assert "DROP" not in sql
+
+
+PHONE = "81987570102"
+
+
+def confirmed_at(starts_at: datetime, **overrides: object) -> Appointment:
+    values = {
+        "id": uuid4(),
+        "business_id": business_id,
+        "professional_id": professional_id,
+        "service_id": service_id,
+        "customer_name": "Maria Silva",
+        "customer_phone": PHONE,
+        "starts_at": starts_at,
+        "ends_at": starts_at + timedelta(minutes=30),
+        "status": AppointmentStatus.CONFIRMED,
+        "source": AppointmentSource.ONLINE,
+    }
+    return Appointment(**{**values, **overrides})
+
+
+def reschedule(
+    service: AppointmentService,
+    appointment: Appointment | None,
+    starts_at: datetime,
+    phone: str = PHONE,
+) -> Appointment:
+    service.repository.get_by_id.return_value = appointment
+    return service.reschedule_online(
+        appointment.id if appointment else uuid4(),
+        RescheduleRequest(starts_at=starts_at, customer_phone=phone),
+        business_id=business_id,
+        now=now,
+    )
+
+
+def test_reschedule_moves_the_booking_and_frees_the_old_time(
+    service: AppointmentService,
+) -> None:
+    appointment = confirmed_at(at(10))
+    moved = reschedule(service, appointment, at(15).astimezone(ZoneInfo("UTC")))
+    assert moved is appointment
+    assert (moved.starts_at, moved.ends_at) == (at(15), at(15, 30))
+    assert moved.status == AppointmentStatus.CONFIRMED
+    # One row is updated in place: the old interval no longer exists.
+    service.repository.create.assert_not_called()
+    service.session.commit.assert_called_once_with()
+    # The booking must not collide with itself when moving by less than its length.
+    busy_call = service.repository.list_busy.call_args
+    assert busy_call.kwargs["exclude_appointment_id"] == appointment.id
+
+
+def test_reschedule_rejects_a_time_taken_by_someone_else(
+    service: AppointmentService,
+) -> None:
+    appointment = confirmed_at(at(10))
+    # The fixture marks 08:00-08:30 as busy.
+    with pytest.raises(AppointmentConflictError):
+        reschedule(service, appointment, at(8))
+    assert appointment.starts_at == at(10)
+    service.session.commit.assert_not_called()
+    service.session.rollback.assert_called_once_with()
+
+
+def test_reschedule_maps_overlap_constraint_to_conflict(
+    service: AppointmentService,
+) -> None:
+    service.session.flush.side_effect = IntegrityError("update", {}, Exception())
+    with pytest.raises(AppointmentConflictError):
+        reschedule(service, confirmed_at(at(10)), at(15))
+    service.session.rollback.assert_called_once_with()
+
+
+@pytest.mark.parametrize(
+    "overrides, starts_at",
+    [
+        ({"status": AppointmentStatus.PENDING}, at(15)),
+        ({"status": AppointmentStatus.CANCELLED}, at(15)),
+        ({"starts_at": now - timedelta(hours=1)}, at(15)),
+        ({}, at(10)),
+        ({}, at(9, 15)),
+        ({}, now + timedelta(days=121)),
+    ],
+    ids=["pending", "cancelled", "already-started", "same-time", "off-slot", "too-far"],
+)
+def test_reschedule_rejects_invalid_requests(
+    service: AppointmentService, overrides: dict, starts_at: datetime
+) -> None:
+    base = at(10)
+    appointment = confirmed_at(overrides.pop("starts_at", base), **overrides)
+    expected = AppointmentConflictError if starts_at == at(9, 15) else InvalidBookingError
+    with pytest.raises(expected):
+        reschedule(service, appointment, starts_at)
+    service.session.commit.assert_not_called()
+
+
+def test_reschedule_hides_bookings_of_other_customers(
+    service: AppointmentService,
+) -> None:
+    with pytest.raises(AppointmentNotFoundError):
+        reschedule(service, confirmed_at(at(10)), at(15), phone="81911112222")
+    with pytest.raises(AppointmentNotFoundError):
+        reschedule(service, None, at(15))
+    service.session.commit.assert_not_called()
+
+
+def test_public_reschedule_needs_no_auth_and_hides_contact_data(
+    api_client: tuple[TestClient, Mock],
+) -> None:
+    client, appointment_service = api_client
+    appointment_id = uuid4()
+    appointment_service.reschedule_online.return_value = confirmed_at(
+        at(15), id=appointment_id
+    )
+    response = client.patch(
+        f"{public_path}/appointments/{appointment_id}/reschedule",
+        json={"starts_at": at(15).isoformat(), "customer_phone": "(81) 98757-0102"},
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "CONFIRMED"
+    assert "customer_phone" not in response.json()
+    request = appointment_service.reschedule_online.call_args.args[1]
+    assert request.customer_phone == PHONE
+
+
+@pytest.mark.parametrize(
+    "error, status_code",
+    [
+        (AppointmentNotFoundError("Appointment not found"), 404),
+        (AppointmentConflictError("This time is no longer available"), 409),
+        (InvalidBookingError("Only confirmed appointments can be rescheduled"), 422),
+    ],
+)
+def test_public_reschedule_error_codes(
+    api_client: tuple[TestClient, Mock], error: Exception, status_code: int
+) -> None:
+    client, appointment_service = api_client
+    appointment_service.reschedule_online.side_effect = error
+    response = client.patch(
+        f"{public_path}/appointments/{uuid4()}/reschedule",
+        json={"starts_at": at(15).isoformat(), "customer_phone": PHONE},
+    )
+    assert response.status_code == status_code
+    assert response.json() == {"detail": str(error)}
+
+
+def test_reschedule_clears_the_reminder_of_the_old_time(
+    service: AppointmentService,
+) -> None:
+    appointment = confirmed_at(at(10), reminder_sent_at=now)
+    moved = reschedule(service, appointment, at(15))
+    assert moved.reminder_sent_at is None
