@@ -17,6 +17,13 @@ class SubscriptionRepository:
             select(Subscription).where(Subscription.business_id == business_id)
         )
 
+    def get_for_update(self, business_id: UUID) -> Subscription | None:
+        return self.session.scalar(
+            select(Subscription)
+            .where(Subscription.business_id == business_id)
+            .with_for_update()
+        )
+
     def add(self, subscription: Subscription) -> Subscription:
         self.session.add(subscription)
         self.session.flush()
