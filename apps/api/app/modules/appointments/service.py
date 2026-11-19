@@ -24,6 +24,7 @@ from app.modules.appointments.schemas import (
     BlockCreateRequest,
     BusinessHoursUpdate,
     OnlineBookingRequest,
+    RescheduleRequest,
 )
 from app.modules.businesses.exceptions import BusinessNotFoundError
 from app.modules.businesses.repository import BusinessRepository
@@ -180,6 +181,53 @@ class AppointmentService:
             self.session.refresh(appointment)
         return appointment
 
+    def reschedule_online(
+        self,
+        appointment_id: UUID,
+        data: RescheduleRequest,
+        *,
+        business_id: UUID,
+        now: datetime | None = None,
+    ) -> Appointment:
+        """Moves the booking in place, so the previous time is freed by the same write."""
+        with self._transaction():
+            self._lock_business(business_id)
+            now = now or datetime.now(UTC)
+            appointment = self.repository.get_by_id(
+                appointment_id, business_id=business_id
+            )
+            # A wrong phone looks like a missing booking: ids must not be probed.
+            if appointment is None or appointment.customer_phone != data.customer_phone:
+                raise AppointmentNotFoundError("Appointment not found")
+            if appointment.status != AppointmentStatus.CONFIRMED:
+                raise InvalidBookingError("Only confirmed appointments can be rescheduled")
+            if appointment.starts_at <= now:
+                raise InvalidBookingError("Appointment has already started")
+            starts_at = data.starts_at.astimezone(self.tz)
+            if starts_at == appointment.starts_at:
+                raise InvalidBookingError("Choose a different time")
+            if starts_at > now + BOOKING_WINDOW:
+                raise InvalidBookingError("Time is outside the booking window")
+            service = self._get_bookable_service(
+                business_id, appointment.service_id, appointment.professional_id
+            )
+            free = self._free_slots(
+                business_id,
+                appointment.professional_id,
+                service,
+                starts_at.date(),
+                now,
+                exclude_appointment_id=appointment.id,
+            )
+            if starts_at not in free:
+                raise AppointmentConflictError("This time is no longer available")
+            appointment.starts_at = starts_at
+            appointment.ends_at = starts_at + timedelta(minutes=service.duration_minutes)
+            self.session.flush()
+            self.session.commit()
+            self.session.refresh(appointment)
+        return appointment
+
     def list_appointments(
         self,
         *,
@@ -265,6 +313,7 @@ class AppointmentService:
         service: Service,
         day: date,
         now: datetime,
+        exclude_appointment_id: UUID | None = None,
     ) -> list[datetime]:
         hours = [
             (hour.opens_at, hour.closes_at)
@@ -279,6 +328,7 @@ class AppointmentService:
             professional_id=professional_id,
             starts_at=day_start,
             ends_at=day_start + timedelta(days=1),
+            exclude_appointment_id=exclude_appointment_id,
         )
         return build_slots(
             day,

@@ -12,13 +12,23 @@ from pydantic import (
     EmailStr,
     Field,
     StringConstraints,
-    field_validator,
     model_validator,
 )
+from pydantic.functional_validators import AfterValidator
 
 from app.modules.appointments.models import AppointmentSource, AppointmentStatus
 
 Notes = Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)]
+
+
+def normalize_phone(value: str) -> str:
+    digits = re.sub(r"\D", "", value)
+    if not 10 <= len(digits) <= 13:
+        raise ValueError("phone must have 10 to 13 digits, including area code")
+    return digits
+
+
+Phone = Annotated[str, AfterValidator(normalize_phone)]
 
 
 class BusinessHourItem(BaseModel):
@@ -79,17 +89,17 @@ class OnlineBookingRequest(BaseModel):
     customer_name: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=3, max_length=120)
     ]
-    customer_phone: str
+    customer_phone: Phone
     customer_email: EmailStr | None = None
     notes: Notes | None = None
 
-    @field_validator("customer_phone")
-    @classmethod
-    def normalize_phone(cls, value: str) -> str:
-        digits = re.sub(r"\D", "", value)
-        if not 10 <= len(digits) <= 13:
-            raise ValueError("phone must have 10 to 13 digits, including area code")
-        return digits
+
+class RescheduleRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    starts_at: AwareDatetime
+    # There is no customer login yet: the phone used on the booking proves ownership.
+    customer_phone: Phone
 
 
 class OnlineBookingResponse(BaseModel):

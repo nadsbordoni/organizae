@@ -126,6 +126,7 @@ class AppointmentRepository:
         professional_id: UUID,
         starts_at: datetime,
         ends_at: datetime,
+        exclude_appointment_id: UUID | None = None,
     ) -> list[tuple[datetime, datetime]]:
         statement = select(Appointment.starts_at, Appointment.ends_at).where(
             Appointment.business_id == business_id,
@@ -137,6 +138,8 @@ class AppointmentRepository:
             Appointment.starts_at < ends_at,
             Appointment.ends_at > starts_at,
         )
+        if exclude_appointment_id is not None:
+            statement = statement.where(Appointment.id != exclude_appointment_id)
         return [(row.starts_at, row.ends_at) for row in self.session.execute(statement)]
 
     def count_future_by_phone(
