@@ -1,4 +1,5 @@
 import smtplib
+import ssl
 from datetime import date, datetime, time
 from unittest.mock import MagicMock, Mock, patch
 from uuid import uuid4
@@ -172,9 +173,11 @@ def smtp(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
         yield smtp_class.return_value.__enter__.return_value
 
 
-def test_send_email_delivers_over_starttls(smtp: MagicMock) -> None:
+def test_send_email_delivers_over_verified_starttls(smtp: MagicMock) -> None:
     assert notifications.send_email("maria@example.com", "Assunto", "Corpo") is True
-    smtp.starttls.assert_called_once_with()
+    smtp.starttls.assert_called_once()
+    context = smtp.starttls.call_args.kwargs["context"]
+    assert context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname
     smtp.login.assert_called_once()
     message = smtp.send_message.call_args.args[0]
     assert message["To"] == "maria@example.com"
@@ -186,6 +189,13 @@ def test_send_email_delivers_over_starttls(smtp: MagicMock) -> None:
 def test_send_email_never_raises(smtp: MagicMock, error: Exception) -> None:
     smtp.send_message.side_effect = error
     assert notifications.send_email("maria@example.com", "Assunto", "Corpo") is False
+
+
+def test_send_email_refuses_a_server_without_starttls(smtp: MagicMock) -> None:
+    smtp.starttls.side_effect = smtplib.SMTPNotSupportedError("no STARTTLS")
+    assert notifications.send_email("maria@example.com", "Assunto", "Corpo") is False
+    smtp.login.assert_not_called()
+    smtp.send_message.assert_not_called()
 
 
 def test_send_email_without_smtp_configured_does_nothing(

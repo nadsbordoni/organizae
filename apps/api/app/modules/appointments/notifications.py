@@ -1,5 +1,6 @@
 import logging
 import smtplib
+import ssl
 from datetime import datetime
 from email.message import EmailMessage
 from zoneinfo import ZoneInfo
@@ -33,7 +34,9 @@ def send_email(to: str, subject: str, body: str) -> bool:
     message.set_content(body)
     try:
         with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=5) as smtp:
-            smtp.starttls()
+            # Without a context smtplib does not verify the server certificate.
+            # A server without STARTTLS raises SMTPNotSupportedError: fail closed.
+            smtp.starttls(context=ssl.create_default_context())
             if settings.SMTP_USER:
                 smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD.get_secret_value())
             smtp.send_message(message)
