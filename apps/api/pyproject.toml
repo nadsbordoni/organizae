@@ -25,3 +25,6 @@ dev = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = [
+    "real_subscription_guard: run the test with the subscription guard switched on",
+]

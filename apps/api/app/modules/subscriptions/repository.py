@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.modules.subscriptions.models import Plan, Subscription
@@ -28,6 +28,11 @@ class SubscriptionRepository:
         self.session.add(subscription)
         self.session.flush()
         return subscription
+
+    def delete_by_business_id(self, business_id: UUID) -> None:
+        self.session.execute(
+            delete(Subscription).where(Subscription.business_id == business_id)
+        )
 
     def get_default_plan(self) -> Plan:
         return self.session.scalars(

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Path, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.db.session import get_db
 from app.modules.auth.dependencies import (
     get_current_business_id,
@@ -27,6 +28,7 @@ from app.modules.businesses.schemas import (
     PublicPageResponse,
 )
 from app.modules.businesses.service import BusinessService
+from app.modules.subscriptions.service import SubscriptionService
 from app.modules.users.models import User
 
 router = APIRouter(prefix="/businesses", tags=["Businesses"])
@@ -37,7 +39,12 @@ public_router = APIRouter(prefix="/public/pages", tags=["Public pages"])
 def get_business_service(
     session: Annotated[Session, Depends(get_db)],
 ) -> BusinessService:
-    return BusinessService(session)
+    return BusinessService(
+        session,
+        SubscriptionService(
+            session, trial_days=settings.TRIAL_DAYS, grace_days=settings.GRACE_DAYS
+        ),
+    )
 
 
 async def business_error_handler(request: Request, exc: BusinessError) -> JSONResponse:

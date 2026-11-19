@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.exceptions import RequestValidationError
 
 from app.core.exception_handlers import request_validation_error_handler
@@ -54,6 +54,10 @@ from app.modules.recurring_entries.route import router as recurring_entries_rout
 from app.modules.services.exceptions import ServiceError
 from app.modules.services.route import router as services_router
 from app.modules.services.route import service_error_handler
+from app.modules.subscriptions.guard import (
+    require_public_booking_open,
+    require_write_access,
+)
 from app.modules.users.exceptions import UserError
 from app.modules.users.route import router as users_router
 from app.modules.users.route import user_error_handler
@@ -64,24 +68,31 @@ app = FastAPI(
     version="0.1.0",
 )
 
-app.include_router(businesses_router, prefix="/api/v1")
+# Routes of a business stop accepting writes once its subscription is suspended.
+# Auth, sign-up, public pages and the subscription itself are never guarded.
+guarded = [Depends(require_write_access)]
+app.include_router(businesses_router, prefix="/api/v1", dependencies=guarded)
 app.include_router(public_pages_router, prefix="/api/v1")
-app.include_router(services_router, prefix="/api/v1")
-app.include_router(professionals_router, prefix="/api/v1")
-app.include_router(assistant_router, prefix="/api/v1")
+app.include_router(services_router, prefix="/api/v1", dependencies=guarded)
+app.include_router(professionals_router, prefix="/api/v1", dependencies=guarded)
+app.include_router(assistant_router, prefix="/api/v1", dependencies=guarded)
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
-app.include_router(appointments_router, prefix="/api/v1")
-app.include_router(online_booking_router, prefix="/api/v1")
-app.include_router(clients_router, prefix="/api/v1")
-app.include_router(categories_router, prefix="/api/v1")
-app.include_router(financial_categories_router, prefix="/api/v1")
-app.include_router(financial_entries_router, prefix="/api/v1")
-app.include_router(recurring_entries_router, prefix="/api/v1")
-app.include_router(financial_router, prefix="/api/v1")
-app.include_router(document_extraction_router, prefix="/api/v1")
+app.include_router(appointments_router, prefix="/api/v1", dependencies=guarded)
+app.include_router(
+    online_booking_router,
+    prefix="/api/v1",
+    dependencies=[Depends(require_public_booking_open)],
+)
+app.include_router(clients_router, prefix="/api/v1", dependencies=guarded)
+app.include_router(categories_router, prefix="/api/v1", dependencies=guarded)
+app.include_router(financial_categories_router, prefix="/api/v1", dependencies=guarded)
+app.include_router(financial_entries_router, prefix="/api/v1", dependencies=guarded)
+app.include_router(recurring_entries_router, prefix="/api/v1", dependencies=guarded)
+app.include_router(financial_router, prefix="/api/v1", dependencies=guarded)
+app.include_router(document_extraction_router, prefix="/api/v1", dependencies=guarded)
 app.add_exception_handler(DocumentExtractionError, document_extraction_error_handler)
-app.include_router(financial_insights_router, prefix="/api/v1")
+app.include_router(financial_insights_router, prefix="/api/v1", dependencies=guarded)
 app.add_exception_handler(FinancialReportError, financial_report_error_handler)
 app.add_exception_handler(RecurringEntryError, recurring_entry_error_handler)
 app.add_exception_handler(FinancialCategoryError, financial_category_error_handler)

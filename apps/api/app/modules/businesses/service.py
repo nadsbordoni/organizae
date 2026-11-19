@@ -27,6 +27,7 @@ from app.modules.businesses.schemas import (
     PublicPageResponse,
     PublicPageServiceResponse,
 )
+from app.modules.subscriptions.service import SubscriptionService
 from app.modules.users.repository import UserRepository
 
 # The column holds 80 characters; this leaves room for the "-<n>" suffix used
@@ -44,10 +45,13 @@ def slugify(name: str) -> str:
 
 
 class BusinessService:
-    def __init__(self, session: Session) -> None:
+    def __init__(
+        self, session: Session, subscriptions: SubscriptionService | None = None
+    ) -> None:
         self.session = session
         self.repository = BusinessRepository(session)
         self.user_repository = UserRepository(session)
+        self.subscriptions = subscriptions or SubscriptionService(session)
 
     def get_by_id(self, business_id: UUID) -> Business:
         business = self.repository.get_by_id(business_id)
@@ -68,6 +72,7 @@ class BusinessService:
         with self._transaction():
             self._validate_category(business_data.category_id)
             business = self.repository.create(business_data)
+            self.subscriptions.start_trial(business.id, now=datetime.now(UTC))
             self.session.commit()
             self.session.refresh(business)
         return business
@@ -85,6 +90,7 @@ class BusinessService:
             self._validate_category(business_data.category_id)
             business = self.repository.create(business_data)
             self.user_repository.update(user, business_id=business.id)
+            self.subscriptions.start_trial(business.id, now=datetime.now(UTC))
             self.session.commit()
             self.session.refresh(business)
         return business
@@ -104,6 +110,8 @@ class BusinessService:
 
     def delete(self, business_id: UUID) -> None:
         with self._transaction():
+            # The subscription points at the business, so it has to go first.
+            self.subscriptions.repository.delete_by_business_id(business_id)
             if not self.repository.delete(business_id):
                 raise BusinessNotFoundError("Business not found")
             self.session.commit()
