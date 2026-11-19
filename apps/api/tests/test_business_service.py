@@ -24,6 +24,7 @@ from app.modules.businesses.service import (
 )
 from app.modules.professionals.models import Professional  # noqa: F401
 from app.modules.services.models import Service  # noqa: F401
+from app.modules.subscriptions.models import Plan, Subscription
 
 business_id = UUID("8ccacb20-1d36-44a7-9d32-08ac5f6bf15e")
 
@@ -256,8 +257,11 @@ def database_session() -> Iterator[Session]:
     try:
         BusinessCategory.__table__.create(engine)
         Business.__table__.create(engine)
+        Plan.__table__.create(engine)
+        Subscription.__table__.create(engine)
         with Session(engine, autoflush=False, expire_on_commit=True) as session:
             session.add(BusinessCategory(id=1, name="Beauty"))
+            session.add(Plan(code="standard", name="Organizaê", price_cents=4990))
             session.commit()
             yield session
     finally:
