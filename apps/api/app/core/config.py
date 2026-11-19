@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     APP_ENV: Literal["development", "test", "production"] = "production"
     ASSISTANT_WRITES_ENABLED: bool = False
     BUSINESS_TIMEZONE: str = "America/Sao_Paulo"
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = Field(default=587, gt=0)
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: SecretStr = SecretStr("")
+    EMAIL_FROM: str = ""
 
     model_config = SettingsConfigDict(env_file=ROOT_DIR / ".env", extra="ignore")
 

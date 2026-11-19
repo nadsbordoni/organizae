@@ -142,6 +142,19 @@ class AppointmentRepository:
             statement = statement.where(Appointment.id != exclude_appointment_id)
         return [(row.starts_at, row.ends_at) for row in self.session.execute(statement)]
 
+    def get_booking_names(
+        self, *, business_id: UUID, service_id: UUID, professional_id: UUID
+    ) -> tuple[str, str] | None:
+        """(service name, professional name), both from the given business."""
+        statement = select(Service.name, Professional.name).where(
+            Service.id == service_id,
+            Service.business_id == business_id,
+            Professional.id == professional_id,
+            Professional.business_id == business_id,
+        )
+        row = self.session.execute(statement).first()
+        return (row[0], row[1]) if row else None
+
     def count_future_by_phone(
         self, *, business_id: UUID, phone: str, now: datetime
     ) -> int:

@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, time, timedelta
 from threading import Event
 from time import monotonic, sleep
+from unittest.mock import patch
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -352,3 +353,30 @@ def test_postgresql_reschedule_frees_old_time_and_ignores_own_interval(postgres_
             minutes=30
         )
         assert session.scalar(select(func.count()).select_from(Appointment)) == 2
+
+
+def test_postgresql_confirmation_email_names_service_and_professional(postgres_agenda):
+    engine, business_id, service_id, professional_id, _, start = postgres_agenda
+    with Session(engine) as session:
+        service = AppointmentService(session, ZoneInfo("UTC"))
+        booked = service.book_online(
+            OnlineBookingRequest(
+                service_id=service_id,
+                professional_id=professional_id,
+                starts_at=start,
+                customer_name="Maria Silva",
+                customer_phone="85999999999",
+                customer_email="maria@example.com",
+            ),
+            business_id=business_id,
+        )
+        with patch("app.modules.appointments.service.send_email") as send_email:
+            service.update_status(
+                booked.id,
+                AppointmentStatusUpdate(status=AppointmentStatus.CONFIRMED),
+                business_id=business_id,
+            )
+    to, _, body = send_email.call_args.args
+    assert to == "maria@example.com"
+    assert "Serviço: Test" in body and "Profissional: Test" in body
+    assert f"Horário: {start:%H:%M}" in body
