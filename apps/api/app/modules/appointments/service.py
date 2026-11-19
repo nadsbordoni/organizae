@@ -1,4 +1,4 @@
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, date, datetime, time, timedelta
 from uuid import UUID
@@ -21,6 +21,7 @@ from app.modules.appointments.models import (
 from app.modules.appointments.notifications import (
     booking_details,
     confirmation_message,
+    reminder_message,
     send_email,
 )
 from app.modules.appointments.repository import AppointmentRepository
@@ -318,14 +319,50 @@ class AppointmentService:
             self._send_confirmation(appointment)
         return appointment
 
+    def send_due_reminders(
+        self,
+        *,
+        lead_time: timedelta,
+        now: datetime | None = None,
+        batch_size: int = 100,
+    ) -> int:
+        """Emails confirmed bookings that start within `lead_time`, once each.
+
+        Returns how many reminders were sent. Meant for a periodic job."""
+        now = now or datetime.now(UTC)
+        with self._transaction():
+            due = self.repository.list_due_reminders(
+                now=now, until=now + lead_time, limit=batch_size
+            )
+            # Marked before sending: overlapping runs skip these rows and no
+            # row stays locked while waiting for the SMTP server.
+            for appointment in due:
+                appointment.reminder_sent_at = now
+            self.session.commit()
+        failed = [a for a in due if not self._send_booking_email(a, reminder_message)]
+        if failed:
+            # Unmark, so the next run tries again.
+            with self._transaction():
+                for appointment in failed:
+                    appointment.reminder_sent_at = None
+                self.session.commit()
+        return len(due) - len(failed)
+
     def _send_confirmation(self, appointment: Appointment) -> None:
+        self._send_booking_email(appointment, confirmation_message)
+
+    def _send_booking_email(
+        self,
+        appointment: Appointment,
+        build_message: Callable[..., tuple[str, str]],
+    ) -> bool:
         if not (
             appointment.customer_email
             and appointment.customer_name
             and appointment.service_id
             and appointment.professional_id
         ):
-            return
+            return False
         names = self.repository.get_booking_names(
             business_id=appointment.business_id,
             service_id=appointment.service_id,
@@ -333,8 +370,8 @@ class AppointmentService:
         )
         business = self.business_repository.get_by_id(appointment.business_id)
         if names is None or business is None:
-            return
-        subject, body = confirmation_message(
+            return False
+        subject, body = build_message(
             customer_name=appointment.customer_name,
             business_name=business.name,
             details=booking_details(
@@ -344,7 +381,7 @@ class AppointmentService:
                 tz=self.tz,
             ),
         )
-        send_email(appointment.customer_email, subject, body)
+        return send_email(appointment.customer_email, subject, body)
 
     def _free_slots(
         self,

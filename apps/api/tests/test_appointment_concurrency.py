@@ -18,6 +18,7 @@ from app.db.base import Base
 from app.modules.appointments.exceptions import AppointmentConflictError
 from app.modules.appointments.models import (
     Appointment,
+    AppointmentSource,
     AppointmentStatus,
     BusinessHour,
 )
@@ -386,3 +387,93 @@ def test_postgresql_confirmation_email_names_service_and_professional(postgres_a
     assert to == "maria@example.com"
     assert "Serviço: Test" in body and "Profissional: Test" in body
     assert f"Horário: {start:%H:%M}" in body
+
+
+def _booking(business_id, service_id, professional_id, starts_at, **overrides):
+    return Appointment(
+        **{
+            "business_id": business_id,
+            "professional_id": professional_id,
+            "service_id": service_id,
+            "customer_name": "Maria Silva",
+            "customer_phone": "85999999999",
+            "customer_email": "maria@example.com",
+            "starts_at": starts_at,
+            "ends_at": starts_at + timedelta(minutes=30),
+            "status": AppointmentStatus.CONFIRMED,
+            "source": AppointmentSource.PANEL,
+            **overrides,
+        }
+    )
+
+
+def test_postgresql_reminders_pick_only_due_bookings_and_only_once(postgres_agenda):
+    engine, business_id, service_id, professional_id, other, start = postgres_agenda
+    now = start - timedelta(hours=3)
+    hour = timedelta(hours=1)
+    with Session(engine) as session:
+        due = _booking(business_id, service_id, professional_id, start)
+        session.add_all(
+            [
+                due,
+                _booking(business_id, service_id, professional_id, start + 3 * 24 * hour),
+                _booking(business_id, service_id, other, start, customer_email=None),
+                _booking(
+                    business_id, service_id, other, start + hour,
+                    status=AppointmentStatus.PENDING,
+                ),
+                _booking(
+                    business_id, service_id, professional_id, start + hour,
+                    reminder_sent_at=now,
+                ),
+                _booking(
+                    business_id, service_id, professional_id, start + 2 * hour,
+                    status=AppointmentStatus.CANCELLED,
+                ),
+                _booking(business_id, service_id, other, now - hour),
+            ]
+        )
+        session.commit()
+        due_id = due.id
+
+    def run():
+        with patch(
+            "app.modules.appointments.service.send_email", return_value=True
+        ) as send_email, Session(engine) as session:
+            service = AppointmentService(session, ZoneInfo("UTC"))
+            sent = service.send_due_reminders(lead_time=timedelta(hours=24), now=now)
+        return sent, send_email
+
+    sent, send_email = run()
+    assert sent == 1
+    to, subject, body = send_email.call_args.args
+    assert to == "maria@example.com" and "Lembrete" in subject
+    assert "Serviço: Test" in body and f"Horário: {start:%H:%M}" in body
+    with Session(engine) as session:
+        assert session.get(Appointment, due_id).reminder_sent_at == now
+    assert run()[0] == 0
+
+
+def test_postgresql_reminder_job_skips_rows_locked_by_another_run(postgres_agenda):
+    engine, business_id, service_id, professional_id, _, start = postgres_agenda
+    now = start - timedelta(hours=3)
+    with Session(engine) as session:
+        due = _booking(business_id, service_id, professional_id, start)
+        session.add(due)
+        session.commit()
+        due_id = due.id
+
+    def run():
+        with patch(
+            "app.modules.appointments.service.send_email", return_value=True
+        ), Session(engine) as session:
+            service = AppointmentService(session, ZoneInfo("UTC"))
+            return service.send_due_reminders(lead_time=timedelta(hours=24), now=now)
+
+    with Session(engine) as other_run:
+        other_run.execute(
+            select(Appointment).where(Appointment.id == due_id).with_for_update()
+        )
+        # The connection has lock_timeout=5s: waiting instead of skipping would raise.
+        assert run() == 0
+    assert run() == 1

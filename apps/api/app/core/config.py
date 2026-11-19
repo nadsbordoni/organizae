@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     SMTP_USER: str = ""
     SMTP_PASSWORD: SecretStr = SecretStr("")
     EMAIL_FROM: str = ""
+    REMINDER_LEAD_TIME_HOURS: int = Field(default=24, gt=0)
 
     model_config = SettingsConfigDict(env_file=ROOT_DIR / ".env", extra="ignore")
 
