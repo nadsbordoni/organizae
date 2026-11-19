@@ -1,4 +1,5 @@
 import os
+import warnings
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, time, timedelta
 from threading import Event
@@ -10,6 +11,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from sqlalchemy import create_engine, event, func, insert, select, text
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import SAWarning
 from sqlalchemy.orm import Session
 
 from app.db.base import Base
@@ -370,7 +372,11 @@ def test_postgresql_confirmation_email_names_service_and_professional(postgres_a
             ),
             business_id=business_id,
         )
-        with patch("app.modules.appointments.service.send_email") as send_email:
+        with (
+            patch("app.modules.appointments.service.send_email") as send_email,
+            warnings.catch_warnings(),
+        ):
+            warnings.simplefilter("error", SAWarning)  # e.g. a cartesian product
             service.update_status(
                 booked.id,
                 AppointmentStatusUpdate(status=AppointmentStatus.CONFIRMED),
