@@ -6,6 +6,7 @@ dependencies = [
     "alembic>=1.20.0",
     "fastapi[standard]>=0.156.1",
     "google-genai>=2.33.0",
+    "httpx>=0.28.1",
     "pillow>=13.0.0",
     "psycopg[binary]>=3.3.6",
     "pwdlib[argon2]>=0.3.1",
@@ -17,7 +18,6 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1",
     "pytest>=9.1.1",
     "ruff>=0.17.1",
 ]

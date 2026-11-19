@@ -1,18 +1,28 @@
-from datetime import UTC, datetime, timedelta
+import calendar
+import logging
+from datetime import UTC, date, datetime, time, timedelta
 from enum import Enum
+from math import ceil
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.modules.subscriptions.exceptions import (
+    GatewayError,
     InvalidSubscriptionTransitionError,
     SubscriptionNotFoundError,
 )
+from app.modules.subscriptions.gateway import PaymentGateway
 from app.modules.subscriptions.models import Subscription, SubscriptionStatus
 from app.modules.subscriptions.repository import SubscriptionRepository
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_TRIAL_DAYS = 15
 DEFAULT_GRACE_DAYS = 5
+PAID_EVENTS = frozenset({"PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"})
+OVERDUE_EVENT = "PAYMENT_OVERDUE"
 
 S = SubscriptionStatus
 # Moving to the status a subscription already has is always a harmless no-op.
@@ -30,6 +40,20 @@ class AccessLevel(str, Enum):
     FULL = "FULL"
     READ_ONLY = "READ_ONLY"
     NONE = "NONE"
+
+
+class EventResult(str, Enum):
+    APPLIED = "applied"
+    DUPLICATE = "duplicate"
+    IGNORED = "ignored"
+
+
+def add_month(start: date) -> date:
+    """The same day next month, or the last day of a shorter month."""
+    year, month = divmod(start.year * 12 + start.month, 12)
+    month += 1
+    last_day = calendar.monthrange(year, month)[1]
+    return date(year, month, min(start.day, last_day))
 
 
 def to_utc(value: datetime) -> datetime:
@@ -138,6 +162,163 @@ class SubscriptionService:
         if status == S.PAST_DUE and has_passed(subscription.grace_ends_at, now):
             return AccessLevel.READ_ONLY
         return AccessLevel.FULL
+
+    def overview(self, business_id: UUID, *, now: datetime) -> dict:
+        subscription = self.repository.get_by_business_id(business_id)
+        if subscription is None:
+            raise SubscriptionNotFoundError
+        deadline = {
+            S.TRIALING: subscription.trial_ends_at,
+            S.ACTIVE: subscription.current_period_end,
+            S.PAST_DUE: subscription.grace_ends_at,
+        }.get(subscription.status)
+        days_left = None
+        if deadline is not None:
+            seconds = (to_utc(deadline) - to_utc(now)).total_seconds()
+            days_left = max(0, ceil(seconds / 86400))
+        return {
+            "status": subscription.status,
+            "trial_ends_at": subscription.trial_ends_at,
+            "current_period_end": subscription.current_period_end,
+            "grace_ends_at": subscription.grace_ends_at,
+            "days_left": days_left,
+            "price_cents": self.repository.get_plan(subscription.plan_id).price_cents,
+        }
+
+    def start_checkout(
+        self,
+        business_id: UUID,
+        *,
+        customer_name: str,
+        customer_email: str,
+        gateway: PaymentGateway,
+        now: datetime,
+    ) -> str:
+        """Returns the link where the business pays; commits on its own.
+
+        The row stays locked while the gateway is called, so two clicks cannot
+        create two subscriptions there. What the gateway already accepted is
+        saved even if a later step fails, so a retry does not duplicate it.
+        """
+        subscription = self._locked(business_id)
+        if subscription.status == S.ACTIVE:
+            raise InvalidSubscriptionTransitionError("Nothing to pay: already active")
+        try:
+            if subscription.gateway_subscription_id is not None:
+                url = gateway.get_payment_url(subscription.gateway_subscription_id)
+                if url is None:
+                    raise GatewayError("The gateway returned no payment link")
+            else:
+                if subscription.gateway_customer_id is None:
+                    subscription.gateway_customer_id = gateway.create_customer(
+                        name=customer_name,
+                        email=customer_email,
+                        external_id=str(business_id),
+                    )
+                plan = self.repository.get_plan(subscription.plan_id)
+                subscription_id, url = gateway.create_subscription(
+                    customer_id=subscription.gateway_customer_id,
+                    price_cents=plan.price_cents,
+                    first_due=self._first_due(subscription, now),
+                    external_id=str(business_id),
+                )
+                subscription.gateway_subscription_id = subscription_id
+        except GatewayError:
+            self.session.commit()
+            raise
+        except Exception:
+            self.session.rollback()
+            raise
+        self.session.commit()
+        return url
+
+    def release_gateway_subscription(
+        self, business_id: UUID, *, gateway: PaymentGateway
+    ) -> None:
+        """Stops the charges at the gateway; commits on its own.
+
+        The id is kept when the gateway fails, so the call can be repeated.
+        """
+        subscription = self._locked(business_id)
+        if subscription.gateway_subscription_id is None:
+            self.session.rollback()
+            return
+        try:
+            gateway.cancel_subscription(subscription.gateway_subscription_id)
+        except Exception:
+            self.session.rollback()
+            raise
+        subscription.gateway_subscription_id = None
+        self.session.commit()
+
+    def handle_gateway_event(
+        self,
+        *,
+        event_id: str,
+        event_type: str,
+        gateway_subscription_id: str | None,
+        due_date: date | None,
+        now: datetime,
+    ) -> EventResult:
+        """Applies one webhook event once; commits on its own."""
+        if event_type not in PAID_EVENTS and event_type != OVERDUE_EVENT:
+            return EventResult.IGNORED
+        if gateway_subscription_id is None:
+            return EventResult.IGNORED
+        try:
+            subscription = self.repository.get_by_gateway_subscription_id(
+                gateway_subscription_id
+            )
+            if subscription is None:
+                logger.warning("Webhook for an unknown subscription: %s", event_id)
+                return EventResult.IGNORED
+            if not self.repository.record_event(event_id):
+                self.session.rollback()
+                return EventResult.DUPLICATE
+            result = self._apply_event(subscription, event_type, due_date, now)
+            self.session.commit()
+            return result
+        except IntegrityError:
+            # Two copies of the same event raced: the other one won.
+            self.session.rollback()
+            return EventResult.DUPLICATE
+        except Exception:
+            self.session.rollback()
+            raise
+
+    def _apply_event(
+        self,
+        subscription: Subscription,
+        event_type: str,
+        due_date: date | None,
+        now: datetime,
+    ) -> EventResult:
+        if event_type in PAID_EVENTS:
+            charged = due_date or to_utc(now).date()
+            paid_until = datetime.combine(add_month(charged), time(), tzinfo=UTC)
+            self.mark_paid(subscription.business_id, paid_until=paid_until, now=now)
+            return EventResult.APPLIED
+        # An overdue notice for a charge the period already covers is stale
+        # (it arrived after the payment, or out of order).
+        covered_until = subscription.current_period_end
+        if (
+            due_date is not None
+            and covered_until is not None
+            and to_utc(covered_until).date() > due_date
+        ):
+            return EventResult.IGNORED
+        try:
+            self.mark_overdue(subscription.business_id, now=now)
+        except InvalidSubscriptionTransitionError:
+            return EventResult.IGNORED
+        return EventResult.APPLIED
+
+    def _first_due(self, subscription: Subscription, now: datetime) -> date:
+        today = to_utc(now).date()
+        ends = subscription.trial_ends_at
+        if subscription.status == S.TRIALING and ends is not None:
+            return max(today, to_utc(ends).date())
+        return today
 
     def _locked(self, business_id: UUID) -> Subscription:
         subscription = self.repository.get_for_update(business_id)
