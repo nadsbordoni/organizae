@@ -68,7 +68,21 @@ O cliente (`gateway.py`) foi feito de memória da API v3 e testado só com respo
 - o campo `invoiceUrl` da primeira cobrança em `GET /subscriptions/{id}/payments`;
 - o formato do corpo do webhook: `id` do evento, `event` e `payment.{subscription, dueDate}`.
 
+## Job diário
+
+```bash
+uv run python -m scripts.process_subscriptions
+```
+
+Rode **uma vez por dia** num agendador do servidor (hoje nada o agenda). Ele:
+
+- suspende teste que acabou sem pagamento;
+- põe em carência quem está `ACTIVE` mas cujo período pago venceu sem renovar (pagamento que o gateway nunca confirmou, ou cortesia da equipe que acabou); a carência conta do fim do período, não da hora em que o job rodou;
+- suspende carência esgotada.
+
+É seguro rodar mais de uma vez e rodar duas ao mesmo tempo (linhas já travadas por outra execução são puladas). O acesso também é recusado pelo prazo sem o job: o job só organiza os estados.
+
 ## Pendente
 
-- Um job diário que suspenda o que ficou vencido e avise por e-mail (Tarefas 7 e 8 do plano). Já há uma garantia mínima: o acesso é recusado pelo prazo mesmo sem o job.
-- Pagamento com o profissional suspenso por cobrança, mas sem gateway configurado: só a equipe consegue reativar (`/reactivate`).
+- Avisos por e-mail (teste acabando, atraso, suspensão): dependem do envio de e-mail da US-015 (PR #42) estar mergeado.
+- Pagamento com o profissional suspenso, mas sem gateway configurado: só a equipe consegue reativar (`/reactivate`).
