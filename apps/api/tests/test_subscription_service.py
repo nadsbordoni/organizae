@@ -23,7 +23,7 @@ ALLOWED = {
     S.TRIALING: {S.ACTIVE, S.SUSPENDED, S.CANCELED},
     S.ACTIVE: {S.PAST_DUE, S.SUSPENDED, S.CANCELED},
     S.PAST_DUE: {S.ACTIVE, S.SUSPENDED, S.CANCELED},
-    S.SUSPENDED: {S.ACTIVE, S.CANCELED},
+    S.SUSPENDED: {S.ACTIVE, S.CANCELED, S.TRIALING},  # TRIALING: extend_trial only
     S.CANCELED: {S.ACTIVE},
 }
 ACTIONS = {
@@ -234,3 +234,56 @@ def test_naive_datetimes_from_the_database_are_read_as_utc(
 ) -> None:
     record = subscription(S.TRIALING, trial_ends_at=datetime(2026, 11, 19, 11, 59))
     assert service.access_level(record, now=now) is AccessLevel.READ_ONLY
+
+
+def extend(service: SubscriptionService, current: Subscription | None, days: int = 10):
+    service.repository.get_for_update.return_value = current
+    return service.extend_trial(business_id, days=days, now=now)
+
+
+def test_extend_trial_adds_days_to_the_current_end(
+    service: SubscriptionService,
+) -> None:
+    record = subscription(S.TRIALING, trial_ends_at=now + timedelta(days=3))
+    assert extend(service, record).trial_ends_at == now + timedelta(days=13)
+
+
+def test_extend_trial_of_an_expired_trial_counts_from_now(
+    service: SubscriptionService,
+) -> None:
+    record = subscription(S.TRIALING, trial_ends_at=now - timedelta(days=20))
+    assert extend(service, record).trial_ends_at == now + timedelta(days=10)
+
+
+def test_extend_trial_reopens_a_suspended_subscription(
+    service: SubscriptionService,
+) -> None:
+    record = subscription(S.SUSPENDED, trial_ends_at=now - timedelta(days=1))
+    reopened = extend(service, record)
+    assert reopened.status == S.TRIALING
+    assert reopened.trial_ends_at == now + timedelta(days=10)
+
+
+@pytest.mark.parametrize("current", [S.ACTIVE, S.PAST_DUE, S.CANCELED])
+def test_extend_trial_is_refused_for_paying_or_canceled(
+    service: SubscriptionService, current: S
+) -> None:
+    record = subscription(current)
+    with pytest.raises(InvalidSubscriptionTransitionError):
+        extend(service, record)
+    assert record.status == current
+
+
+@pytest.mark.parametrize("days", [0, -1])
+def test_extend_trial_needs_a_positive_number_of_days(
+    service: SubscriptionService, days: int
+) -> None:
+    with pytest.raises(ValueError, match="days"):
+        extend(service, subscription(S.TRIALING), days=days)
+
+
+def test_extend_trial_of_an_unknown_subscription_is_reported(
+    service: SubscriptionService,
+) -> None:
+    with pytest.raises(SubscriptionNotFoundError):
+        extend(service, None)

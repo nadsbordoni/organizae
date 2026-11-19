@@ -3,6 +3,7 @@ from fastapi.exceptions import RequestValidationError
 
 from app.core.exception_handlers import request_validation_error_handler
 from app.modules.admin.route import router as admin_router
+from app.modules.admin.route import subscription_error_handler
 from app.modules.appointments.exceptions import AppointmentError
 from app.modules.appointments.route import appointment_error_handler
 from app.modules.appointments.route import public_router as online_booking_router
@@ -55,6 +56,7 @@ from app.modules.recurring_entries.route import router as recurring_entries_rout
 from app.modules.services.exceptions import ServiceError
 from app.modules.services.route import router as services_router
 from app.modules.services.route import service_error_handler
+from app.modules.subscriptions.exceptions import SubscriptionError
 from app.modules.subscriptions.guard import (
     require_public_booking_open,
     require_write_access,
@@ -106,6 +108,7 @@ app.add_exception_handler(AssistantError, assistant_error_handler)
 app.add_exception_handler(BusinessError, business_error_handler)
 app.add_exception_handler(ServiceError, service_error_handler)
 app.add_exception_handler(ProfessionalError, professional_error_handler)
+app.add_exception_handler(SubscriptionError, subscription_error_handler)
 app.add_exception_handler(UserError, user_error_handler)
 app.add_exception_handler(AuthError, auth_error_handler)
 app.add_exception_handler(RequestValidationError, request_validation_error_handler)
