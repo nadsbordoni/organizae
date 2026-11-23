@@ -35,8 +35,8 @@ class ServiceMode(str, Enum):
 class Business(Base):
     __tablename__ = "businesses"
     __table_args__ = (
-        # The slug format check (regex) lives only in the migration, because the
-        # SQLite used by the tests has no "~" operator.
+        # The slug and tax_id format checks (regex) live only in the migrations,
+        # because the SQLite used by the tests has no "~" operator.
         UniqueConstraint("slug", name="uq_businesses_slug"),
         # A published page must always be reachable by its slug.
         CheckConstraint(
@@ -57,6 +57,9 @@ class Business(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     external_link: Mapped[str | None] = mapped_column(String(255), nullable=True)
     address: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # CPF or CNPJ, stored without punctuation.
+    tax_id: Mapped[str | None] = mapped_column(String(14), nullable=True)
     service_mode: Mapped[ServiceMode] = mapped_column(
         SqlEnum(ServiceMode), nullable=False
     )
