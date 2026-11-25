@@ -18,6 +18,11 @@ from app.modules.appointments.models import (
     AppointmentStatus,
     BusinessHour,
 )
+from app.modules.appointments.notifications import (
+    booking_details,
+    confirmation_message,
+    send_email,
+)
 from app.modules.appointments.repository import AppointmentRepository
 from app.modules.appointments.schemas import (
     AppointmentStatusUpdate,
@@ -300,11 +305,46 @@ class AppointmentService:
                 raise AppointmentNotFoundError("Appointment not found")
             if appointment.status == AppointmentStatus.CANCELLED:
                 raise AppointmentConflictError("Appointment is already cancelled")
+            newly_confirmed = (
+                status_data.status == AppointmentStatus.CONFIRMED
+                and appointment.status != AppointmentStatus.CONFIRMED
+            )
             appointment.status = status_data.status
             self.session.flush()
             self.session.commit()
             self.session.refresh(appointment)
+        # After the commit: the SMTP call must not hold the business lock.
+        if newly_confirmed:
+            self._send_confirmation(appointment)
         return appointment
+
+    def _send_confirmation(self, appointment: Appointment) -> None:
+        if not (
+            appointment.customer_email
+            and appointment.customer_name
+            and appointment.service_id
+            and appointment.professional_id
+        ):
+            return
+        names = self.repository.get_booking_names(
+            business_id=appointment.business_id,
+            service_id=appointment.service_id,
+            professional_id=appointment.professional_id,
+        )
+        business = self.business_repository.get_by_id(appointment.business_id)
+        if names is None or business is None:
+            return
+        subject, body = confirmation_message(
+            customer_name=appointment.customer_name,
+            business_name=business.name,
+            details=booking_details(
+                service_name=names[0],
+                professional_name=names[1],
+                starts_at=appointment.starts_at,
+                tz=self.tz,
+            ),
+        )
+        send_email(appointment.customer_email, subject, body)
 
     def _free_slots(
         self,
