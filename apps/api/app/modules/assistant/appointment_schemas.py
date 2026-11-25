@@ -4,7 +4,7 @@ from typing import Self
 from pydantic import UUID4, AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 from app.modules.appointments.models import AppointmentStatus
-from app.modules.appointments.schemas import Notes
+from app.modules.appointments.schemas import AppointmentUpdate, Notes
 from app.modules.appointments.service import MAX_LISTING_RANGE
 from app.modules.clients.schemas import ClientPhone
 
@@ -48,3 +48,23 @@ class AppointmentCreateArguments(BaseModel):
     professional_id: UUID4
     starts_at: AwareDatetime
     notes: Notes | None = None
+
+
+class AppointmentRescheduleArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    record_id: UUID4
+    starts_at: AwareDatetime
+
+
+class AppointmentUpdateArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    record_id: UUID4
+    data: AppointmentUpdate
+
+
+class AppointmentCancelArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    record_id: UUID4

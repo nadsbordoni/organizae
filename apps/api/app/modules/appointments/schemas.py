@@ -102,6 +102,24 @@ class RescheduleRequest(BaseModel):
     customer_phone: Phone
 
 
+class AppointmentUpdate(BaseModel):
+    """Panel edit; omitted fields keep their current values."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    service_id: UUID4 | None = None
+    professional_id: UUID4 | None = None
+    starts_at: AwareDatetime | None = None
+    notes: Notes | None = None
+
+    @model_validator(mode="after")
+    def validate_required_fields(self) -> "AppointmentUpdate":
+        for field in ("service_id", "professional_id", "starts_at"):
+            if field in self.model_fields_set and getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
+        return self
+
+
 class OnlineBookingResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

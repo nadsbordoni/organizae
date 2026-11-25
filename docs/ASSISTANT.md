@@ -281,6 +281,30 @@ Não foram adicionadas dependências ou migrations.
 Testes de escrita: `uv run pytest tests/test_assistant_writes.py` (mocks, sem
 chamadas externas ao Gemini ou banco real).
 
+### Reagendar, editar e cancelar agendamentos
+
+Seguem o mesmo fluxo de ação pendente e confirmação explícita:
+
+- `reschedule_appointment`: `{"record_id": "UUID", "starts_at": "2026-12-01T10:00:00-03:00"}`.
+- `update_appointment`: `{"record_id": "UUID", "data": {...}}`, em que `data` aceita
+  `service_id`, `professional_id`, `starts_at` e `notes`. Campos omitidos não mudam;
+  `notes: null` limpa as observações.
+- `cancel_appointment`: `{"record_id": "UUID"}`. Muda o status para `CANCELLED` pelo
+  mesmo `update_status` do painel e libera o horário.
+
+O `record_id` vem de `list_appointments`. Só agendamentos `PENDING` ou `CONFIRMED`
+podem ser alterados, e mudanças de horário, serviço ou profissional exigem que o
+agendamento ainda não tenha começado. Reagendamento e edição usam
+`AppointmentService.update_panel`, que reaproveita a mesma validação do reagendamento
+online (janela de agendamento, serviço oferecido pelo profissional e horário livre,
+desconsiderando o próprio agendamento) e move o registro no lugar, sem exigir o
+telefone do cliente, pois a empresa é identificada pelo JWT. A prévia valida sem
+escrever; a confirmação valida de novo com o lock da empresa e responde 409 se o
+horário foi ocupado nesse intervalo. Bloqueios e agendamentos de outras empresas
+não podem ser alterados.
+
+Testes: `uv run pytest tests/test_assistant_appointment_changes.py`.
+
 ### Concorrência e idempotência das escritas
 
 Para habilitar idempotência em `POST /api/v1/assistant/chat`, o cliente deve

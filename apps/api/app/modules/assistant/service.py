@@ -10,7 +10,10 @@ from app.modules.appointments.exceptions import (
     AppointmentConflictError,
     AppointmentError,
 )
+from app.modules.appointments.models import AppointmentStatus
+from app.modules.appointments.schemas import AppointmentStatusUpdate
 from app.modules.assistant.actions import (
+    WRITE_SCHEMAS,
     ActionDecision,
     PendingAction,
     ProfessionalCreateArguments,
@@ -37,8 +40,11 @@ from app.modules.assistant.prompts.system import (
 )
 from app.modules.assistant.providers.base import AssistantProvider, ContextMessage
 from app.modules.assistant.schemas import ChatRequest, ChatResponse
-from app.modules.assistant.tools import AssistantTools
-from app.modules.assistant.tools.appointments import resolve_booking
+from app.modules.assistant.tools import APPOINTMENT_CHANGES, AssistantTools
+from app.modules.assistant.tools.appointments import (
+    appointment_change,
+    resolve_booking,
+)
 from app.modules.assistant.usage import monitor_usage
 from app.modules.businesses.exceptions import BusinessNotFoundError
 from app.modules.clients.exceptions import ClientError
@@ -200,7 +206,7 @@ class AssistantService:
         except AppointmentConflictError as exc:
             raise AssistantAppointmentConflictError() from exc
         except ValidationError as exc:
-            if action.operation == "create_appointment":
+            if action.operation.endswith("_appointment"):
                 raise AssistantAppointmentValidationError() from exc
             raise AssistantWriteBusinessError() from exc
         except AppointmentError as exc:
@@ -231,6 +237,20 @@ class AssistantService:
                 business_id=tools.business_id,
             )
             tools.appointment_service.book_panel(booking, business_id=tools.business_id)
+        elif action.operation in APPOINTMENT_CHANGES:
+            assert tools.appointment_service is not None
+            change_arguments = WRITE_SCHEMAS[action.operation].model_validate(arguments)
+            change = appointment_change(change_arguments)
+            if change is None:
+                tools.appointment_service.update_status(
+                    change_arguments.record_id,
+                    AppointmentStatusUpdate(status=AppointmentStatus.CANCELLED),
+                    business_id=tools.business_id,
+                )
+            else:
+                tools.appointment_service.update_panel(
+                    change_arguments.record_id, change, business_id=tools.business_id
+                )
         elif action.operation == "create_service":
             tools.service_service.create(
                 ServiceCreate.model_validate(
