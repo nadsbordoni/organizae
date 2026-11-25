@@ -1,13 +1,18 @@
 /** Dados do painel. Hoje vêm de `lib/dados-exemplo.ts`; a API vai devolver este formato. */
 import type { AppointmentStatus } from '@/lib/dashboard-status';
 
-/** O negócio vem da sessão, NUNCA de parâmetro de URL. */
+/** Quem entrou no painel. O negócio vem da sessão, NUNCA de parâmetro de URL. */
 export interface AuthenticatedUser {
-  userId: number;
+  /** O `id` de `GET /users/me`. */
+  userId: string;
+  /** Qual `config/sites/` monta o painel. Até a fatia do negócio, é sempre o exemplo. */
   tenantSlug: string;
   email: string;
   name?: string;
-  sessionId: string;
+  /** `null` enquanto a conta não tem negócio cadastrado. */
+  businessId?: string | null;
+  /** `api` quando a sessão veio do login; `exemplo` na demonstração. */
+  sessionId: 'api' | 'exemplo';
 }
 
 /** Evento da agenda para a tela de notificações. */

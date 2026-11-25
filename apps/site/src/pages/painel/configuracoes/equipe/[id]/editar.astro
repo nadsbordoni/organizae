@@ -4,13 +4,13 @@ import ProfessionalForm from '@/components/painel/ProfessionalForm.astro';
 import SectionHeader from '@/components/painel/SectionHeader.astro';
 import { getSite } from '@/config';
 import { nowInBusinessTime } from '@/lib/agenda';
-import { demoOptions, forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
+import { demoOptions, forTenant } from '@/lib/dados-exemplo';
 import { tenantNotConfigured } from '@/lib/painel';
 
 /** Editar profissional (quadro 04). Com a API: `PATCH /professionals/{id}` e `PUT /professionals/{id}/services`. */
 export const prerender = false;
 
-const user = usuarioExemplo;
+const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 

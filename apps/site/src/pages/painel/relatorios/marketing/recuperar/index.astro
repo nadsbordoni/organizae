@@ -11,7 +11,6 @@ import StatCard from '@/components/painel/StatCard.astro';
 import { getSite } from '@/config';
 import { addDays, nowInBusinessTime } from '@/lib/agenda';
 import { AWAY_AFTER_DAYS } from '@/lib/clients';
-import { usuarioExemplo } from '@/lib/dados-exemplo';
 import { pickRecipients, recoveryAudience, recoveryMessage } from '@/lib/insights';
 import { loadIntelligence } from '@/lib/intelligence-page';
 import { firstName, numericDate, tenantNotConfigured } from '@/lib/painel';
@@ -23,7 +22,7 @@ import { firstName, numericDate, tenantNotConfigured } from '@/lib/painel';
  */
 export const prerender = false;
 
-const user = usuarioExemplo;
+const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 

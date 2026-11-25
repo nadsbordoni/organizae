@@ -3,13 +3,12 @@ import PanelLayout from '@/layouts/PanelLayout.astro';
 import ClientForm from '@/components/painel/ClientForm.astro';
 import PanelHeading from '@/components/painel/PanelHeading.astro';
 import { getSite } from '@/config';
-import { usuarioExemplo } from '@/lib/dados-exemplo';
 import { tenantNotConfigured } from '@/lib/painel';
 
 /** Novo cliente (quadro 06). Com a API: `POST /clients`. */
 export const prerender = false;
 
-const user = usuarioExemplo;
+const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 

@@ -7,7 +7,6 @@ import PanelSection from '@/components/painel/PanelSection.astro';
 import PanelTable from '@/components/painel/PanelTable.astro';
 import { getSite } from '@/config';
 import { nowInBusinessTime } from '@/lib/agenda';
-import { usuarioExemplo } from '@/lib/dados-exemplo';
 import { money, monthTitle } from '@/lib/finance';
 import { loadFinance } from '@/lib/finance-page';
 import { numericDate, tenantNotConfigured } from '@/lib/painel';
@@ -16,7 +15,7 @@ import type { FinancialType } from '@/types/painel';
 /** Lançar receita ou despesa (quadro 07). O tipo vive na URL (`?tipo=despesa`), e o título acompanha. */
 export const prerender = false;
 
-const user = usuarioExemplo;
+const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 
