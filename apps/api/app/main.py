@@ -12,6 +12,7 @@ from app.modules.assistant.router import router as assistant_router
 from app.modules.auth.exceptions import AuthError
 from app.modules.auth.route import auth_error_handler
 from app.modules.auth.route import router as auth_router
+from app.modules.business_categories.route import router as business_categories_router
 from app.modules.businesses.exceptions import BusinessError
 from app.modules.businesses.router import (
     business_error_handler,
@@ -66,6 +67,7 @@ app = FastAPI(
 
 app.include_router(businesses_router, prefix="/api/v1")
 app.include_router(public_pages_router, prefix="/api/v1")
+app.include_router(business_categories_router, prefix="/api/v1")
 app.include_router(services_router, prefix="/api/v1")
 app.include_router(professionals_router, prefix="/api/v1")
 app.include_router(assistant_router, prefix="/api/v1")
