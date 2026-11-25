@@ -15,6 +15,7 @@ RUN uv sync --locked --no-dev --no-install-project
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./
+COPY scripts ./scripts
 
 RUN groupadd --system app && useradd --system --gid app app
 USER app

@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     SMTP_USER: str = ""
     SMTP_PASSWORD: SecretStr = SecretStr("")
     EMAIL_FROM: str = ""
+    # Optional login created by scripts.seed_test_business for the test business.
+    SEED_USER_EMAIL: str = ""
+    SEED_USER_PASSWORD: SecretStr = SecretStr("")
 
     model_config = SettingsConfigDict(env_file=ROOT_DIR / ".env", extra="ignore")
 
