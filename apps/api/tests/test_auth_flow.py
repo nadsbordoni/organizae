@@ -37,6 +37,7 @@ from app.modules.businesses.models import Business, ServiceMode
 from app.modules.professionals.models import Professional
 from app.modules.services.associations import professional_services
 from app.modules.services.models import Service
+from app.modules.subscriptions.models import Plan
 from app.modules.users.models import User
 from app.modules.users.repository import UserRepository
 
@@ -87,6 +88,8 @@ def database(password_hash: str) -> Iterator[Engine]:
             table.create(engine)
         with Session(engine) as session:
             session.add(BusinessCategory(id=1, name="Beauty"))
+            # Every new business starts a trial on the default plan.
+            session.add(Plan(code="standard", name="Organizaê", price_cents=4990))
             session.flush()
             session.add_all(
                 [
