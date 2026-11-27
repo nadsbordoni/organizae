@@ -10,7 +10,7 @@ import WeekGrid from '@/components/painel/WeekGrid.astro';
 import { getSite } from '@/config';
 import { addDays, isIsoDate, nowInBusinessTime, scheduleFor, weekdayOf } from '@/lib/agenda';
 import { occupiesSlot } from '@/lib/dashboard-status';
-import { forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
+import { forTenant } from '@/lib/dados-exemplo';
 import {
   dayLoad,
   shortWeekday,
@@ -28,7 +28,7 @@ import {
  */
 export const prerender = false;
 
-const user = usuarioExemplo;
+const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 

@@ -27,6 +27,7 @@ from app.modules.appointments.notifications import (
 from app.modules.appointments.repository import AppointmentRepository
 from app.modules.appointments.schemas import (
     AppointmentStatusUpdate,
+    AppointmentUpdate,
     BlockCreateRequest,
     BusinessHoursUpdate,
     OnlineBookingRequest,
@@ -42,6 +43,7 @@ BOOKING_WINDOW = timedelta(days=120)
 MAX_LISTING_RANGE = timedelta(days=31)
 # Against abuse of the public page: future bookings allowed per phone.
 MAX_FUTURE_BOOKINGS_PER_PHONE = 3
+EDITABLE_STATUSES = (AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED)
 
 
 def build_slots(
@@ -195,7 +197,6 @@ class AppointmentService:
         business_id: UUID,
         now: datetime | None = None,
     ) -> Appointment:
-        """Moves the booking in place, so the previous time is freed by the same write."""
         with self._transaction():
             self._lock_business(business_id)
             now = now or datetime.now(UTC)
@@ -206,35 +207,146 @@ class AppointmentService:
             if appointment is None or appointment.customer_phone != data.customer_phone:
                 raise AppointmentNotFoundError("Appointment not found")
             if appointment.status != AppointmentStatus.CONFIRMED:
-                raise InvalidBookingError("Only confirmed appointments can be rescheduled")
+                raise InvalidBookingError(
+                    "Only confirmed appointments can be rescheduled"
+                )
             if appointment.starts_at <= now:
                 raise InvalidBookingError("Appointment has already started")
-            starts_at = data.starts_at.astimezone(self.tz)
-            if starts_at == appointment.starts_at:
+            if data.starts_at == appointment.starts_at:
                 raise InvalidBookingError("Choose a different time")
-            if starts_at > now + BOOKING_WINDOW:
-                raise InvalidBookingError("Time is outside the booking window")
-            service = self._get_bookable_service(
-                business_id, appointment.service_id, appointment.professional_id
+            self._move(
+                appointment,
+                service_id=appointment.service_id,
+                professional_id=appointment.professional_id,
+                starts_at=data.starts_at,
+                now=now,
             )
-            free = self._free_slots(
-                business_id,
-                appointment.professional_id,
-                service,
-                starts_at.date(),
-                now,
-                exclude_appointment_id=appointment.id,
+            self.session.commit()
+            self.session.refresh(appointment)
+        return appointment
+
+    def get_editable(self, appointment_id: UUID, *, business_id: UUID) -> Appointment:
+        appointment = self.repository.get_by_id(appointment_id, business_id=business_id)
+        if appointment is None:
+            raise AppointmentNotFoundError("Appointment not found")
+        if appointment.status not in EDITABLE_STATUSES:
+            raise InvalidBookingError(
+                "Only pending or confirmed appointments can be changed"
             )
-            if starts_at not in free:
-                raise AppointmentConflictError("This time is no longer available")
-            appointment.starts_at = starts_at
-            appointment.ends_at = starts_at + timedelta(minutes=service.duration_minutes)
-            # The new time gets its own reminder.
-            appointment.reminder_sent_at = None
+
+        return appointment
+
+    def check_panel_update(
+        self,
+        appointment_id: UUID,
+        data: AppointmentUpdate,
+        *,
+        business_id: UUID,
+        now: datetime | None = None,
+    ) -> Appointment:
+        """Validates an edit without writing; update_panel validates again under the lock."""
+        appointment = self.get_editable(appointment_id, business_id=business_id)
+        target = self._update_target(appointment, data)
+        if target is not None:
+            self._check_move(appointment, **target, now=now or datetime.now(UTC))
+        return appointment
+
+    def update_panel(
+        self,
+        appointment_id: UUID,
+        data: AppointmentUpdate,
+        *,
+        business_id: UUID,
+        now: datetime | None = None,
+    ) -> Appointment:
+        """Reschedules or edits a booking from the business side; no phone check."""
+        with self._transaction():
+            self._lock_business(business_id)
+            now = now or datetime.now(UTC)
+            appointment = self.get_editable(appointment_id, business_id=business_id)
+            target = self._update_target(appointment, data)
+            if target is not None:
+                self._move(appointment, **target, now=now)
+            if "notes" in data.model_fields_set:
+                appointment.notes = data.notes
             self.session.flush()
             self.session.commit()
             self.session.refresh(appointment)
         return appointment
+
+    def _update_target(
+        self, appointment: Appointment, data: AppointmentUpdate
+    ) -> dict | None:
+        """New service/professional/time, or None when only the notes change."""
+        target = {
+            "service_id": data.service_id or appointment.service_id,
+            "professional_id": data.professional_id or appointment.professional_id,
+            "starts_at": data.starts_at or appointment.starts_at,
+        }
+        if target == {
+            "service_id": appointment.service_id,
+            "professional_id": appointment.professional_id,
+            "starts_at": appointment.starts_at,
+        }:
+            if "notes" not in data.model_fields_set:
+                raise InvalidBookingError("Nothing to change")
+            return None
+        return target
+
+    def _check_move(
+        self,
+        appointment: Appointment,
+        *,
+        service_id: UUID,
+        professional_id: UUID,
+        starts_at: datetime,
+        now: datetime,
+    ) -> Service:
+        if appointment.starts_at <= now:
+            raise InvalidBookingError("Appointment has already started")
+        if starts_at > now + BOOKING_WINDOW:
+            raise InvalidBookingError("Time is outside the booking window")
+        service = self._get_bookable_service(
+            appointment.business_id, service_id, professional_id
+        )
+        free = self._free_slots(
+            appointment.business_id,
+            professional_id,
+            service,
+            starts_at.astimezone(self.tz).date(),
+            now,
+            exclude_appointment_id=appointment.id,
+        )
+        if starts_at not in free:
+            raise AppointmentConflictError("This time is no longer available")
+        return service
+
+    def _move(
+        self,
+        appointment: Appointment,
+        *,
+        service_id: UUID,
+        professional_id: UUID,
+        starts_at: datetime,
+        now: datetime,
+    ) -> None:
+        """Moves the booking in place, so the previous time is freed by the same write."""
+        service = self._check_move(
+            appointment,
+            service_id=service_id,
+            professional_id=professional_id,
+            starts_at=starts_at,
+            now=now,
+        )
+        starts_at = starts_at.astimezone(self.tz)
+        # A new time gets its own reminder; changing only service or professional keeps it.
+        if starts_at != appointment.starts_at:
+            appointment.reminder_sent_at = None
+        appointment.service_id = service.id
+        appointment.professional_id = professional_id
+        appointment.starts_at = starts_at
+        appointment.ends_at = starts_at + timedelta(minutes=service.duration_minutes)
+        self.session.flush()
 
     def list_appointments(
         self,

@@ -43,6 +43,41 @@ O frontend usa o Astro e seu adaptador Node standalone já existentes, incluindo
 as rotas dinâmicas do painel. As telas continuam usando os dados de exemplo
 existentes; a configuração Docker não implementa integração com a API.
 
+## Dados de teste (seed)
+
+Depois do `migrate`, o serviço `seed` executa `python -m scripts.seed --test-business`:
+
+1. `scripts.seed_test_business` cria, se ainda não existir, a empresa fictícia
+   **Barbearia Fictícia [SEED]** com o ID fixo `00000000-0000-4000-8000-000000000001`.
+2. As seeds operacional e financeira (`docs/OPERATIONAL_SEED.md` e
+   `docs/FINANCIAL_SEED.md`) populam essa empresa.
+
+Para entrar no painel como dono dessa empresa, defina no `.env`:
+
+```env
+SEED_USER_EMAIL=dono.testes@example.com
+SEED_USER_PASSWORD=uma-senha-local-de-8-ou-mais
+```
+
+O login é criado uma única vez, com a senha guardada como hash. Execuções seguintes
+não alteram uma conta existente, nem a senha. Se o e-mail já pertencer a outra conta,
+o seed recusa. Sem essas variáveis, só a empresa é criada.
+
+Para popular outra empresa já cadastrada em vez da fictícia, preencha
+`SEED_BUSINESS_ID` com o UUID dela.
+
+```bash
+docker compose run --rm seed
+docker compose logs seed
+```
+
+O seed exige `APP_ENV=development` ou `test` e um `DB_NAME` aceito pela seed
+financeira (`organizae`, `organizae_test[_...]` ou `organizae_dev[_...]`). Ele é
+idempotente: a cada `up` só cria o que estiver faltando. A API não depende do
+seed; se ele falhar, a API sobe normalmente e o erro aparece em
+`docker compose logs seed`. Fora do Docker, em `apps/api/`:
+`uv run python -m scripts.seed --test-business`.
+
 ## Alembic
 
 Consulte a versão aplicada e o head disponível:

@@ -1,12 +1,22 @@
 from uuid import UUID
 
 from app.modules.appointments.exceptions import InvalidBookingError
-from app.modules.appointments.schemas import OnlineBookingRequest
+from app.modules.appointments.models import Appointment
+from app.modules.appointments.schemas import AppointmentUpdate, OnlineBookingRequest
 from app.modules.appointments.service import AppointmentService
 from app.modules.assistant.appointment_schemas import (
+    AppointmentCancelArguments,
     AppointmentCreateArguments,
     AppointmentListArguments,
+    AppointmentRescheduleArguments,
+    AppointmentUpdateArguments,
     AvailabilityArguments,
+)
+
+AppointmentChangeArguments = (
+    AppointmentRescheduleArguments
+    | AppointmentUpdateArguments
+    | AppointmentCancelArguments
 )
 from app.modules.clients.service import ClientService
 
@@ -98,3 +108,28 @@ def prepare_appointment(
     if booking.starts_at not in slots:
         raise InvalidBookingError("Time is not available")
     return booking
+
+
+def appointment_change(
+    arguments: AppointmentChangeArguments,
+) -> AppointmentUpdate | None:
+    """Edit to apply, or None for a cancellation."""
+    if isinstance(arguments, AppointmentRescheduleArguments):
+        return AppointmentUpdate(starts_at=arguments.starts_at)
+    if isinstance(arguments, AppointmentUpdateArguments):
+        return arguments.data
+    return None
+
+
+def prepare_appointment_change(
+    arguments: AppointmentChangeArguments,
+    service: AppointmentService,
+    *,
+    business_id: UUID,
+) -> Appointment:
+    change = appointment_change(arguments)
+    if change is None:
+        return service.get_editable(arguments.record_id, business_id=business_id)
+    return service.check_panel_update(
+        arguments.record_id, change, business_id=business_id
+    )

@@ -455,7 +455,8 @@ class GeminiConversation:
         if results:
             self.contents.append(
                 types.Content(
-                    role="tool",
+                    # Function responses go in a "user" turn; newer models reject "tool".
+                    role="user",
                     parts=[
                         types.Part(
                             function_response=types.FunctionResponse(

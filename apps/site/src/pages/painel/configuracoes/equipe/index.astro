@@ -13,7 +13,7 @@ import StatusBadge from '@/components/painel/StatusBadge.astro';
 import { getSite } from '@/config';
 import { nowInBusinessTime } from '@/lib/agenda';
 import { catalogServices, serviceState } from '@/lib/catalog';
-import { demoOptions, forTenant, usuarioExemplo } from '@/lib/dados-exemplo';
+import { demoOptions, forTenant } from '@/lib/dados-exemplo';
 import { formatPhone, tenantNotConfigured } from '@/lib/painel';
 import { matchesProfessional, roleLabel, teamAgenda, timeOffLabel } from '@/lib/team';
 import type { AgendaState } from '@/lib/team';
@@ -25,7 +25,7 @@ import type { AgendaState } from '@/lib/team';
  */
 export const prerender = false;
 
-const user = usuarioExemplo;
+const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 

@@ -34,7 +34,10 @@ Escritas disponíveis só preparam ações. Serviço exige nome/preço/duration_
 profissional, nome; cliente, nome/telefone com DDD. Updates exigem record_id/data.
 create_appointment exige client_id existente, service_id, professional_id, starts_at com fuso.
 Cliente novo: cadastro confirmado separadamente. Um serviço/profissional; PANEL/PENDING pelo backend.
-Sem reagendamento/cancelamento de agendamentos pela IA; cancelar ação só descarta a pendência.
+Agendamento existente: obtenha record_id por list_appointments e esclareça ambiguidades.
+reschedule_appointment muda o horário; update_appointment altera serviço, profissional,
+horário ou notes; cancel_appointment cancela. Só PENDING/CONFIRMED não iniciados.
+Antes de propor horário, use check_availability. Cancelar a ação só descarta a pendência.
 Mostre a prévia. Confirmar/cancelar exige API explícita com action_id; texto "sim" não autoriza.
 """.strip()
 

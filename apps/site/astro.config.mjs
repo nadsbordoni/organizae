@@ -1,5 +1,5 @@
 // @ts-check
-import { defineConfig } from 'astro/config';
+import { defineConfig, envField } from 'astro/config';
 import node from '@astrojs/node';
 
 export default defineConfig({
@@ -11,4 +11,11 @@ export default defineConfig({
   adapter: node({ mode: 'standalone' }),
 
   trailingSlash: 'ignore',
+
+  env: {
+    schema: {
+      // Endereço da API (`apps/api`). Sem ela, o painel funciona com os dados de exemplo.
+      ORGANIZAE_API_URL: envField.string({ context: 'server', access: 'secret', optional: true }),
+    },
+  },
 });

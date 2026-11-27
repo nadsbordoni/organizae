@@ -11,7 +11,6 @@ import ReportTabs from '@/components/painel/ReportTabs.astro';
 import { getSite } from '@/config';
 import { addDays, formatPrice, isIsoDate, nowInBusinessTime, parsePrice } from '@/lib/agenda';
 import { catalogServices, serviceState } from '@/lib/catalog';
-import { usuarioExemplo } from '@/lib/dados-exemplo';
 import { compactPrice, firstName, longDateLabel, numericDate, shortWeekday, tenantNotConfigured, weekdayName } from '@/lib/painel';
 
 /**
@@ -21,7 +20,7 @@ import { compactPrice, firstName, longDateLabel, numericDate, shortWeekday, tena
  */
 export const prerender = false;
 
-const user = usuarioExemplo;
+const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 

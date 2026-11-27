@@ -4,14 +4,13 @@ import EntryForm from '@/components/painel/EntryForm.astro';
 import PanelHeading from '@/components/painel/PanelHeading.astro';
 import { getSite } from '@/config';
 import { nowInBusinessTime } from '@/lib/agenda';
-import { usuarioExemplo } from '@/lib/dados-exemplo';
 import { loadFinance } from '@/lib/finance-page';
 import { tenantNotConfigured } from '@/lib/painel';
 
 /** Editar um lançamento, aberto pelo ⋯ das despesas. Com a API: `PATCH /financial-entries/{id}`. */
 export const prerender = false;
 
-const user = usuarioExemplo;
+const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 
