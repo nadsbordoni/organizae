@@ -161,6 +161,27 @@ class AppointmentRepository:
         row = self.session.execute(statement).first()
         return (row[0], row[1]) if row else None
 
+    def list_due_reminders(
+        self, *, now: datetime, until: datetime, limit: int
+    ) -> list[Appointment]:
+        """Confirmed, upcoming bookings with a contact and no reminder sent yet.
+
+        SKIP LOCKED lets overlapping runs of the job take different rows."""
+        statement = (
+            select(Appointment)
+            .where(
+                Appointment.status == AppointmentStatus.CONFIRMED,
+                Appointment.customer_email.is_not(None),
+                Appointment.reminder_sent_at.is_(None),
+                Appointment.starts_at > now,
+                Appointment.starts_at <= until,
+            )
+            .order_by(Appointment.starts_at)
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+        )
+        return list(self.session.scalars(statement).all())
+
     def count_future_by_phone(
         self, *, business_id: UUID, phone: str, now: datetime
     ) -> int:

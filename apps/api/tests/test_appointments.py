@@ -473,3 +473,11 @@ def test_public_reschedule_error_codes(
     )
     assert response.status_code == status_code
     assert response.json() == {"detail": str(error)}
+
+
+def test_reschedule_clears_the_reminder_of_the_old_time(
+    service: AppointmentService,
+) -> None:
+    appointment = confirmed_at(at(10), reminder_sent_at=now)
+    moved = reschedule(service, appointment, at(15))
+    assert moved.reminder_sent_at is None

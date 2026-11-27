@@ -102,6 +102,9 @@ class Appointment(Base):
     source: Mapped[AppointmentSource] = mapped_column(
         SqlEnum(AppointmentSource), nullable=False
     )
+    reminder_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

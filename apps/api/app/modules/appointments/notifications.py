@@ -75,3 +75,18 @@ def confirmation_message(
         f"{details}\n"
     )
     return f"Agendamento confirmado - {business_name}", body
+
+
+def reminder_message(
+    *,
+    customer_name: str,
+    business_name: str,
+    details: str,
+) -> tuple[str, str]:
+    first_name = customer_name.split()[0]
+    body = (
+        f"Olá, {first_name}!\n\n"
+        f"Passando para lembrar do seu atendimento em {business_name}.\n\n"
+        f"{details}\n"
+    )
+    return f"Lembrete de agendamento - {business_name}", body

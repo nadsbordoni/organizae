@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     SMTP_USER: str = ""
     SMTP_PASSWORD: SecretStr = SecretStr("")
     EMAIL_FROM: str = ""
+    REMINDER_LEAD_TIME_HOURS: int = Field(default=24, gt=0)
     # Optional login created by scripts.seed_test_business for the test business.
     SEED_USER_EMAIL: str = ""
     SEED_USER_PASSWORD: SecretStr = SecretStr("")

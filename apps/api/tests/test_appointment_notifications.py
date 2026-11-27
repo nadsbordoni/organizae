@@ -1,6 +1,7 @@
 import smtplib
 import ssl
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
+from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 from uuid import uuid4
 from zoneinfo import ZoneInfo
@@ -205,3 +206,102 @@ def test_send_email_without_smtp_configured_does_nothing(
     with patch.object(notifications.smtplib, "SMTP") as smtp_class:
         assert notifications.send_email("maria@example.com", "A", "B") is False
     smtp_class.assert_not_called()
+
+
+now = monday_10h - timedelta(hours=20)
+LEAD = timedelta(hours=24)
+
+
+def remind(service: AppointmentService, *due: Appointment, **kwargs: object) -> int:
+    service.repository.list_due_reminders.return_value = list(due)
+    return service.send_due_reminders(lead_time=LEAD, now=now, **kwargs)
+
+
+def test_reminder_has_service_professional_date_and_time(
+    service: AppointmentService, sent: Mock
+) -> None:
+    appointment = booking(status=AppointmentStatus.CONFIRMED)
+    assert remind(service, appointment) == 1
+    to, subject, body = sent.call_args.args
+    assert to == "maria@example.com"
+    assert subject == "Lembrete de agendamento - Studio Bela"
+    assert "Serviço: Corte" in body
+    assert "Profissional: Ana" in body
+    assert "Data: segunda-feira, 09/11/2026" in body
+    assert "Horário: 10:00" in body
+    assert appointment.reminder_sent_at == now
+
+
+def test_reminders_are_looked_up_inside_the_configured_window(
+    service: AppointmentService, sent: Mock
+) -> None:
+    remind(service, batch_size=7)
+    service.repository.list_due_reminders.assert_called_once_with(
+        now=now, until=now + LEAD, limit=7
+    )
+    sent.assert_not_called()
+
+
+def test_reminder_is_marked_before_it_is_sent(
+    service: AppointmentService, sent: Mock
+) -> None:
+    appointment = booking(status=AppointmentStatus.CONFIRMED)
+    marked_when_sent = []
+    sent.side_effect = lambda *args: (
+        marked_when_sent.append(appointment.reminder_sent_at) or True
+    )
+    order = Mock()
+    order.attach_mock(service.session.commit, "commit")
+    order.attach_mock(sent, "send")
+    remind(service, appointment)
+    assert [call[0] for call in order.mock_calls] == ["commit", "send"]
+    assert marked_when_sent == [now]
+
+
+def test_failed_reminder_is_unmarked_so_the_next_run_retries(
+    service: AppointmentService, sent: Mock
+) -> None:
+    sent.side_effect = [False, True]
+    failed = booking(status=AppointmentStatus.CONFIRMED)
+    delivered = booking(status=AppointmentStatus.CONFIRMED, customer_name="Ana Lima")
+    assert remind(service, failed, delivered) == 1
+    assert failed.reminder_sent_at is None
+    assert delivered.reminder_sent_at == now
+    assert service.session.commit.call_count == 2
+
+
+def test_reminders_do_not_touch_confirmation_state(
+    service: AppointmentService, sent: Mock
+) -> None:
+    appointment = booking(status=AppointmentStatus.CONFIRMED)
+    remind(service, appointment)
+    assert appointment.status == AppointmentStatus.CONFIRMED
+    service.session.rollback.assert_not_called()
+
+
+def test_reminder_migration_adds_the_column_on_top_of_the_history() -> None:
+    from io import StringIO
+
+    from alembic.config import Config
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from alembic.script import ScriptDirectory
+
+    config = Config()
+    config.set_main_option(
+        "script_location", str(Path(__file__).resolve().parents[1] / "alembic")
+    )
+    script = ScriptDirectory.from_config(config)
+    revision = script.get_revision("c5b8e1a47d93")
+    assert revision.revision in {
+        item.revision for item in script.iterate_revisions("head", "base")
+    }
+    output = StringIO()
+    context = MigrationContext.configure(
+        dialect_name="postgresql", opts={"as_sql": True, "output_buffer": output}
+    )
+    with Operations.context(context):
+        revision.module.upgrade()
+    sql = output.getvalue()
+    assert "ALTER TABLE appointments ADD COLUMN reminder_sent_at TIMESTAMP WITH TIME ZONE" in sql
+    assert "DROP" not in sql
