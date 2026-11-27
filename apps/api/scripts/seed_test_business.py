@@ -2,6 +2,7 @@
 
 import argparse
 import json
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -12,12 +13,15 @@ from sqlalchemy.orm import Session
 from app.modules.business_categories.models import BusinessCategory
 from app.modules.businesses.models import Business, ServiceMode
 from app.modules.businesses.schemas import BusinessCreate
+from app.modules.subscriptions.models import Subscription, SubscriptionStatus
 from app.modules.users.models import User
 from app.modules.users.schemas import UserCreate
 
 # Fixed so seeds, Docker and manual tests can always reach the same business.
 TEST_BUSINESS_ID = UUID("00000000-0000-4000-8000-000000000001")
 TEST_BUSINESS_CATEGORY = "Barbearia"
+# The demo business must never fall into read-only because a trial ended.
+DEMO_PAID_UNTIL = datetime(2099, 12, 31, tzinfo=UTC)
 
 
 class SeedError(Exception):
@@ -71,6 +75,14 @@ def seed_test_business(
             session.add(Business(id=TEST_BUSINESS_ID, **data.model_dump()))
             session.flush()
             result["business_created"] = True
+        subscription = session.scalar(
+            select(Subscription).where(Subscription.business_id == TEST_BUSINESS_ID)
+        )
+        if subscription is not None:
+            subscription.status = SubscriptionStatus.ACTIVE
+            subscription.current_period_end = DEMO_PAID_UNTIL
+            subscription.grace_ends_at = None
+            subscription.canceled_at = None
         if owner is None:
             return result
         email = str(owner.email).strip().lower()

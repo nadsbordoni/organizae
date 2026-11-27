@@ -155,7 +155,7 @@ def test_subscriptions_migration_sits_on_top_of_the_history() -> None:
         "script_location", str(Path(__file__).resolve().parents[1] / "alembic")
     )
     revision = ScriptDirectory.from_config(config).get_revision("e1b7c4d92a58")
-    assert revision.down_revision == "9b72e4f1a603"
+    assert revision.down_revision == "c5b8e1a47d93"
 
 
 def test_subscriptions_migration_downgrade_only_removes_its_tables() -> None:

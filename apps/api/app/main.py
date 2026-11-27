@@ -80,9 +80,9 @@ app.include_router(businesses_router, prefix="/api/v1", dependencies=guarded)
 app.include_router(public_pages_router, prefix="/api/v1")
 
 app.include_router(business_categories_router, prefix="/api/v1")
-app.include_router(services_router, prefix="/api/v1")
-app.include_router(professionals_router, prefix="/api/v1")
-app.include_router(assistant_router, prefix="/api/v1")
+app.include_router(services_router, prefix="/api/v1", dependencies=guarded)
+app.include_router(professionals_router, prefix="/api/v1", dependencies=guarded)
+app.include_router(assistant_router, prefix="/api/v1", dependencies=guarded)
 
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
