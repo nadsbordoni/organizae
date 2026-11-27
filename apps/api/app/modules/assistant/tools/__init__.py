@@ -5,7 +5,11 @@ from uuid import UUID
 
 from pydantic import UUID4, BaseModel, ConfigDict, Field, ValidationError
 
-from app.modules.appointments.exceptions import InvalidBookingError
+from app.modules.appointments.exceptions import (
+    AppointmentConflictError,
+    AppointmentNotFoundError,
+    InvalidBookingError,
+)
 from app.modules.appointments.service import AppointmentService
 from app.modules.assistant.actions import (
     WRITE_SCHEMAS,
@@ -23,9 +27,11 @@ from app.modules.assistant.exceptions import AssistantToolCallError
 from app.modules.assistant.financial_schemas import FINANCIAL_TOOL_SCHEMAS
 from app.modules.assistant.providers.base import ToolCall, ToolResult
 from app.modules.assistant.tools.appointments import (
+    appointment_change,
     check_availability,
     list_appointments,
     prepare_appointment,
+    prepare_appointment_change,
 )
 from app.modules.assistant.tools.businesses import get_business_info
 from app.modules.assistant.tools.clients import get_client, list_clients
@@ -111,7 +117,16 @@ TOOL_SCHEMAS: dict[str, tuple[type[BaseModel], str]] = {
 }
 
 
+APPOINTMENT_CHANGES = (
+    "reschedule_appointment",
+    "update_appointment",
+    "cancel_appointment",
+)
+
 WRITE_DESCRIPTIONS = {
+    "reschedule_appointment": "Prepara reagendamento por record_id para starts_at com fuso. Exige confirmação.",
+    "update_appointment": "Prepara edição por record_id; data aceita service_id, professional_id, starts_at e notes. Exige confirmação.",
+    "cancel_appointment": "Prepara cancelamento do agendamento por record_id. Exige confirmação.",
     "create_professional": "Prepara profissional com service_ids explícitos; pergunte se ausentes. [] só por escolha de não vincular. Exige confirmação.",
     "replace_professional_services": "Prepara substituição de todos os vínculos por data.service_ids; [] remove todos. Exige confirmação.",
 }
@@ -309,6 +324,41 @@ class AssistantTools:
                     writes[key] = result
         return results
 
+    def appointment_change_preview(
+        self, operation: str, arguments: BaseModel
+    ) -> dict[str, object]:
+        assert self.appointment_service is not None
+        appointment = prepare_appointment_change(
+            arguments, self.appointment_service, business_id=self.business_id
+        )
+        change = appointment_change(arguments)
+        tz = self.appointment_service.tz
+        service = self.service_service.get_by_id(
+            (change and change.service_id) or appointment.service_id,
+            business_id=self.business_id,
+        )
+        professional = self.professional_service.get_by_id(
+            (change and change.professional_id) or appointment.professional_id,
+            business_id=self.business_id,
+        )
+        preview: dict[str, object] = {
+            "customer_name": appointment.customer_name,
+            "service_name": service.name,
+            "professional_name": professional.name,
+            "current_starts_at": appointment.starts_at.astimezone(tz).isoformat(),
+        }
+        if change is None:
+            preview["notice"] = "O agendamento será cancelado e o horário, liberado."
+            return preview
+        if change.starts_at is not None:
+            preview["starts_at"] = change.starts_at.astimezone(tz).isoformat()
+        if "notes" in change.model_fields_set:
+            preview["notes"] = change.notes
+        preview["notice"] = (
+            "A confirmação revalida as regras e pode recusar um horário ocupado."
+        )
+        return preview
+
     def prepare_write(self, call: ToolCall) -> ToolResult:
         require_write_enabled()
         preview = None
@@ -339,6 +389,10 @@ class AssistantTools:
                     ).isoformat(),
                     "notice": "A confirmação revalida as regras e pode recusar um horário ocupado.",
                 }
+            elif call.name in APPOINTMENT_CHANGES:
+                if self.appointment_service is None:
+                    raise AssistantToolCallError()
+                preview = self.appointment_change_preview(call.name, arguments)
             elif call.name == "replace_professional_services":
                 assert isinstance(arguments, ProfessionalServicesUpdateArguments)
                 professional = self.professional_service.get_by_id(
@@ -403,7 +457,27 @@ class AssistantTools:
                 },
                 call.id,
             )
-        except InvalidBookingError:
+        except AppointmentNotFoundError:
+            return ToolResult(
+                call.name,
+                {
+                    "error": "Agendamento não encontrado nesta empresa. Consulte list_appointments e confira o record_id."
+                },
+                call.id,
+            )
+        except (InvalidBookingError, AppointmentConflictError) as exc:
+            if call.name in APPOINTMENT_CHANGES:
+                return ToolResult(
+                    call.name,
+                    {
+                        "error": "Alteração recusada. Só agendamentos pendentes ou confirmados que ainda não começaram podem ser alterados, e o novo horário precisa estar livre. Consulte a disponibilidade e peça outra opção.",
+                        # Fixed service messages, without customer data.
+                        "reason": str(exc),
+                    },
+                    call.id,
+                )
+            if isinstance(exc, AppointmentConflictError):
+                raise
             return ToolResult(
                 call.name,
                 {

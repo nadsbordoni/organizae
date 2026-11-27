@@ -34,6 +34,21 @@ services:
       db:
         condition: service_healthy
 
+  # Cria a empresa fictícia de testes (ID fixo) e a popula. Com SEED_BUSINESS_ID,
+  # popula essa empresa existente. Idempotente: pode rodar a cada "docker compose up".
+  seed:
+    <<: *api
+    command:
+      - sh
+      - -c
+      - >-
+        if [ -n "$$SEED_BUSINESS_ID" ];
+        then exec python -m scripts.seed --business-id "$$SEED_BUSINESS_ID";
+        else exec python -m scripts.seed --test-business; fi
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
   api:
     <<: *api
     ports:
