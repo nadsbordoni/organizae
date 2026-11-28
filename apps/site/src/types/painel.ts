@@ -98,7 +98,7 @@ export interface FinancialEntryRow {
   /** Dia do pagamento, na hora de parede do negócio; a API guarda o instante em `paid_at`. */
   paid_on: string | null;
   status: 'PENDING' | 'PAID' | 'CANCELLED';
-  appointment_id: number | null;
+  appointment_id: AppointmentRow['id'] | null;
   /** Os campos abaixo ainda NÃO existem no back (a API só tem `competence` em recorrências). */
   /** Mês do resultado: o atendimento de hoje pago no cartão em 30 dias é receita de hoje. */
   competence: string;
@@ -110,7 +110,8 @@ export interface FinancialEntryRow {
 }
 
 export interface AppointmentRow {
-  id: number;
+  /** Número no exemplo; UUID quando vem da API. */
+  id: number | string;
   tenant_slug: string;
   /** 'AAAA-MM-DD' na hora de parede do negócio. */
   date: string;

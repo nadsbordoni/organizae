@@ -1,0 +1,25 @@
+---
+/** Erro de envio de formulário. `role="alert"` faz o leitor de tela anunciar sem precisar de foco. */
+interface Props {
+  message: string;
+}
+
+const { message } = Astro.props;
+---
+
+<p class="form-alert" role="alert">{message}</p>
+
+<style>
+  .form-alert {
+    margin-top: 24px;
+    padding: 12px 14px;
+    border-radius: var(--site-radius-field);
+    border: 1px solid #d98b8b;
+    background: #fdecec;
+
+    font-size: 0.875rem;
+    line-height: 1.45;
+    /* Contraste conferido sobre o fundo claro: acima de 7:1. */
+    color: #7a1f2b;
+  }
+</style>

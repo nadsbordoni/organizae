@@ -12,7 +12,7 @@ import StatusBadge from '@/components/painel/StatusBadge.astro';
 import { getSite } from '@/config';
 import { formatPrice, nowInBusinessTime } from '@/lib/agenda';
 import { CLIENT_STATUS, statusDetail, summarize } from '@/lib/clients';
-import { forTenant } from '@/lib/dados-exemplo';
+import { clientData } from '@/lib/clients-api';
 import { whatsappUrl } from '@/lib/links';
 import {
   STATUS_BADGE,
@@ -39,11 +39,10 @@ const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 
-const dados = forTenant(user.tenantSlug);
+const { dados, agenda } = await clientData(Astro.locals.token, user.tenantSlug, site.agenda);
 const client = await dados.client(Astro.params.id ?? '');
 if (!client) return new Response(null, { status: 404 });
 
-const agenda = site.agenda;
 const hoje = nowInBusinessTime(agenda?.timezone ?? 'America/Sao_Paulo').date;
 const history = await dados.clientAppointments(client.id);
 const summary = summarize(client, history, hoje, agenda);
@@ -53,6 +52,7 @@ const rows = showAll ? history : history.slice(0, HISTORY_PREVIEW);
 const hidden = history.length - rows.length;
 // PROTÓTIPO: a edição volta para cá com `?salvo`, sem gravar nada.
 const saved = Astro.url.searchParams.has('salvo');
+const created = Astro.url.searchParams.has('novo');
 const business = site.profile.name;
 ---
 
@@ -62,6 +62,16 @@ const business = site.profile.name;
     {/* PROTÓTIPO: sem ação até o agendamento pelo painel existir. */}
     <ActionButton label="Novo agendamento" full={false} />
   </PanelHeading>
+
+  {
+    created && (
+      <div class="notice">
+        <Callout tone="success" icon="check-circle" title="Cliente cadastrado">
+          {client.name} já faz parte da sua carteira.
+        </Callout>
+      </div>
+    )
+  }
 
   {
     saved && (

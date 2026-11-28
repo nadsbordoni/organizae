@@ -1,9 +1,13 @@
 ---
 import PanelLayout from '@/layouts/PanelLayout.astro';
+import FormAlert from '@/components/FormAlert.astro';
 import ClientForm from '@/components/painel/ClientForm.astro';
 import PanelHeading from '@/components/painel/PanelHeading.astro';
 import { getSite } from '@/config';
+import { apiEnabled } from '@/lib/api';
+import { clientError, draftClient, readClientForm, saveClient } from '@/lib/clients-api';
 import { tenantNotConfigured } from '@/lib/painel';
+import type { ClientRow } from '@/types/painel';
 
 /** Novo cliente (quadro 06). Com a API: `POST /clients`. */
 export const prerender = false;
@@ -12,10 +16,35 @@ const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 
+const token = apiEnabled() ? Astro.locals.token : undefined;
+let erro: string | undefined;
+let draft: ClientRow | undefined;
+
+if (token && Astro.request.method === 'POST') {
+  const input = readClientForm(await Astro.request.formData());
+  try {
+    const id = await saveClient(token, input);
+    return Astro.redirect(`/painel/clientes/${id}?novo`, 303);
+  } catch (error) {
+    console.error('Falha ao cadastrar o cliente', error);
+    erro = clientError(error);
+    draft = draftClient(input);
+    Astro.response.status = 422;
+  }
+}
+
 const business = site.profile.name;
 ---
 
 <PanelLayout site={site} user={user} current="clientes" title="Novo cliente">
   <PanelHeading eyebrow="Relacionamento · Clientes" title="Novo cliente" intro={`Cadastre a pessoa atendida por ${business}.`} />
-  <ClientForm action="/painel/clientes?novo" cancelHref="/painel/clientes" submitLabel="Salvar cliente" businessName={business} />
+  {erro && <FormAlert message={erro} />}
+  <ClientForm
+    action={token ? '/painel/clientes/novo' : '/painel/clientes?novo'}
+    cancelHref="/painel/clientes"
+    submitLabel="Salvar cliente"
+    businessName={business}
+    client={draft}
+    live={Boolean(token)}
+  />
 </PanelLayout>

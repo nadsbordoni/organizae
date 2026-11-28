@@ -10,7 +10,7 @@ import StatCard from '@/components/painel/StatCard.astro';
 import { getSite } from '@/config';
 import { addDays, formatPrice, nowInBusinessTime } from '@/lib/agenda';
 import { AWAY_AFTER_DAYS, summarize } from '@/lib/clients';
-import { forTenant } from '@/lib/dados-exemplo';
+import { clientData } from '@/lib/clients-api';
 import { compactPrice, longDateLabel, numericDate, tenantNotConfigured } from '@/lib/painel';
 
 /**
@@ -30,12 +30,11 @@ const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 
-const agenda = site.agenda;
+const { dados, agenda, histories } = await clientData(Astro.locals.token, user.tenantSlug, site.agenda);
 const hoje = nowInBusinessTime(agenda?.timezone ?? 'America/Sao_Paulo').date;
-const dados = forTenant(user.tenantSlug);
-const all = await Promise.all(
-  (await dados.clients()).map(async (c) => summarize(c, await dados.clientAppointments(c.id), hoje, agenda)),
-);
+const clients = await dados.clients();
+const history = await histories(clients);
+const all = clients.map((c) => summarize(c, history.get(c.id) ?? [], hoje, agenda));
 
 const days = DAYS.find((d) => String(d) === Astro.url.searchParams.get('dias')) ?? AWAY_AFTER_DAYS;
 const channel = CHANNELS.find((c) => c.value === Astro.url.searchParams.get('canal')) ?? CHANNELS[0]!;

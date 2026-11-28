@@ -1,11 +1,15 @@
 ---
 import AuthLayout from '@/layouts/AuthLayout.astro';
 import ActionButton from '@/components/ActionButton.astro';
+import FormAlert from '@/components/FormAlert.astro';
 import Heading from '@/components/Heading.astro';
 import TextField from '@/components/TextField.astro';
+import { apiEnabled } from '@/lib/api';
 
 /** Entrada do painel, sem slug de propósito: o negócio vem da sessão. Aqui vale o tema do Organizaê. */
 export const prerender = false;
+
+if (apiEnabled() && Astro.locals.token) return Astro.redirect('/painel', 303);
 
 const erro = Astro.url.searchParams.get('erro');
 // Repassado SEM validar: quem valida é `safeNext()` em `/api/login`.
@@ -25,12 +29,7 @@ const aviso = erro ? (MENSAGENS[erro] ?? MENSAGENS.erro!) : null;
     intro="Acesse sua conta e continue organizando tudo com leveza."
   />
 
-  {
-    aviso && (
-      /* `role="alert"` faz o leitor de tela anunciar sem precisar de foco. */
-      <p class="login__erro" role="alert">{aviso}</p>
-    )
-  }
+  {aviso && <FormAlert message={aviso} />}
 
   {/* Vai para `/api/login`, no servidor: a senha nunca passa pela URL nem fica no navegador. */}
   <form class="login__form" method="post" action="/api/login">
@@ -70,19 +69,6 @@ const aviso = erro ? (MENSAGENS[erro] ?? MENSAGENS.erro!) : null;
 </AuthLayout>
 
 <style>
-  .login__erro {
-    margin-top: 24px;
-    padding: 12px 14px;
-    border-radius: var(--site-radius-field);
-    border: 1px solid #d98b8b;
-    background: #fdecec;
-
-    font-size: 0.875rem;
-    line-height: 1.45;
-    /* Contraste conferido sobre o fundo claro: acima de 7:1. */
-    color: #7a1f2b;
-  }
-
   .login__form {
     display: flex;
     flex-direction: column;
