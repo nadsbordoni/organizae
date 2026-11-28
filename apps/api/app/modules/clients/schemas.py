@@ -1,5 +1,5 @@
 import re
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated
 
 from pydantic import (
@@ -11,6 +11,8 @@ from pydantic import (
     StringConstraints,
     model_validator,
 )
+
+from app.modules.clients.models import ClientReferral
 
 
 def normalize_phone(value: str) -> str:
@@ -29,6 +31,17 @@ ClientPhone = Annotated[
 ClientEmail = Annotated[EmailStr, StringConstraints(max_length=255)]
 ClientNotes = Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)]
 
+OLDEST_BIRTH_DATE = date(1900, 1, 1)
+
+
+def validate_birth_date(value: date) -> date:
+    if not OLDEST_BIRTH_DATE <= value <= date.today():
+        raise ValueError("birth_date must be between 1900-01-01 and today")
+    return value
+
+
+ClientBirthDate = Annotated[date, AfterValidator(validate_birth_date)]
+
 
 class ClientCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -37,6 +50,9 @@ class ClientCreate(BaseModel):
     phone: ClientPhone
     email: ClientEmail | None = None
     notes: ClientNotes | None = None
+    birth_date: ClientBirthDate | None = None
+    referral: ClientReferral | None = None
+    whatsapp_opt_in: bool = False
 
 
 class ClientUpdate(BaseModel):
@@ -46,10 +62,13 @@ class ClientUpdate(BaseModel):
     phone: ClientPhone | None = None
     email: ClientEmail | None = None
     notes: ClientNotes | None = None
+    birth_date: ClientBirthDate | None = None
+    referral: ClientReferral | None = None
+    whatsapp_opt_in: bool | None = None
 
     @model_validator(mode="after")
     def validate_required_fields(self) -> "ClientUpdate":
-        for field_name in ("name", "phone"):
+        for field_name in ("name", "phone", "whatsapp_opt_in"):
             if (
                 field_name in self.model_fields_set
                 and getattr(self, field_name) is None
@@ -67,4 +86,7 @@ class ClientResponse(BaseModel):
     phone: str
     email: str | None
     notes: str | None
+    birth_date: date | None
+    referral: ClientReferral | None
+    whatsapp_opt_in: bool
     created_at: datetime

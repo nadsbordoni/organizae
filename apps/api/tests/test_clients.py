@@ -40,7 +40,7 @@ from app.modules.clients.exceptions import (
     ClientError,
     ClientNotFoundError,
 )
-from app.modules.clients.models import Client
+from app.modules.clients.models import Client, ClientReferral
 from app.modules.clients.repository import ClientRepository
 from app.modules.clients.schemas import ClientCreate, ClientUpdate
 from app.modules.clients.service import ClientService
@@ -198,6 +198,9 @@ def test_create_normalizes_and_serializes_after_commit(
         "phone": "85988887777",
         "email": "client@example.com",
         "notes": "Prefers mornings",
+        "birth_date": None,
+        "referral": None,
+        "whatsapp_opt_in": False,
         "created_at": body["created_at"],
     }
     assert datetime.fromisoformat(body["created_at"])
@@ -599,3 +602,86 @@ def test_error_handler_supports_subclasses_and_hides_unexpected_details(
     assert response.json()["detail"] == (
         "Internal server error" if expected_status == 500 else "Error details"
     )
+
+
+def test_profile_fields_are_stored_and_returned(
+    client: TestClient, database: Engine
+) -> None:
+    response = client.post(
+        base_url,
+        json={
+            **new_client,
+            "birth_date": "1990-05-17",
+            "referral": "INSTAGRAM",
+            "whatsapp_opt_in": True,
+        },
+        headers=auth_headers(),
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["birth_date"] == "1990-05-17"
+    assert body["referral"] == "INSTAGRAM"
+    assert body["whatsapp_opt_in"] is True
+    with Session(database) as session:
+        stored = session.get(Client, UUID(body["id"]))
+        assert stored.referral == ClientReferral.INSTAGRAM
+        assert stored.whatsapp_opt_in is True
+
+
+def test_partial_update_changes_and_clears_profile_fields(client: TestClient) -> None:
+    response = client.patch(
+        f"{base_url}/{client_a}",
+        json={"birth_date": "1985-01-02", "referral": "REFERRAL", "whatsapp_opt_in": True},
+        headers=auth_headers(),
+    )
+    assert response.status_code == 200
+    assert response.json()["referral"] == "REFERRAL"
+    assert response.json()["whatsapp_opt_in"] is True
+
+    response = client.patch(
+        f"{base_url}/{client_a}",
+        json={"birth_date": None, "referral": None},
+        headers=auth_headers(),
+    )
+    assert response.status_code == 200
+    assert response.json()["birth_date"] is None
+    assert response.json()["referral"] is None
+    assert response.json()["whatsapp_opt_in"] is True
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"birth_date": (datetime.now(UTC) + timedelta(days=2)).date().isoformat()},
+        {"birth_date": "1899-12-31"},
+        {"birth_date": "not-a-date"},
+        {"referral": "TIKTOK"},
+        {"whatsapp_opt_in": "maybe"},
+    ],
+)
+def test_invalid_profile_fields_are_rejected(client: TestClient, change: dict) -> None:
+    response = client.post(
+        base_url, json={**new_client, **change}, headers=auth_headers()
+    )
+    assert response.status_code == 422
+
+
+def test_whatsapp_consent_cannot_be_null(client: TestClient) -> None:
+    response = client.patch(
+        f"{base_url}/{client_a}", json={"whatsapp_opt_in": None}, headers=auth_headers()
+    )
+    assert response.status_code == 422
+
+
+def test_database_rejects_unknown_referral(database: Engine) -> None:
+    with Session(database) as session, pytest.raises(IntegrityError):
+        session.execute(
+            Client.__table__.insert().values(
+                id=uuid4(),
+                business_id=business_a,
+                name="Raw insert",
+                phone="85977776666",
+                referral="TIKTOK",
+            )
+        )
+        session.flush()

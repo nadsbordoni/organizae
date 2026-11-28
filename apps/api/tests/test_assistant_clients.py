@@ -31,6 +31,7 @@ def client_tools(tools: AssistantTools):
         phone="81999999999",
         email=None,
         notes=None,
+        whatsapp_opt_in=False,
         created_at=datetime.now(UTC),
     )
     tools.client_service.list.return_value = [client]
