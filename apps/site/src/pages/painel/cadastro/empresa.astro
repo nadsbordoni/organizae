@@ -1,11 +1,64 @@
 ---
 import AuthLayout from '@/layouts/AuthLayout.astro';
 import ActionButton from '@/components/ActionButton.astro';
+import FormAlert from '@/components/FormAlert.astro';
 import Heading from '@/components/Heading.astro';
 import TextField from '@/components/TextField.astro';
+import { ApiError, apiEnabled } from '@/lib/api';
 import { BUSINESS_SEGMENTS } from '@/lib/painel';
+import { businessCategories, businessError, createBusiness, forgetPhone, rememberedPhone } from '@/lib/signup';
 
-/** Cadastro, passo 2 (quadro 01). Com a API: `POST /api/v1/businesses`. */
+/** Cadastro, passo 2 (quadro 01): cria o negócio da conta logada (`POST /businesses`). */
+export const prerender = false;
+
+const DONE = '/painel/cadastro/pronto';
+const token = Astro.locals.token;
+
+if (apiEnabled()) {
+  if (!token) return Astro.redirect('/painel/cadastro', 303);
+  if (Astro.locals.user.businessId) return Astro.redirect('/painel', 303);
+}
+
+// Com a API, os ids vêm do banco; sem ela, o protótipo mostra os nomes fixos.
+const categorias = apiEnabled()
+  ? (await businessCategories()).map((category) => ({ value: String(category.id), label: category.name }))
+  : BUSINESS_SEGMENTS;
+const opcoes = [{ value: '', label: 'Selecione' }, ...categorias];
+
+// Só pergunta o telefone de novo se ele se perdeu entre os passos (ex.: cookie expirado).
+const telefoneGuardado = rememberedPhone(Astro.cookies);
+
+let erro: string | undefined;
+const valores = { negocio: '', categoria: '', documento: '', cidade: '', telefone: '' };
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  valores.negocio = String(form.get('negocio') ?? '').trim();
+  valores.categoria = String(form.get('categoria') ?? '');
+  valores.documento = String(form.get('documento') ?? '').trim();
+  valores.cidade = String(form.get('cidade') ?? '').trim();
+  valores.telefone = String(form.get('telefone') ?? '').trim();
+
+  if (!apiEnabled()) return Astro.redirect(DONE, 303);
+
+  try {
+    await createBusiness(token!, {
+      name: valores.negocio,
+      categoryId: Number(valores.categoria),
+      whatsapp: telefoneGuardado || valores.telefone,
+      taxId: valores.documento,
+      city: valores.cidade,
+    });
+    forgetPhone(Astro.cookies);
+    return Astro.redirect(DONE, 303);
+  } catch (error) {
+    // A conta já tem negócio (ex.: enviou duas vezes): o cadastro já terminou.
+    if (error instanceof ApiError && error.status === 409) return Astro.redirect('/painel', 303);
+    console.error('Falha ao criar o negócio', error);
+    erro = businessError(error);
+    Astro.response.status = 422;
+  }
+}
 ---
 
 <AuthLayout title="Sobre o negócio" mascot="lojinha">
@@ -15,23 +68,64 @@ import { BUSINESS_SEGMENTS } from '@/lib/painel';
     intro="Essas informações serão usadas no seu painel e na página pública."
   />
 
-  <form class="auth-form" method="post" action="/painel/cadastro/pronto" data-prototype>
+  {erro && <FormAlert message={erro} />}
+
+  <form class="auth-form" method="post">
     <TextField
       id="negocio"
       label="Nome do negócio"
       autocomplete="organization"
       placeholder="Ex.: Studio Aurora"
+      value={valores.negocio}
+      maxlength={150}
       required
       autofocus
     />
-    <TextField id="categoria" label="Categoria" options={BUSINESS_SEGMENTS} required />
+    <TextField id="categoria" label="Categoria" options={opcoes} value={valores.categoria} required />
     <div class="auth-row">
-      <TextField id="documento" label="CNPJ ou CPF" placeholder="00.000.000/0000-00" required />
-      <TextField id="cidade" label="Cidade" autocomplete="address-level2" placeholder="Ex.: Recife" required />
+      <TextField
+        id="documento"
+        label="CNPJ ou CPF"
+        placeholder="00.000.000/0000-00"
+        value={valores.documento}
+        maxlength={20}
+        required
+      />
+      <TextField
+        id="cidade"
+        label="Cidade"
+        autocomplete="address-level2"
+        placeholder="Ex.: Recife"
+        value={valores.cidade}
+        maxlength={100}
+        required
+      />
     </div>
-    <div class="auth-actions">
-      <ActionButton label="Voltar" variant="secondary" href="/painel/cadastro" full={false} />
-      <ActionButton label="Criar meu espaço" type="submit" />
-    </div>
+    {
+      !telefoneGuardado && apiEnabled() && (
+        <TextField
+          id="telefone"
+          label="WhatsApp do negócio"
+          type="tel"
+          autocomplete="tel"
+          placeholder="(00) 00000-0000"
+          value={valores.telefone}
+          pattern="[0-9\(\)+ \-]{10,20}"
+          title="Só números, com DDD. Ex.: (81) 99999-9999"
+          required
+        />
+      )
+    }
+    {
+      /* Com a API a conta já existe: voltar ao passo 1 não tem o que desfazer. */
+      apiEnabled() ? (
+        <ActionButton label="Criar meu espaço" type="submit" />
+      ) : (
+        <div class="auth-actions">
+          <ActionButton label="Voltar" variant="secondary" href="/painel/cadastro" full={false} />
+          <ActionButton label="Criar meu espaço" type="submit" />
+        </div>
+      )
+    }
   </form>
 </AuthLayout>
