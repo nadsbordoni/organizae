@@ -1,6 +1,7 @@
 ---
 import PanelLayout from '@/layouts/PanelLayout.astro';
 import ActionButton from '@/components/ActionButton.astro';
+import Callout from '@/components/Callout.astro';
 import EmptyState from '@/components/EmptyState.astro';
 import Icon from '@/components/Icon.astro';
 import DayList from '@/components/painel/DayList.astro';
@@ -9,6 +10,8 @@ import PanelSection from '@/components/painel/PanelSection.astro';
 import WeekGrid from '@/components/painel/WeekGrid.astro';
 import { getSite } from '@/config';
 import { addDays, isIsoDate, nowInBusinessTime, scheduleFor, weekdayOf } from '@/lib/agenda';
+import { apiEnabled } from '@/lib/api';
+import { appointmentsBetween, businessAgenda } from '@/lib/appointments';
 import { occupiesSlot } from '@/lib/dashboard-status';
 import { forTenant } from '@/lib/dados-exemplo';
 import {
@@ -32,8 +35,12 @@ const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 
-const agenda = site.agenda;
-const agora = nowInBusinessTime(agenda?.timezone ?? 'America/Sao_Paulo');
+// Com a API, horário, serviços e atendimentos vêm do negócio logado; sem ela, do exemplo.
+const token = apiEnabled() ? Astro.locals.token : undefined;
+const doBanco = token ? await businessAgenda(token, site.agenda) : undefined;
+const agenda = doBanco?.agenda ?? site.agenda;
+const timezone = agenda?.timezone ?? 'America/Sao_Paulo';
+const agora = nowInBusinessTime(timezone);
 const hoje = agora.date;
 const pedido = Astro.url.searchParams.get('d') ?? '';
 const dia = isIsoDate(pedido) ? pedido : hoje;
@@ -43,8 +50,11 @@ const inicio = semana[0]!;
 const fim = semana[6]!;
 
 const dados = forTenant(user.tenantSlug);
-const daSemana = await dados.appointmentsBetween(inicio, fim);
-const excecoes = await dados.exceptionsBetween(inicio, fim);
+const daSemana = token
+  ? await appointmentsBetween(token, inicio, fim, timezone)
+  : await dados.appointmentsBetween(inicio, fim);
+// A API ainda não guarda dia fechado (feriado, folga).
+const excecoes = token ? [] : await dados.exceptionsBetween(inicio, fim);
 
 const ativosDaSemana = daSemana.filter((m) => occupiesSlot(m.status));
 const dias = semana.map((date) => {
@@ -122,6 +132,17 @@ const agendaDe = (data: string) => `/painel/agenda?d=${data}`;
       <li data-kind="block">Bloqueio</li>
     </ul>
   </nav>
+
+  {
+    doBanco?.hoursMissing && (
+      <div class="hours-note">
+        <Callout tone="attention" icon="clock" title="Horário de funcionamento não cadastrado">
+          A grade mostra segunda a sábado, das 8h às 18h, só para desenhar a semana. Sem o horário, o
+          agendamento online não oferece nenhum dia.
+        </Callout>
+      </div>
+    )
+  }
 
   <div class="desk">
     <WeekGrid
@@ -204,7 +225,8 @@ const agendaDe = (data: string) => `/painel/agenda?d=${data}`;
     }
 
     {
-      !fechado && (
+      /* A API ainda não fecha dias: o botão some até existir onde guardar. */
+      !token && !fechado && (
         <form class="close-day" method="post" action="/api/dia">
           <input type="hidden" name="data" value={dia} />
           <input type="hidden" name="acao" value="fechar" />
@@ -226,6 +248,10 @@ const agendaDe = (data: string) => `/painel/agenda?d=${data}`;
 </PanelLayout>
 
 <style>
+  .hours-note {
+    margin: -24px 0 40px;
+  }
+
   .weeknav {
     display: flex;
     align-items: center;
