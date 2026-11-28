@@ -6,20 +6,18 @@ import PanelSection from './PanelSection.astro';
 import { formatPhone } from '@/lib/painel';
 import type { ClientRow } from '@/types/painel';
 
-/**
- * Cadastro de cliente, novo ou edição. Nome, telefone, e-mail e observações são os campos de
- * `POST/PATCH /clients`; nascimento, origem e permissão ainda não existem no back.
- * PROTÓTIPO: só valida e avança, sem guardar nada.
- */
+/** Cadastro de cliente, novo ou edição: os campos de `POST/PATCH /clients`. Sem API, só valida e avança. */
 interface Props {
   action: string;
   cancelHref: string;
   submitLabel: string;
   businessName: string;
   client?: ClientRow;
+  /** Com a API: envia de verdade. */
+  live?: boolean;
 }
 
-const { action, cancelHref, submitLabel, businessName, client } = Astro.props;
+const { action, cancelHref, submitLabel, businessName, client, live = false } = Astro.props;
 
 const REFERRALS = ['Não informado', 'Instagram', 'Indicação', 'Google', 'WhatsApp', 'Outro'];
 ---
@@ -27,7 +25,7 @@ const REFERRALS = ['Não informado', 'Instagram', 'Indicação', 'Google', 'What
 <div class="client-form">
   <PanelSection title="Dados de contato" id="titulo-dados">
     {/* `autocomplete="off"`: os dados são de outra pessoa, e o navegador ofereceria os da dona do negócio. */}
-    <form class="form" method="post" action={action} data-prototype="transient">
+    <form class="form" method="post" action={action} data-prototype={live ? undefined : 'transient'}>
       <TextField
         id="nome"
         label="Nome completo"

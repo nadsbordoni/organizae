@@ -5,7 +5,7 @@ import { api } from './api';
 
 /** Agenda do painel com os dados do negócio logado (`GET /appointments`, `/business-hours`, `/services`). */
 
-interface AppointmentResponse {
+export interface AppointmentResponse {
   id: string;
   service_id: string | null;
   customer_name: string | null;
@@ -37,7 +37,16 @@ const STATUS = { PENDING: 'pending', CONFIRMED: 'confirmed', CANCELLED: 'cancell
 /** Grade de exibição enquanto o negócio não cadastrou o horário de funcionamento. */
 const DISPLAY_HOURS: DayHours = { opens: '08:00', closes: '18:00' };
 
-function toRow(appointment: AppointmentResponse, timezone: string): AppointmentRow | undefined {
+/**
+ * A API não tem "atendido": confirmado que já terminou conta como atendido, que é o que o histórico
+ * do cliente e os totais contam.
+ */
+function statusOf(appointment: AppointmentResponse): AppointmentRow['status'] {
+  if (appointment.status === 'CONFIRMED' && Date.parse(appointment.ends_at) <= Date.now()) return 'done';
+  return STATUS[appointment.status as keyof typeof STATUS];
+}
+
+export function toRow(appointment: AppointmentResponse, timezone: string): AppointmentRow | undefined {
   if (appointment.status === 'BLOCKED') return undefined;
   const start = nowInBusinessTime(timezone, new Date(appointment.starts_at));
   return {
@@ -50,7 +59,7 @@ function toRow(appointment: AppointmentResponse, timezone: string): AppointmentR
     client_name: appointment.customer_name ?? 'Sem nome',
     client_phone: appointment.customer_phone,
     notes: appointment.notes,
-    status: STATUS[appointment.status],
+    status: statusOf(appointment),
     origin: appointment.source === 'ONLINE' ? 'site' : 'panel',
     created_at: appointment.created_at,
     updated_at: appointment.created_at,

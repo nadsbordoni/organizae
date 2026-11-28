@@ -15,7 +15,7 @@ import { formatPrice, nowInBusinessTime } from '@/lib/agenda';
 import { AWAY_AFTER_DAYS, CLIENT_STATUS, clientsSheet, matchesSearch, statusDetail, summarize } from '@/lib/clients';
 import { csvHref } from '@/lib/csv';
 import type { ClientStatus } from '@/lib/clients';
-import { forTenant } from '@/lib/dados-exemplo';
+import { clientData } from '@/lib/clients-api';
 import { whatsappUrl } from '@/lib/links';
 import { compactPrice, formatPhone, tenantNotConfigured } from '@/lib/painel';
 
@@ -29,14 +29,12 @@ const user = Astro.locals.user;
 const site = getSite(user.tenantSlug);
 if (!site) return tenantNotConfigured(user.tenantSlug);
 
-const agenda = site.agenda;
+const { dados, agenda, histories } = await clientData(Astro.locals.token, user.tenantSlug, site.agenda);
 const hoje = nowInBusinessTime(agenda?.timezone ?? 'America/Sao_Paulo').date;
-const dados = forTenant(user.tenantSlug);
 
-// Com a API, isto seria uma chamada por cliente: o ideal é `GET /clients` já trazer atendimentos, total e última visita.
-const all = await Promise.all(
-  (await dados.clients()).map(async (c) => summarize(c, await dados.clientAppointments(c.id), hoje, agenda)),
-);
+const clients = await dados.clients();
+const history = await histories(clients);
+const all = clients.map((c) => summarize(c, history.get(c.id) ?? [], hoje, agenda));
 
 const FILTERS: Array<{ value: string; label: string; status?: ClientStatus }> = [
   { value: '', label: 'Todos os clientes' },
@@ -185,6 +183,10 @@ const csv = csvHref(clientsSheet(shown, hoje));
             })}
           </tbody>
         </PanelTable>
+      ) : all.length === 0 ? (
+        <EmptyState level={3} mascot="lupa" title="Nenhum cliente cadastrado" text="Cadastre o primeiro cliente para começar a carteira.">
+          <ActionButton label="Novo cliente" icon="plus" iconPosition="end" href="/painel/clientes/novo" full={false} />
+        </EmptyState>
       ) : (
         <EmptyState
           level={3}
